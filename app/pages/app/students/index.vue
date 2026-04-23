@@ -1,18 +1,17 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'dashboard' })
+import { studentFullName } from '~/utils/student'
 
-const router = useRouter()
-const { students, addStudent } = useStudents()
-const years = useTemplateYears()
+const { students } = useStudents()
+const { setsWithData, getSetLabel, hasAnyTemplateSets, isLoaded } = useTemplateSets()
+const { createStudentAndOpen } = useCreateStudentFlow()
 
 const searchQuery = ref('')
-const filterYear = ref<number | null>(null)
+const filterTemplateSet = ref<string | null>(null)
 const filterGender = ref<'male' | 'female' | null>(null)
-const filterGrade = ref<null>(null)
 
-const yearItems = computed(() => [
-	{ label: 'Alle Jahrgänge', value: null as number | null },
-	...years.value.map((y) => ({ label: String(y), value: y })),
+const templateSetItems = computed(() => [
+	{ label: 'Alle Vorlagen', value: null as string | null },
+	...setsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id })),
 ])
 
 const genderItems = [
@@ -20,12 +19,6 @@ const genderItems = [
 	{ label: 'Männlich', value: 'male' as const },
 	{ label: 'Weiblich', value: 'female' as const },
 ]
-
-const gradeItems = [{ label: 'Alle', value: null }]
-
-function studentFullName(s: { name: string; surname: string }) {
-	return [s.name, s.surname].filter(Boolean).join(' ') || 'Unbenannt'
-}
 
 function genderLabel(gender: 'male' | 'female') {
 	return gender === 'male' ? 'Männlich' : 'Weiblich'
@@ -37,8 +30,10 @@ const filteredStudents = computed(() => {
 	if (q) {
 		list = list.filter((s) => studentFullName(s).toLowerCase().includes(q))
 	}
-	if (filterYear.value !== null) {
-		list = list.filter((s) => s.templateYear === filterYear.value)
+	if (filterTemplateSet.value !== null) {
+		list = list.filter(
+			(s) => s.templateSetId === filterTemplateSet.value
+		)
 	}
 	if (filterGender.value !== null) {
 		list = list.filter((s) => s.gender === filterGender.value)
@@ -49,26 +44,18 @@ const filteredStudents = computed(() => {
 const hasActiveFilters = computed(
 	() =>
 		searchQuery.value.trim() !== '' ||
-		filterYear.value !== null ||
-		filterGender.value !== null,
+		filterTemplateSet.value !== null ||
+		filterGender.value !== null
 )
 
 function resetFilters() {
 	searchQuery.value = ''
-	filterYear.value = null
+	filterTemplateSet.value = null
 	filterGender.value = null
-	filterGrade.value = null
 }
 
 function onAddStudent() {
-	const defaultYear = years.value[0] ?? 2024
-	const newId = addStudent({
-		name: '',
-		surname: '',
-		gender: 'male',
-		templateYear: defaultYear,
-	})
-	router.push(`/students/${newId}`)
+	createStudentAndOpen()
 }
 </script>
 
@@ -82,6 +69,7 @@ function onAddStudent() {
 				<template #right>
 					<div class="flex flex-wrap items-center gap-2">
 						<UButton
+							v-if="hasAnyTemplateSets"
 							label="Schüler anlegen"
 							icon="i-lucide-plus"
 							@click="onAddStudent"
@@ -108,14 +96,14 @@ function onAddStudent() {
 							<template #content>
 								<div class="flex flex-col gap-4">
 									<UFormField
-										label="Schuljahr"
-										name="filter-year"
+										label="Vorlage"
+										name="filter-template-set"
 									>
 										<USelectMenu
-											v-model="filterYear"
-											:items="yearItems"
+											v-model="filterTemplateSet"
+											:items="templateSetItems"
 											value-key="value"
-											placeholder="Alle Jahrgänge"
+											placeholder="Alle Vorlagen"
 											class="w-full"
 										/>
 									</UFormField>
@@ -126,18 +114,6 @@ function onAddStudent() {
 										<USelectMenu
 											v-model="filterGender"
 											:items="genderItems"
-											value-key="value"
-											placeholder="Alle"
-											class="w-full"
-										/>
-									</UFormField>
-									<UFormField
-										label="Notendurchschnitt"
-										name="filter-grade"
-									>
-										<USelectMenu
-											v-model="filterGrade"
-											:items="gradeItems"
 											value-key="value"
 											placeholder="Alle"
 											class="w-full"
@@ -161,17 +137,38 @@ function onAddStudent() {
 		</template>
 		<template #body>
 			<div class="flex flex-col gap-4">
-				<p class="text-sm text-muted shrink-0">
-					Klassendurchschnitt: —
-				</p>
 				<div
-					v-if="filteredStudents.length"
+					v-if="!isLoaded"
+					class="rounded-lg border border-default bg-default p-4 text-sm text-muted"
+				>
+					Schüler und Vorlagen werden geladen…
+				</div>
+				<div
+					v-else-if="!hasAnyTemplateSets"
+					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+				>
+					<p class="font-medium text-default">
+						Zuerst Satzvorlagen anlegen
+					</p>
+					<p class="mt-1 text-muted">
+						Lege zuerst Satzvorlagen unter Vorlagen an, bevor du
+						Schüler anlegst.
+					</p>
+					<UButton
+						label="Zu Vorlagen"
+						to="/app/templates"
+						class="mt-3"
+						icon="i-lucide-file-text"
+					/>
+				</div>
+				<div
+					v-if="hasAnyTemplateSets && filteredStudents.length"
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
 				>
 					<ULink
 						v-for="s in filteredStudents"
 						:key="s.id"
-						:to="`/students/${s.id}`"
+						:to="`/app/students/${s.id}`"
 						class="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
 					>
 						<UCard
@@ -186,9 +183,9 @@ function onAddStudent() {
 							<div class="flex flex-col gap-2 text-sm text-muted">
 								<div>
 									<span class="font-medium text-default"
-										>Schuljahr
+										>Vorlage
 									</span>
-									{{ s.templateYear }}
+									{{ getSetLabel(s.templateSetId) || 'Unbekannt' }}
 								</div>
 								<div>
 									<span class="font-medium text-default"
@@ -196,21 +193,23 @@ function onAddStudent() {
 									</span>
 									{{ genderLabel(s.gender) }}
 								</div>
-								<div>
-									<span class="font-medium text-default"
-										>Notendurchschnitt
-									</span>
-									—
-								</div>
+								<p class="text-xs text-muted">Notendurchschnitt ist noch nicht verfugbar.</p>
 							</div>
 						</UCard>
 					</ULink>
 				</div>
-				<p v-if="!students.length" class="text-sm text-muted">
+				<p
+					v-else-if="hasAnyTemplateSets && !students.length"
+					class="text-sm text-muted"
+				>
 					Noch keine Schüler. Lege einen an, um zu starten.
 				</p>
 				<p
-					v-else-if="!filteredStudents.length"
+					v-else-if="
+						hasAnyTemplateSets &&
+						students.length &&
+						!filteredStudents.length
+					"
 					class="text-sm text-muted"
 				>
 					Keine Schüler entsprechen den Filtern.
