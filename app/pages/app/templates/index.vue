@@ -96,7 +96,7 @@ watch(
 				>
 					<p class="font-medium text-default">Noch keine Vorlagen vorhanden</p>
 					<p class="mt-1 text-muted">
-						Lege einen Vorlagensatz an oder importiere bestehende `.advzeu`-Dateien,
+						Lege einen Vorlagensatz an oder importiere bestehende `.azset`-Dateien,
 						damit du Satzvorlagen pflegen kannst.
 					</p>
 					<UButton

@@ -11,9 +11,9 @@ const props = withDefaults(defineProps<{
 const {
 	importDialog,
 	importFileInput,
-	onDownloadAdvzeu,
-	onClickImportAdvzeu,
-	onImportAdvzeuFileChange,
+	onDownloadAzset,
+	onClickImportAzset,
+	onImportAzsetFileChange,
 } = useAdvZeUTemplatesImportExport()
 </script>
 
@@ -27,7 +27,7 @@ const {
 					variant="ghost"
 					size="xs"
 					aria-label="Vorlagen importieren"
-					@click.stop.prevent="onClickImportAdvzeu"
+					@click.stop.prevent="onClickImportAzset"
 				/>
 			</UTooltip>
 			<UTooltip text="Vorlagen exportieren">
@@ -38,7 +38,7 @@ const {
 					size="xs"
 					:disabled="disabled"
 					aria-label="Vorlagen exportieren"
-					@click.stop.prevent="onDownloadAdvzeu"
+					@click.stop.prevent="onDownloadAzset"
 				/>
 			</UTooltip>
 		</div>
@@ -49,7 +49,7 @@ const {
 				icon="i-lucide-upload"
 				color="neutral"
 				variant="ghost"
-				@click="onClickImportAdvzeu"
+				@click="onClickImportAzset"
 			/>
 			<UButton
 				label="Vorlagen exportieren"
@@ -57,7 +57,7 @@ const {
 				color="neutral"
 				variant="ghost"
 				:disabled="disabled"
-				@click="onDownloadAdvzeu"
+				@click="onDownloadAzset"
 			/>
 		</div>
 	</template>
@@ -66,8 +66,8 @@ const {
 		ref="importFileInput"
 		type="file"
 		class="hidden"
-		accept=".advzeu,application/json"
-		@change="onImportAdvzeuFileChange"
+		accept=".azset,application/json"
+		@change="onImportAzsetFileChange"
 	/>
 
 	<UModal

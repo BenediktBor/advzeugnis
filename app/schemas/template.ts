@@ -39,12 +39,23 @@ export const TemplateSetSchema = z.object({
 
 export const TemplateSetsRecordSchema = z.record(z.string().uuid(), TemplateSetSchema)
 
-// Payload for exporting/importing templates as a single `.advzeu` file.
+// Payload for exporting/importing all template sets as a single `.azset` file.
 // Includes ordering metadata (`orderedIds`) so template UI stays stable.
-export const AdvZeUExportPayloadSchema = z.object({
+export const AzSetExportPayloadSchema = z.object({
 	schemaVersion: z.literal(1),
 	orderedIds: z.array(z.string().uuid()),
 	templateSets: TemplateSetsRecordSchema,
 })
 
-export type AdvZeUExportPayload = z.infer<typeof AdvZeUExportPayloadSchema>
+// Backwards-compatible alias while the old identifier is still referenced in a few places.
+export const AdvZeUExportPayloadSchema = AzSetExportPayloadSchema
+
+// Payload for exporting/importing a single subject as a `.azsubject` file.
+export const AzSubjectExportPayloadSchema = z.object({
+	schemaVersion: z.literal(1),
+	subject: SubjectSchema,
+})
+
+export type AzSetExportPayload = z.infer<typeof AzSetExportPayloadSchema>
+export type AdvZeUExportPayload = AzSetExportPayload
+export type AzSubjectExportPayload = z.infer<typeof AzSubjectExportPayloadSchema>

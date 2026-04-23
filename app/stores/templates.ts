@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia'
 import { produce } from 'immer'
 import { idbGet, createDebouncedPersist } from '~/utils/idbStorage'
-import { TemplateSetSchema, type AdvZeUExportPayload } from '~/schemas/template'
+import {
+	TemplateSetSchema,
+	type AzSetExportPayload,
+	type AzSubjectExportPayload,
+} from '~/schemas/template'
 import { randomId } from '~/utils/randomId'
-import type { TemplateSet } from '~/types/template'
+import type { Subject, TemplateSet } from '~/types/template'
 import { TEMPLATE_SET_LABELS } from '~/types/template'
 
 const STORAGE_KEY = 'template-sets'
@@ -101,6 +105,13 @@ type NormalizeTemplateSetsResult = {
 export type TemplateStoreSnapshot = {
 	record: TemplateSetsRecord
 	orderedIds: string[]
+}
+
+export type SubjectImportCollisionStrategy = 'replace' | 'duplicate'
+
+export type SubjectImportResult = {
+	action: 'appended' | 'replaced' | 'duplicated'
+	subject: Subject
 }
 
 export function sanitizeTemplateSetsRecord(record: TemplateSetsRecord): TemplateSetsRecord {
@@ -223,9 +234,9 @@ function alignOrderedIdsWithRecord(record: TemplateSetsRecord, orderedIdsHint: s
 	return orderedIds
 }
 
-export function mergeAdvZeUIntoTemplateState(
+export function mergeAzSetIntoTemplateState(
 	current: TemplateStoreSnapshot,
-	payload: AdvZeUExportPayload,
+	payload: AzSetExportPayload,
 ): TemplateStoreSnapshot {
 	const normalizedIncoming = normalizeTemplateSets(
 		payload.templateSets as Record<string, TemplateSet | null | undefined>,
@@ -248,6 +259,60 @@ export function mergeAdvZeUIntoTemplateState(
 			...existingOrderedIds,
 			...appendedIncomingIds,
 		]),
+	}
+}
+
+export const mergeAdvZeUIntoTemplateState = mergeAzSetIntoTemplateState
+
+function cloneSubjectWithFreshIds(subject: Subject): Subject {
+	return produce(subject, (draft) => {
+		draft.id = randomId()
+		for (const category of draft.categories) {
+			category.id = randomId()
+			for (const grade of category.grades) {
+				grade.id = randomId()
+				for (const variant of grade.variants) {
+					variant.id = randomId()
+				}
+			}
+		}
+	})
+}
+
+export function mergeSubjectIntoTemplateSet(
+	currentSet: TemplateSet,
+	incomingSubject: Subject,
+	strategy: SubjectImportCollisionStrategy,
+): {
+	setData: TemplateSet
+	result: SubjectImportResult
+} {
+	const existingIndex = currentSet.subjects.findIndex((subject) => subject.id === incomingSubject.id)
+
+	if (existingIndex === -1) {
+		return {
+			setData: produce(currentSet, (draft) => {
+				draft.subjects.push(incomingSubject)
+			}),
+			result: { action: 'appended', subject: incomingSubject },
+		}
+	}
+
+	if (strategy === 'replace') {
+		return {
+			setData: produce(currentSet, (draft) => {
+				draft.subjects[existingIndex] = incomingSubject
+			}),
+			result: { action: 'replaced', subject: incomingSubject },
+		}
+	}
+
+	const duplicatedSubject = cloneSubjectWithFreshIds(incomingSubject)
+	return {
+		setData: produce(currentSet, (draft) => {
+			draft.subjects.push(duplicatedSubject)
+		}),
+		result: { action: 'duplicated', subject: duplicatedSubject },
 	}
 }
 
@@ -359,7 +424,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		return record.value[setId]?.label ?? ''
 	}
 
-	async function exportAllAdvzeu() {
+	async function exportAllAzset() {
 		await load()
 
 		// Export a plain JSON object (avoid Vue/Pinia reactivity).
@@ -371,10 +436,10 @@ export const useTemplatesStore = defineStore('templates', () => {
 		}
 	}
 
-	async function mergeFromAdvzeu(payload: AdvZeUExportPayload) {
+	async function mergeFromAzset(payload: AzSetExportPayload) {
 		await load()
 
-		const merged = mergeAdvZeUIntoTemplateState(
+		const merged = mergeAzSetIntoTemplateState(
 			{ record: record.value, orderedIds: orderedIds.value },
 			payload,
 		)
@@ -388,6 +453,31 @@ export const useTemplatesStore = defineStore('templates', () => {
 		debouncedPersistList(orderedIds.value)
 	}
 
+	async function exportSubject(setId: string, subjectId: string): Promise<AzSubjectExportPayload | null> {
+		await load()
+		const subject = record.value[setId]?.subjects.find((item) => item.id === subjectId)
+		if (!subject) return null
+
+		return {
+			schemaVersion: 1,
+			subject: JSON.parse(JSON.stringify(subject)) as Subject,
+		}
+	}
+
+	async function importSubjectIntoSet(
+		setId: string,
+		payload: AzSubjectExportPayload,
+		strategy: SubjectImportCollisionStrategy,
+	): Promise<SubjectImportResult | null> {
+		await load()
+		const currentSet = getSetData(setId)
+		if (!currentSet) return null
+
+		const merged = mergeSubjectIntoTemplateSet(currentSet, payload.subject, strategy)
+		saveSetData(setId, merged.setData)
+		return merged.result
+	}
+
 	return {
 		record,
 		orderedIds,
@@ -399,8 +489,10 @@ export const useTemplatesStore = defineStore('templates', () => {
 		ensureSet,
 		saveSetData,
 		getSetLabel,
-		exportAllAdvzeu,
-		mergeFromAdvzeu,
+		exportAllAzset,
+		mergeFromAzset,
+		exportSubject,
+		importSubjectIntoSet,
 		createEmptySet,
 		createDefaultSet,
 	}

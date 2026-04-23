@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { AdvZeUExportPayload } from '~/schemas/template'
+import type { AzSetExportPayload } from '~/schemas/template'
 import {
-	mergeAdvZeUIntoTemplateState,
+	mergeAzSetIntoTemplateState,
+	mergeSubjectIntoTemplateSet,
 	type TemplateStoreSnapshot,
 } from '~/stores/templates'
-import type { TemplateSet } from '~/types/template'
+import type { Subject, TemplateSet } from '~/types/template'
 
 const setIdA = '11111111-1111-1111-1111-111111111111'
 const setIdB = '22222222-2222-2222-2222-222222222222'
@@ -42,7 +43,33 @@ function makeTemplateSet(id: string, label: string, sentence: string): TemplateS
 	}
 }
 
-describe('mergeAdvZeUIntoTemplateState', () => {
+function makeSubject(id: string, label: string, sentence: string): Subject {
+	return {
+		id,
+		label,
+		categories: [
+			{
+				id: `${id}-category`,
+				label: 'Kategorie',
+				grades: [
+					{
+						id: `${id}-grade`,
+						label: '1',
+						variants: [
+							{
+								id: `${id}-variant`,
+								label: '1',
+								sentences: [{ type: 'text', value: sentence }],
+							},
+						],
+					},
+				],
+			},
+		],
+	}
+}
+
+describe('mergeAzSetIntoTemplateState', () => {
 	it('keeps local-only sets, overwrites matching IDs, and appends new IDs in import order', () => {
 		const current: TemplateStoreSnapshot = {
 			record: {
@@ -51,7 +78,7 @@ describe('mergeAdvZeUIntoTemplateState', () => {
 			},
 			orderedIds: [setIdB, setIdA],
 		}
-		const payload: AdvZeUExportPayload = {
+		const payload: AzSetExportPayload = {
 			schemaVersion: 1,
 			orderedIds: [setIdC, setIdA],
 			templateSets: {
@@ -60,7 +87,7 @@ describe('mergeAdvZeUIntoTemplateState', () => {
 			},
 		}
 
-		const merged = mergeAdvZeUIntoTemplateState(current, payload)
+		const merged = mergeAzSetIntoTemplateState(current, payload)
 
 		expect(merged.orderedIds).toEqual([setIdB, setIdA, setIdC])
 		expect(Object.keys(merged.record)).toEqual([setIdA, setIdB, setIdC])
@@ -79,14 +106,66 @@ describe('mergeAdvZeUIntoTemplateState', () => {
 			},
 			orderedIds: [setIdA],
 		}
-		const payload: AdvZeUExportPayload = {
+		const payload: AzSetExportPayload = {
 			schemaVersion: 1,
 			orderedIds: [],
 			templateSets: {},
 		}
 
-		const merged = mergeAdvZeUIntoTemplateState(current, payload)
+		const merged = mergeAzSetIntoTemplateState(current, payload)
 
 		expect(merged).toEqual(current)
+	})
+})
+
+describe('mergeSubjectIntoTemplateSet', () => {
+	it('appends a subject when there is no ID collision', () => {
+		const currentSet = makeTemplateSet(setIdA, 'Klasse 1', 'Bestehend A')
+		const incomingSubject = makeSubject('new-subject', 'Sport', 'Importiert Sport')
+
+		const merged = mergeSubjectIntoTemplateSet(currentSet, incomingSubject, 'duplicate')
+
+		expect(merged.result.action).toBe('appended')
+		expect(merged.setData.subjects).toHaveLength(2)
+		expect(merged.setData.subjects[1]).toEqual(incomingSubject)
+	})
+
+	it('replaces the existing subject when IDs collide and replace is chosen', () => {
+		const currentSet: TemplateSet = {
+			id: setIdA,
+			label: 'Klasse 1',
+			subjects: [makeSubject('subject-1', 'Mathe', 'Bestehend')],
+		}
+		const incomingSubject = makeSubject('subject-1', 'Mathe neu', 'Importiert')
+
+		const merged = mergeSubjectIntoTemplateSet(currentSet, incomingSubject, 'replace')
+
+		expect(merged.result.action).toBe('replaced')
+		expect(merged.setData.subjects).toHaveLength(1)
+		expect(merged.setData.subjects[0]).toEqual(incomingSubject)
+	})
+
+	it('duplicates with fresh IDs when IDs collide and duplicate is chosen', () => {
+		const currentSet: TemplateSet = {
+			id: setIdA,
+			label: 'Klasse 1',
+			subjects: [makeSubject('subject-1', 'Mathe', 'Bestehend')],
+		}
+		const incomingSubject = makeSubject('subject-1', 'Mathe importiert', 'Importiert')
+
+		const merged = mergeSubjectIntoTemplateSet(currentSet, incomingSubject, 'duplicate')
+		const duplicated = merged.setData.subjects[1]
+
+		expect(merged.result.action).toBe('duplicated')
+		expect(merged.setData.subjects).toHaveLength(2)
+		expect(duplicated?.id).not.toBe(incomingSubject.id)
+		expect(duplicated?.categories[0]?.id).not.toBe(incomingSubject.categories[0]?.id)
+		expect(duplicated?.categories[0]?.grades[0]?.id).not.toBe(
+			incomingSubject.categories[0]?.grades[0]?.id,
+		)
+		expect(duplicated?.categories[0]?.grades[0]?.variants[0]?.id).not.toBe(
+			incomingSubject.categories[0]?.grades[0]?.variants[0]?.id,
+		)
+		expect(duplicated?.label).toBe(incomingSubject.label)
 	})
 })

@@ -40,6 +40,17 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const deleteDialog = useConfirmDialog()
+const {
+	importFileInput: subjectImportFileInput,
+	collisionModalOpen: subjectImportCollisionOpen,
+	importedSubjectLabel,
+	onDownloadSubject,
+	onClickImportSubject,
+	onImportSubjectFileChange,
+	cancelSubjectImport,
+	replaceImportedSubject,
+	duplicateImportedSubject,
+} = useTemplateSubjectImportExport(computed(() => props.setId))
 
 const expandedKeys = ref<string[]>([])
 watch(
@@ -402,15 +413,24 @@ function confirmDeleteLabel(label: string): string {
 				<div class="border-default pt-2">
 					<div class="flex items-center justify-between gap-1 px-2">
 						<span class="text-xs font-medium text-muted">Fächer</span>
-						<UButton
-							v-if="canEdit"
-							icon="i-lucide-plus"
-							color="neutral"
-							variant="ghost"
-							size="xs"
-							aria-label="Fach hinzufügen"
-							@click="openCreateSubjectModal"
-						/>
+						<div v-if="canEdit" class="flex items-center gap-1">
+							<UButton
+								icon="i-lucide-upload"
+								color="neutral"
+								variant="ghost"
+								size="xs"
+								aria-label="Fach importieren"
+								@click="onClickImportSubject"
+							/>
+							<UButton
+								icon="i-lucide-plus"
+								color="neutral"
+								variant="ghost"
+								size="xs"
+								aria-label="Fach hinzufügen"
+								@click="openCreateSubjectModal"
+							/>
+						</div>
 					</div>
 					<ul ref="listRef" class="mt-1 flex flex-col gap-1" role="tree" aria-label="Fächer">
 						<li
@@ -462,6 +482,14 @@ function confirmDeleteLabel(label: string): string {
 										v-if="canEdit"
 										class="ml-auto flex items-center gap-1"
 									>
+										<UButton
+											icon="i-lucide-download"
+											color="neutral"
+											variant="ghost"
+											size="xs"
+											aria-label="Fach exportieren"
+											@click.stop="onDownloadSubject(descriptor.subjectId)"
+										/>
 										<UButton
 											icon="i-lucide-pencil"
 											color="neutral"
@@ -579,6 +607,14 @@ function confirmDeleteLabel(label: string): string {
 		</template>
 	</UDashboardPanel>
 
+	<input
+		ref="subjectImportFileInput"
+		type="file"
+		class="hidden"
+		accept=".azsubject,application/json"
+		@change="onImportSubjectFileChange"
+	/>
+
 	<UModal
 		v-model:open="createSubjectModalOpen"
 		title="Fach hinzufügen"
@@ -644,6 +680,19 @@ function confirmDeleteLabel(label: string): string {
 		<template #footer>
 			<UButton label="Abbrechen" color="neutral" variant="outline" @click="deleteDialog.cancel()" />
 			<UButton label="Löschen" color="error" @click="deleteDialog.confirm()" />
+		</template>
+	</UModal>
+
+	<UModal
+		v-model:open="subjectImportCollisionOpen"
+		title="Fach bereits vorhanden"
+		:description="`Ein Fach mit derselben ID existiert bereits. Möchtest du „${importedSubjectLabel}“ ersetzen oder als neues Fach duplizieren?`"
+		:ui="{ footer: 'justify-end' }"
+	>
+		<template #footer>
+			<UButton label="Abbrechen" color="neutral" variant="outline" @click="cancelSubjectImport()" />
+			<UButton label="Duplizieren" color="neutral" variant="outline" @click="duplicateImportedSubject()" />
+			<UButton label="Ersetzen" color="neutral" @click="replaceImportedSubject()" />
 		</template>
 	</UModal>
 </template>
