@@ -1,43 +1,57 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import { studentFullName } from '~/utils/student'
 
 const open = ref(false)
 const router = useRouter()
-const { students, addStudent } = useStudents()
-const years = useTemplateYears()
-
-const UNNAMED_STUDENT_LABEL = 'Unbenannt'
-
-function studentFullName(s: { name: string; surname: string }) {
-	return (
-		[s.name, s.surname].filter(Boolean).join(' ') || UNNAMED_STUDENT_LABEL
-	)
-}
+const { students } = useStudents()
+const { currentUser, canEditTemplates } = useCurrentUser()
+const { orderedIds, setsWithData, hasAnyTemplateSets } = useTemplateSets()
+const { createStudentAndOpen } = useCreateStudentFlow()
 
 function onAddStudent() {
-	const defaultYear = years.value[0] ?? 2024
-	const newId = addStudent({
-		name: '',
-		surname: '',
-		gender: 'male',
-		templateYear: defaultYear,
-	})
+	createStudentAndOpen()
 	open.value = false
-	router.push(`/students/${newId}`)
 }
+
+function onAddTemplate() {
+	open.value = false
+	void router.push({ path: '/app/templates', query: { create: '1' } })
+}
+
+const accountNavItem = computed<NavigationMenuItem>(() =>
+	currentUser.value.type === 'school'
+		? {
+				label: 'Schule',
+				icon: 'i-lucide-building-2',
+				to: '/app/school',
+				onSelect: () => {
+					open.value = false
+				},
+		  }
+		: {
+				label: 'Benutzer',
+				icon: 'i-lucide-user',
+				to: '/app/user',
+				onSelect: () => {
+					open.value = false
+				},
+		  }
+)
 
 const links = computed<NavigationMenuItem[]>(() => {
 	const hasStudents = students.value.length > 0
 	return [
+		accountNavItem.value,
 		{
 			label: 'Schüler',
 			icon: 'i-lucide-users',
-			to: '/students',
+			to: '/app/students',
 			...(hasStudents && {
 				defaultOpen: true,
 				children: students.value.map((s) => ({
 					label: studentFullName(s),
-					to: `/students/${s.id}`,
+					to: `/app/students/${s.id}`,
 					onSelect: () => {
 						open.value = false
 					},
@@ -48,15 +62,16 @@ const links = computed<NavigationMenuItem[]>(() => {
 		{
 			label: 'Vorlagen',
 			icon: 'i-lucide-file-text',
-			to: '/templates',
+			to: '/app/templates',
 			defaultOpen: true,
-			children: years.value.map((y) => ({
-				label: String(y),
-				to: `/templates/${y}`,
+			children: setsWithData.value.map((setItem) => ({
+				label: setItem.label,
+				to: `/app/templates/${setItem.id}`,
 				onSelect: () => {
 					open.value = false
 				},
 			})),
+			slot: 'templates' as const,
 		},
 	]
 })
@@ -73,18 +88,28 @@ const links = computed<NavigationMenuItem[]>(() => {
 			:ui="{ footer: 'lg:border-t lg:border-default' }"
 		>
 			<template #header="{ collapsed }">
-				<UIcon
+				<ULink
 					v-if="collapsed"
-					name="i-lucide-graduation-cap"
-					class="size-5 text-primary mx-auto"
-				/>
-				<template v-else>
+					to="/"
+					class="flex items-center justify-center w-full"
+					aria-label="AdvancedZeugnis"
+				>
+					<UIcon
+						name="i-lucide-graduation-cap"
+						class="size-5 text-primary mx-auto"
+					/>
+				</ULink>
+				<ULink
+					v-else
+					to="/"
+					class="flex items-center gap-2 min-w-0 font-semibold text-highlighted hover:text-primary transition-colors"
+				>
 					<UIcon
 						name="i-lucide-graduation-cap"
 						class="size-5 text-primary shrink-0"
 					/>
-					<span class="font-semibold truncate">AdvancedZeugnis</span>
-				</template>
+					<span class="truncate">AdvancedZeugnis</span>
+				</ULink>
 			</template>
 
 			<template #default="{ collapsed }">
@@ -97,7 +122,10 @@ const links = computed<NavigationMenuItem[]>(() => {
 				>
 					<template #students-trailing>
 						<div class="flex items-center gap-1">
-							<UTooltip text="Neuen Schüler anlegen">
+							<UTooltip
+								v-if="hasAnyTemplateSets"
+								text="Neuen Schüler anlegen"
+							>
 								<UButton
 									icon="i-lucide-plus"
 									color="neutral"
@@ -114,16 +142,52 @@ const links = computed<NavigationMenuItem[]>(() => {
 							/>
 						</div>
 					</template>
+					<template #templates-trailing>
+						<div class="flex items-center gap-1">
+							<TemplateImportExportActions
+								:can-edit="canEditTemplates"
+								:disabled="setsWithData.length === 0"
+								compact
+							/>
+							<UTooltip v-if="canEditTemplates" text="Neuen Vorlagensatz anlegen">
+								<UButton
+									icon="i-lucide-plus"
+									color="neutral"
+									variant="ghost"
+									size="xs"
+									aria-label="Neuen Vorlagensatz anlegen"
+									@click.stop.prevent="onAddTemplate"
+								/>
+							</UTooltip>
+							<UIcon
+								v-if="setsWithData.length > 0"
+								name="i-lucide-chevron-down"
+								class="size-5 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180"
+							/>
+						</div>
+					</template>
 				</UNavigationMenu>
 			</template>
 
 			<template #footer="{ collapsed }">
 				<UButton
+					:to="
+						currentUser.type === 'school'
+							? '/app/school'
+							: '/app/user'
+					"
 					:avatar="{
-						src: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user',
-						alt: 'Benutzer',
+						src:
+							'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
+							currentUser.id,
+						alt: currentUser.displayName,
 					}"
-					:label="collapsed ? undefined : 'Benutzer'"
+					:label="
+						collapsed
+							? undefined
+							: currentUser.displayName +
+							  (currentUser.role ? ` (${currentUser.role})` : '')
+					"
 					color="neutral"
 					variant="ghost"
 					block
@@ -134,5 +198,6 @@ const links = computed<NavigationMenuItem[]>(() => {
 		</UDashboardSidebar>
 
 		<slot />
+
 	</UDashboardGroup>
 </template>
