@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { idbGet, createDebouncedPersist } from '~/utils/idbStorage'
+import { idbLoad, createDebouncedPersist } from '~/utils/idbStorage'
 import { StudentSchema } from '~/schemas/student'
 import { randomId } from '~/utils/randomId'
 import type { Student, ReportSelection } from '~/types/student'
@@ -80,6 +80,7 @@ export function repairStoredStudents(raw: StoredStudent[] | undefined): Student[
 export const useStudentsStore = defineStore('students', () => {
 	const students = ref<Student[]>([])
 	const isLoaded = ref(false)
+	const loadError = ref<unknown>(null)
 	const { persist: debouncedPersist } = createDebouncedPersist<Student[]>(STORAGE_KEY)
 	let loadPromise: Promise<void> | null = null
 
@@ -90,8 +91,9 @@ export const useStudentsStore = defineStore('students', () => {
 	}
 
 	async function doLoad() {
-		const raw = await idbGet<StoredStudent[]>(STORAGE_KEY)
-		students.value = repairStoredStudents(raw)
+		const result = await idbLoad<StoredStudent[]>(STORAGE_KEY)
+		loadError.value = result.error
+		students.value = repairStoredStudents(result.value)
 		isLoaded.value = true
 		debouncedPersist(students.value)
 	}
@@ -126,6 +128,7 @@ export const useStudentsStore = defineStore('students', () => {
 	return {
 		students,
 		isLoaded,
+		loadError,
 		load,
 		addStudent,
 		updateStudent,

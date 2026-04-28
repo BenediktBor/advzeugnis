@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { hasAnyTemplateSets, isLoaded } = useTemplateSets()
+const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 </script>
 
 <template>
@@ -13,8 +13,9 @@ const { hasAnyTemplateSets, isLoaded } = useTemplateSets()
 		</template>
 		<template #body>
 			<div class="flex flex-col gap-4">
+				<StorageLoadErrorAlert v-if="isLoaded && loadError" />
 				<div
-					v-if="isLoaded && !hasAnyTemplateSets"
+					v-else-if="isLoaded && !hasAnyTemplateSets"
 					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
 				>
 					<p class="font-medium text-default">

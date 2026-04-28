@@ -10,6 +10,7 @@ export function useStudents() {
 	return {
 		students: computed(() => store.students),
 		isLoaded: computed(() => store.isLoaded),
+		loadError: computed(() => store.loadError),
 		addStudent: store.addStudent,
 		updateStudent: store.updateStudent,
 		deleteStudent: store.deleteStudent,

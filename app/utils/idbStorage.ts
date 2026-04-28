@@ -1,12 +1,21 @@
 import { get, set } from 'idb-keyval'
 
-export async function idbGet<T>(key: string): Promise<T | undefined> {
+export type IdbLoadResult<T> = {
+	value: T | undefined
+	error: unknown
+}
+
+export async function idbLoad<T>(key: string): Promise<IdbLoadResult<T>> {
 	try {
-		return await get<T>(key)
+		return { value: await get<T>(key), error: null }
 	} catch (err) {
 		console.error(`[idb] get failed for key "${key}":`, err)
-		return undefined
+		return { value: undefined, error: err }
 	}
+}
+
+export async function idbGet<T>(key: string): Promise<T | undefined> {
+	return (await idbLoad<T>(key)).value
 }
 
 export async function idbSet<T>(key: string, value: T): Promise<void> {

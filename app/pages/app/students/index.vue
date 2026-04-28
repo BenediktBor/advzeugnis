@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { studentFullName } from '~/utils/student'
 
-const { students } = useStudents()
-const { setsWithData, getSetLabel, hasAnyTemplateSets, isLoaded } = useTemplateSets()
+const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
+const {
+	setsWithData,
+	getSetLabel,
+	hasAnyTemplateSets,
+	isLoaded: templatesLoaded,
+	loadError: templatesLoadError,
+} = useTemplateSets()
 const { createStudentAndOpen } = useCreateStudentFlow()
 
 const searchQuery = ref('')
@@ -57,6 +63,9 @@ function resetFilters() {
 function onAddStudent() {
 	createStudentAndOpen()
 }
+
+const isLoaded = computed(() => studentsLoaded.value && templatesLoaded.value)
+const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.value)
 </script>
 
 <template>
@@ -143,6 +152,7 @@ function onAddStudent() {
 				>
 					Schüler und Vorlagen werden geladen…
 				</div>
+				<StorageLoadErrorAlert v-else-if="loadError" />
 				<div
 					v-else-if="!hasAnyTemplateSets"
 					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"

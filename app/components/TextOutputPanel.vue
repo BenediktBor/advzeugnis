@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ReportSegment } from '~/composables/useReportText'
+import type { ReportSegment } from '~/utils/reportText'
 
 const props = defineProps<{
 	segments: ReportSegment[]

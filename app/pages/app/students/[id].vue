@@ -12,7 +12,7 @@ import {
 	namePartOverrideKey,
 	normalizeVariantIdsForGrade,
 	type ReportSegment,
-} from '~/composables/useReportText'
+} from '~/utils/reportText'
 import { useLoadedMissingRedirect } from '~/composables/useLoadedMissingRedirect'
 import type { SubjectGroup, CategoryRow } from '~/components/SentenceSelector.vue'
 import { studentFullName } from '~/utils/student'
@@ -20,8 +20,8 @@ import { studentFullName } from '~/utils/student'
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
-const { students, updateStudent, deleteStudent, isLoaded } = useStudents()
-const { orderedIds, setsWithData } = useTemplateSets()
+const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoadError } = useStudents()
+const { orderedIds, setsWithData, loadError: templatesLoadError } = useTemplateSets()
 const { copyToClipboard } = useClipboardCopy()
 const rewriter = useAiRewriter()
 
@@ -36,6 +36,7 @@ const effectiveTemplateSetId = computed(() => {
 const { getSet } = useTemplates(
 	computed(() => effectiveTemplateSetId.value ?? '')
 )
+const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.value)
 
 const student = computed(() => students.value.find((s) => s.id === id.value))
 
@@ -438,6 +439,7 @@ watch(
 			<div v-if="!isLoaded" class="flex flex-col gap-4">
 				<p class="text-muted">Schüler wird geladen.</p>
 			</div>
+			<StorageLoadErrorAlert v-else-if="loadError" />
 			<div v-else-if="!student" class="flex flex-col gap-4">
 				<p class="text-muted">Schüler nicht gefunden.</p>
 				<ULink to="/app/students" class="text-primary hover:underline">

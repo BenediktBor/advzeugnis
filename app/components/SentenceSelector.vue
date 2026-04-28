@@ -5,7 +5,7 @@ import {
 	namePartOverrideKey,
 	resolveGenderVariantValue,
 	resolveNamePartReplacement,
-} from '~/composables/useReportText'
+} from '~/utils/reportText'
 import type { NamePartOverrides, NamePartReplacementKey } from '~/types/student'
 import type { Category, Grade, SentencePart, Variant } from '~/types/template'
 

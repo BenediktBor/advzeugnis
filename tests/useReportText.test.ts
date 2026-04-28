@@ -11,7 +11,7 @@ import {
 	normalizeVariantIdsForGrade,
 	resolveGenderVariantValue,
 	resolveNamePartReplacement,
-} from '~/composables/useReportText'
+} from '~/utils/reportText'
 import type { Student } from '~/types/student'
 import type { Category, TemplateSet } from '~/types/template'
 

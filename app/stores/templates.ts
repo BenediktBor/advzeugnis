@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { produce } from 'immer'
-import { idbGet, createDebouncedPersist } from '~/utils/idbStorage'
+import { idbLoad, createDebouncedPersist } from '~/utils/idbStorage'
 import {
 	TemplateSetSchema,
 	type AzSetExportPayload,
@@ -292,6 +292,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 	const record = ref<TemplateSetsRecord>({})
 	const orderedIds = ref<string[]>([])
 	const isLoaded = ref(false)
+	const loadError = ref<unknown>(null)
 	const { persist: debouncedPersistRecord } = createDebouncedPersist<TemplateSetsRecord>(STORAGE_KEY)
 	const { persist: debouncedPersistList } = createDebouncedPersist<string[]>(LIST_STORAGE_KEY)
 	let loadPromise: Promise<void> | null = null
@@ -303,14 +304,15 @@ export const useTemplatesStore = defineStore('templates', () => {
 	}
 
 	async function doLoad() {
-		const [stored, storedList] = await Promise.all([
-			idbGet<Record<string, TemplateSet>>(STORAGE_KEY),
-			idbGet<string[]>(LIST_STORAGE_KEY),
+		const [storedResult, storedListResult] = await Promise.all([
+			idbLoad<Record<string, TemplateSet>>(STORAGE_KEY),
+			idbLoad<string[]>(LIST_STORAGE_KEY),
 		])
+		loadError.value = storedResult.error ?? storedListResult.error
 
 		const normalized = normalizeTemplateSets(
-			(stored ?? {}) as Record<string, TemplateSet | null | undefined>,
-			storedList,
+			(storedResult.value ?? {}) as Record<string, TemplateSet | null | undefined>,
+			storedListResult.value,
 			{ schemaSafeParse: true },
 		)
 
@@ -463,6 +465,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		record,
 		orderedIds,
 		isLoaded,
+		loadError,
 		load,
 		addSet,
 		removeSet,

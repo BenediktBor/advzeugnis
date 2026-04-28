@@ -1,16 +1,10 @@
 import { AzSetExportPayloadSchema, type AzSetExportPayload } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
-
-function sanitizeFilenamePart(label: string): string {
-	const normalized = label
-		.normalize('NFKD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.replace(/[^a-zA-Z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.toLowerCase()
-
-	return normalized || 'vorlagensatz'
-}
+import {
+	downloadJsonFile,
+	readJsonFile,
+	sanitizeExportFilenamePart,
+} from '~/utils/templateFileTransfer'
 
 export function useAdvZeUTemplatesImportExport() {
 	const templatesStore = useTemplatesStore()
@@ -22,23 +16,11 @@ export function useAdvZeUTemplatesImportExport() {
 	const azsetOverwriteWarning =
 		'Der Import behält vorhandene Vorlagensätze, ersetzt Vorlagensätze mit derselben ID und fügt neue Vorlagensätze hinzu. Bereits erstellte Schüler können betroffen sein: Wenn sich in ersetzten Vorlagensätzen gespeicherte Auswahl-IDs für Kategorien oder Varianten ändern, greift der Schüler-Editor automatisch auf passende Standardwerte zurück und die Textausgabe kann sich ändern.'
 
-	function downloadAzsetPayload(payload: AzSetExportPayload, filename: string) {
-		const json = JSON.stringify(payload, null, 2)
-		const blob = new Blob([json], { type: 'application/json' })
-		const url = URL.createObjectURL(blob)
-
-		const a = document.createElement('a')
-		a.href = url
-		a.download = filename
-		a.click()
-		URL.revokeObjectURL(url)
-	}
-
 	async function onDownloadAzset() {
 		try {
 			if (typeof window === 'undefined') return
 			const payload = await templatesStore.exportAllAzset()
-			downloadAzsetPayload(payload, 'advanced-zeugnis-templates.azset')
+			downloadJsonFile(payload, 'advanced-zeugnis-templates.azset')
 
 			// Keep toast styling consistent: no explicit "success" color.
 			toast.add({ title: 'Vorlagen exportiert' })
@@ -58,7 +40,7 @@ export function useAdvZeUTemplatesImportExport() {
 			}
 
 			const label = payload.templateSets[setId]?.label ?? ''
-			downloadAzsetPayload(payload, `${sanitizeFilenamePart(label)}.azset`)
+			downloadJsonFile(payload, `${sanitizeExportFilenamePart(label, 'vorlagensatz')}.azset`)
 
 			toast.add({ title: 'Vorlagensatz exportiert' })
 		} catch (err) {
@@ -78,19 +60,14 @@ export function useAdvZeUTemplatesImportExport() {
 		if (input) input.value = ''
 
 		try {
-			const rawText = await file.text()
-			let payload: unknown
-
-			try {
-				payload = JSON.parse(rawText)
-			} catch {
-				toast.add({ title: 'Import fehlgeschlagen', color: 'error' })
-				return
-			}
-
-			const parsed = AzSetExportPayloadSchema.safeParse(payload)
-			if (!parsed.success) {
-				toast.add({ title: 'Import fehlgeschlagen: Ungültiges Dateiformat', color: 'error' })
+			const parsed = await readJsonFile(file, AzSetExportPayloadSchema)
+			if (!parsed.ok) {
+				toast.add({
+					title: parsed.reason === 'invalid-json'
+						? 'Import fehlgeschlagen'
+						: 'Import fehlgeschlagen: Ungültiges Dateiformat',
+					color: 'error',
+				})
 				return
 			}
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const { setsWithData, addSet, isLoaded } = useTemplateSets()
+const { setsWithData, addSet, isLoaded, loadError } = useTemplateSets()
 const { canEditTemplates: canEdit } = useCurrentUser()
 const hasTemplateSets = computed(() => setsWithData.value.length > 0)
 
@@ -78,6 +78,7 @@ watch(
 				>
 					Vorlagen werden geladen…
 				</div>
+				<StorageLoadErrorAlert v-else-if="loadError" />
 				<div
 					v-else-if="!hasTemplateSets"
 					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"

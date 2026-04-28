@@ -4,7 +4,7 @@ import { useLoadedMissingRedirect } from '~/composables/useLoadedMissingRedirect
 const route = useRoute()
 const setId = computed(() => (route.params.setId as string) ?? '')
 
-const { orderedIds, isLoaded } = useTemplateSets()
+const { orderedIds, isLoaded, loadError } = useTemplateSets()
 const { getSet } = useTemplates(setId)
 
 const existsTemplateSet = computed(() => orderedIds.value.includes(setId.value))
@@ -30,7 +30,10 @@ useLoadedMissingRedirect({
 			</UDashboardNavbar>
 		</template>
 		<template #body>
-			<div class="flex min-h-64 items-center justify-center text-sm text-muted">
+			<div v-if="loadError" class="p-4">
+				<StorageLoadErrorAlert />
+			</div>
+			<div v-else class="flex min-h-64 items-center justify-center text-sm text-muted">
 				{{ isLoaded ? 'Vorlage wird vorbereitet…' : 'Vorlagen werden geladen…' }}
 			</div>
 		</template>

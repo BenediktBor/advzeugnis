@@ -3,17 +3,11 @@ import { toValue } from 'vue'
 import { AzSubjectExportPayloadSchema, type AzSubjectExportPayload } from '~/schemas/template'
 import type { SubjectImportCollisionStrategy } from '~/stores/templates'
 import { useTemplatesStore } from '~/stores/templates'
-
-function sanitizeFilenamePart(label: string): string {
-	const normalized = label
-		.normalize('NFKD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.replace(/[^a-zA-Z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.toLowerCase()
-
-	return normalized || 'fach'
-}
+import {
+	downloadJsonFile,
+	readJsonFile,
+	sanitizeExportFilenamePart,
+} from '~/utils/templateFileTransfer'
 
 export function useTemplateSubjectImportExport(setIdRef: MaybeRefOrGetter<string>) {
 	const templatesStore = useTemplatesStore()
@@ -73,15 +67,10 @@ export function useTemplateSubjectImportExport(setIdRef: MaybeRefOrGetter<string
 				return
 			}
 
-			const json = JSON.stringify(payload, null, 2)
-			const blob = new Blob([json], { type: 'application/json' })
-			const url = URL.createObjectURL(blob)
-
-			const a = document.createElement('a')
-			a.href = url
-			a.download = `${sanitizeFilenamePart(payload.subject.label)}.azsubject`
-			a.click()
-			URL.revokeObjectURL(url)
+			downloadJsonFile(
+				payload,
+				`${sanitizeExportFilenamePart(payload.subject.label, 'fach')}.azsubject`,
+			)
 
 			toast.add({ title: 'Fach exportiert' })
 		} catch (err) {
@@ -101,19 +90,14 @@ export function useTemplateSubjectImportExport(setIdRef: MaybeRefOrGetter<string
 		if (input) input.value = ''
 
 		try {
-			const rawText = await file.text()
-			let payload: unknown
-
-			try {
-				payload = JSON.parse(rawText)
-			} catch {
-				toast.add({ title: 'Import fehlgeschlagen', color: 'error' })
-				return
-			}
-
-			const parsed = AzSubjectExportPayloadSchema.safeParse(payload)
-			if (!parsed.success) {
-				toast.add({ title: 'Import fehlgeschlagen: Ungültiges Dateiformat', color: 'error' })
+			const parsed = await readJsonFile(file, AzSubjectExportPayloadSchema)
+			if (!parsed.ok) {
+				toast.add({
+					title: parsed.reason === 'invalid-json'
+						? 'Import fehlgeschlagen'
+						: 'Import fehlgeschlagen: Ungültiges Dateiformat',
+					color: 'error',
+				})
 				return
 			}
 
