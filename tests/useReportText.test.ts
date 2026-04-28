@@ -218,7 +218,7 @@ describe('buildReportSegments', () => {
 			categoryId: 'cat-1',
 			gradeId: 'grade-1',
 			variantId: 'variant-1',
-			text: 'gut gemacht',
+			text: 'gut gemacht.',
 		})
 	})
 
@@ -557,7 +557,7 @@ describe('buildReportPlainText', () => {
 		const student = makeStudent()
 		const templateSet = makeTemplateSet()
 		const text = buildReportPlainText(student, templateSet)
-		expect(text).toBe('gut gemacht')
+		expect(text).toBe('gut gemacht.')
 	})
 
 	it('concatenates multiple segments with single spaces', () => {
@@ -630,6 +630,80 @@ describe('preview helpers', () => {
 		])
 
 		expect(text).toBe('A. B.')
+	})
+
+	it('renders optional text when enabled by default', () => {
+		const student = makeStudent()
+		const text = buildVariantPreviewText(student, {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{
+					type: 'optionalText',
+					id: 'optional-1',
+					value: 'arbeitet besonders sorgfältig',
+					enabledByDefault: true,
+				},
+			],
+		})
+
+		expect(text).toBe('arbeitet besonders sorgfältig.')
+	})
+
+	it('omits optional text when a student override disables it', () => {
+		const student = makeStudent()
+		const text = buildVariantPreviewText(
+			student,
+			{
+				id: 'v1',
+				label: '1',
+				sentences: [
+					{ type: 'name' },
+					{
+						type: 'optionalText',
+						id: 'optional-1',
+						value: 'arbeitet besonders sorgfältig',
+						enabledByDefault: true,
+					},
+					{ type: 'text', value: 'lernt weiter' },
+				],
+			},
+			{ 'optional-1': false }
+		)
+
+		expect(text).toBe('Max lernt weiter.')
+	})
+
+	it('renders optional text when a student override enables it', () => {
+		const student = makeStudent()
+		const text = buildVariantPreviewText(
+			student,
+			{
+				id: 'v1',
+				label: '1',
+				sentences: [
+					{
+						type: 'optionalText',
+						id: 'optional-1',
+						value: 'arbeitet besonders sorgfältig',
+						enabledByDefault: false,
+					},
+				],
+			},
+			{ 'optional-1': true }
+		)
+
+		expect(text).toBe('arbeitet besonders sorgfältig.')
+	})
+
+	it('preserves existing final punctuation', () => {
+		const student = makeStudent()
+		const variants = [
+			{ id: 'v1', label: '1', sentences: [{ type: 'text' as const, value: 'Sehr gut!' }] },
+			{ id: 'v2', label: '2', sentences: [{ type: 'text' as const, value: 'Wirklich?' }] },
+		]
+
+		expect(buildVariantsPreviewText(student, variants)).toBe('Sehr gut! Wirklich?')
 	})
 })
 

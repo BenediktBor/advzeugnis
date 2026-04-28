@@ -82,6 +82,14 @@ function getCategoryEntry(category: Category) {
 	return entry
 }
 
+function getStoredCategoryEntry(categoryId: string) {
+	return student.value?.reportSelection?.categories?.[categoryId]
+}
+
+function getOptionalPartOverrides(categoryId: string) {
+	return getStoredCategoryEntry(categoryId)?.optionalPartOverrides ?? {}
+}
+
 function setGrade(categoryId: string, category: Category, grade: Grade) {
 	if (!id.value || !student.value) return
 	const currentEntry = getCategoryEntry(category)
@@ -92,7 +100,11 @@ function setGrade(categoryId: string, category: Category, grade: Grade) {
 	const firstVariantIds = getDefaultVariantIdsForGrade(grade)
 	const next = {
 		...student.value.reportSelection?.categories,
-		[categoryId]: { gradeId: grade.id, variantIds: firstVariantIds },
+		[categoryId]: {
+			gradeId: grade.id,
+			variantIds: firstVariantIds,
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+		},
 	}
 	updateStudent(id.value, {
 		reportSelection: { ...student.value.reportSelection, categories: next },
@@ -124,6 +136,7 @@ function toggleVariant(categoryId: string, category: Category, variantId: string
 		[categoryId]: {
 			gradeId: entry.gradeId,
 			variantIds: next,
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -149,6 +162,7 @@ function selectVariants(categoryId: string, category: Category, variantIds: stri
 		[categoryId]: {
 			gradeId: entry.gradeId,
 			variantIds: nextVariantIds,
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -184,6 +198,7 @@ function disableCategory(categoryId: string) {
 		[categoryId]: {
 			gradeId: null,
 			variantIds: [],
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -196,6 +211,34 @@ function disableCategory(categoryId: string) {
 function focusCategory(categoryId: string) {
 	focusedCategoryId.value = categoryId
 	lastChangedVariantId.value = null
+}
+
+function toggleOptionalPart(
+	categoryId: string,
+	category: Category,
+	variantId: string,
+	partId: string,
+	enabled: boolean
+) {
+	if (!id.value || !student.value) return
+	const entry = getCategoryEntry(category)
+	if (!entry.gradeId) return
+	const nextCategories = {
+		...student.value.reportSelection?.categories,
+		[categoryId]: {
+			gradeId: entry.gradeId,
+			variantIds: entry.variantIds,
+			optionalPartOverrides: {
+				...getOptionalPartOverrides(categoryId),
+				[partId]: enabled,
+			},
+		},
+	}
+	updateStudent(id.value, {
+		reportSelection: { ...student.value.reportSelection, categories: nextCategories },
+	})
+	focusedCategoryId.value = categoryId
+	lastChangedVariantId.value = variantId
 }
 
 function openTextOutput() {
@@ -215,6 +258,7 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 			const selectedVariants = (grade?.variants ?? []).filter((variant) =>
 				entry.variantIds.includes(variant.id)
 			)
+			const optionalPartOverrides = getOptionalPartOverrides(category.id)
 			return {
 				subjectLabel: subject.label || 'Unbenannt',
 				categoryId: category.id,
@@ -223,12 +267,13 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 				grades: category.grades,
 				selectedGradeId: entry.gradeId,
 				selectedVariantIds: entry.variantIds,
+				optionalPartOverrides,
 				variants: grade?.variants ?? [],
-				selectedPreviewText: buildVariantsPreviewText(s, selectedVariants),
+				selectedPreviewText: buildVariantsPreviewText(s, selectedVariants, optionalPartOverrides),
 				variantPreviewById: Object.fromEntries(
 					(grade?.variants ?? []).map((variant) => [
 						variant.id,
-						buildVariantPreviewText(s, variant),
+						buildVariantPreviewText(s, variant, optionalPartOverrides),
 					])
 				),
 			}
@@ -337,10 +382,13 @@ watch(enhanceModalOpen, (open) => {
 					class="min-h-0 flex-1"
 					:subject-groups="subjectGroups"
 					:focused-category-id="focusedCategoryId"
+					:student-name="student.name"
+					:student-gender="student.gender"
 					@focus-category="focusCategory"
 					@set-grade="setGrade"
 					@disable-category="disableCategory"
 					@toggle-variant="toggleVariant"
+					@toggle-optional-part="toggleOptionalPart"
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
 				/>

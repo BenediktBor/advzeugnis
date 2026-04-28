@@ -2,6 +2,7 @@ export type SentencePart =
 	| { type: 'text'; value: string }
 	| { type: 'genderVariant'; value: [string, string] }
 	| { type: 'name'; value?: string }
+	| { type: 'optionalText'; id: string; value: string; enabledByDefault: boolean }
 
 export interface Variant {
 	id: string

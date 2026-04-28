@@ -4,6 +4,12 @@ export const SentencePartSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('text'), value: z.string() }),
 	z.object({ type: z.literal('genderVariant'), value: z.tuple([z.string(), z.string()]) }),
 	z.object({ type: z.literal('name'), value: z.string().optional() }),
+	z.object({
+		type: z.literal('optionalText'),
+		id: z.string().uuid(),
+		value: z.string(),
+		enabledByDefault: z.boolean(),
+	}),
 ])
 
 export const VariantSchema = z.object({
