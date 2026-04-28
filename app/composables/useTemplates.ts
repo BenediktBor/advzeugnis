@@ -38,6 +38,10 @@ export function useTemplateSets() {
 		return store.getSetLabel(setId)
 	}
 
+	function getSetData(setId: string): TemplateSet | null {
+		return store.getSetData(setId)
+	}
+
 	return {
 		orderedIds,
 		setsWithData,
@@ -47,6 +51,7 @@ export function useTemplateSets() {
 		addSet: store.addSet,
 		removeSet: store.removeSet,
 		getSetLabel,
+		getSetData,
 	}
 }
 
@@ -193,6 +198,20 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function updateGradeValue(subjectId: string, categoryId: string, gradeId: string, value: number | null) {
+		updateSet((draft) => {
+			const s = draft.subjects.find((s) => s.id === subjectId)
+			const c = s?.categories.find((c) => c.id === categoryId)
+			const g = c?.grades.find((g) => g.id === gradeId)
+			if (!g) return
+			if (value === null) {
+				delete g.value
+			} else {
+				g.value = value
+			}
+		})
+	}
+
 	// --- Variants ---
 
 	function addVariant(subjectId: string, categoryId: string, gradeId: string): string {
@@ -285,6 +304,7 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		addGrade,
 		deleteGrade,
 		updateGradeLabel,
+		updateGradeValue,
 		addVariant,
 		deleteVariant,
 		updateVariantLabel,

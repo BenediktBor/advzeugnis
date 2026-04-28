@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
 	buildVariantPreviewText,
 	buildVariantsPreviewText,
+	buildGradeAverageSummary,
+	buildDeactivatedReportSelection,
+	buildReportTextCoverageSummary,
+	buildSelectionCoverageSummary,
 	buildReportSegments,
 	buildReportPlainText,
 	ensureVariantIdsForGrade,
@@ -24,6 +28,24 @@ function makeStudent(overrides: Partial<Student> = {}): Student {
 		templateSetId: 'set-1',
 		...overrides,
 	}
+}
+
+function makeSelectedStudent(
+	categoryId = 'cat-1',
+	gradeId: string | null = 'grade-1',
+	variantIds: string[] = ['variant-1'],
+	overrides: Partial<Student> = {}
+): Student {
+	return makeStudent({
+		...overrides,
+		reportSelection: {
+			...overrides.reportSelection,
+			categories: {
+				[categoryId]: { gradeId, variantIds },
+				...overrides.reportSelection?.categories,
+			},
+		},
+	})
 }
 
 function makeCategory(overrides: Partial<Category> = {}): Category {
@@ -62,11 +84,11 @@ function makeTemplateSet(): TemplateSet {
 }
 
 describe('getEffectiveCategoryEntry', () => {
-	it('returns first grade and first variant as defaults', () => {
+	it('returns null when a category has no stored selection', () => {
 		const student = makeStudent()
 		const category = makeCategory()
 		const entry = getEffectiveCategoryEntry(student, category)
-		expect(entry).toEqual({ gradeId: 'grade-1', variantIds: ['variant-1'] })
+		expect(entry).toBeNull()
 	})
 
 	it('returns null when no grades exist', () => {
@@ -125,14 +147,14 @@ describe('getEffectiveCategoryEntry', () => {
 	})
 
 	it('auto-selects single variant', () => {
-		const student = makeStudent()
+		const student = makeSelectedStudent('cat-1', 'grade-1', [])
 		const category = makeCategory()
 		const entry = getEffectiveCategoryEntry(student, category)
 		expect(entry?.variantIds).toEqual(['variant-1'])
 	})
 
 	it('defaults multi-variant grades to the first variant', () => {
-		const student = makeStudent()
+		const student = makeSelectedStudent('cat-1', 'g1', [])
 		const category = makeCategory({
 			grades: [
 				{
@@ -174,7 +196,7 @@ describe('getEffectiveCategoryEntry', () => {
 		expect(entry?.variantIds).toEqual(['v1'])
 	})
 
-	it('falls back to the default variant when gradeId is non-null but invalid', () => {
+	it('returns null when gradeId is non-null but invalid', () => {
 		const category: Category = {
 			id: 'cat-1',
 			label: 'Kategorie',
@@ -199,7 +221,7 @@ describe('getEffectiveCategoryEntry', () => {
 		})
 
 		const entry = getEffectiveCategoryEntry(student, category)
-		expect(entry).toEqual({ gradeId: 'g1', variantIds: ['v1'] })
+		expect(entry).toBeNull()
 	})
 
 	it('falls back to the default variant when a grade is explicitly selected without variants', () => {
@@ -232,7 +254,7 @@ describe('getEffectiveCategoryEntry', () => {
 
 describe('buildReportSegments', () => {
 	it('builds segments from student and template set', () => {
-		const student = makeStudent()
+		const student = makeSelectedStudent()
 		const templateSet = makeTemplateSet()
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments).toHaveLength(1)
@@ -289,7 +311,7 @@ describe('buildReportSegments', () => {
 				},
 			],
 		}
-		const student = makeStudent({ gender: 'male' })
+		const student = makeSelectedStudent('c1', 'g1', ['v1'], { gender: 'male' })
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments[0]?.text).toBe('Er arbeitet gut.')
 	})
@@ -327,7 +349,7 @@ describe('buildReportSegments', () => {
 				},
 			],
 		}
-		const student = makeStudent({ name: 'Lisa' })
+		const student = makeSelectedStudent('c1', 'g1', ['v1'], { name: 'Lisa' })
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments[0]?.text).toBe('Lisa ist fleißig.')
 	})
@@ -365,7 +387,7 @@ describe('buildReportSegments', () => {
 				},
 			],
 		}
-		const student = makeStudent({ name: 'Max' })
+		const student = makeSelectedStudent('c1', 'g1', ['v1'], { name: 'Max' })
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments[0]?.text).toBe('Lisa Override ist fleißig.')
 	})
@@ -403,7 +425,7 @@ describe('buildReportSegments', () => {
 				},
 			],
 		}
-		const student = makeStudent({ gender: 'female' })
+		const student = makeSelectedStudent('c1', 'g1', ['v1'], { gender: 'female' })
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments[0]?.text).toBe('Sie arbeitet gut.')
 	})
@@ -442,7 +464,7 @@ describe('buildReportSegments', () => {
 				},
 			],
 		}
-		const student = makeStudent({ name: 'Lisa' })
+		const student = makeSelectedStudent('c1', 'g1', ['v1'], { name: 'Lisa' })
 		const segments = buildReportSegments(student, templateSet)
 		expect(segments[0]?.text).toBe('Lisa ist fleißig.')
 	})
@@ -484,7 +506,7 @@ describe('buildReportSegments', () => {
 		expect(buildReportSegments(student, templateSet)).toHaveLength(0)
 	})
 
-	it('falls back to the default variant when stored selection becomes invalid', () => {
+	it('falls back to the default variant when stored variant selection becomes invalid', () => {
 		const templateSet: TemplateSet = {
 			id: 'set-test-7',
 			label: 'Test',
@@ -515,16 +537,14 @@ describe('buildReportSegments', () => {
 		const student = makeStudent({
 			name: 'Lisa',
 			reportSelection: {
-				categories: {
-					'cat-1': { gradeId: 'invalid-grade', variantIds: ['invalid-variant'] },
-				},
+				categories: {},
 			},
 		})
 
 		// Note: category id differs from reportSelection key, so override it to 'c1'.
 		student.reportSelection = {
 			categories: {
-				c1: { gradeId: 'invalid-grade', variantIds: ['invalid-variant'] },
+				c1: { gradeId: 'g1', variantIds: ['invalid-variant'] },
 			},
 		}
 
@@ -626,7 +646,7 @@ describe('buildReportSegments', () => {
 
 describe('buildReportPlainText', () => {
 	it('concatenates all segment texts', () => {
-		const student = makeStudent()
+		const student = makeSelectedStudent()
 		const templateSet = makeTemplateSet()
 		const text = buildReportPlainText(student, templateSet)
 		expect(text).toBe('gut gemacht.')
@@ -672,9 +692,360 @@ describe('buildReportPlainText', () => {
 			],
 		}
 
-		const student = makeStudent()
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					c1: { gradeId: 'g1', variantIds: ['v1'] },
+					c2: { gradeId: 'g2', variantIds: ['v2'] },
+				},
+			},
+		})
 		const text = buildReportPlainText(student, templateSet)
 		expect(text).toBe('A. B.')
+	})
+})
+
+describe('grade average summary', () => {
+	it('calculates the average from numeric grade labels', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [] }] },
+								{ id: 'g2', label: '2', variants: [{ id: 'v2', label: '1', sentences: [] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c2',
+							grades: [
+								{ id: 'g3', label: '3', variants: [{ id: 'v3', label: '1', sentences: [] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					c1: { gradeId: 'g2', variantIds: ['v2'] },
+					c2: { gradeId: 'g3', variantIds: ['v3'] },
+				},
+			},
+		})
+
+		const summary = buildGradeAverageSummary(student, templateSet)
+		expect(summary?.average).toBe(2.5)
+		expect(summary?.count).toBe(2)
+	})
+
+	it('uses an optional grade value before the label and supports comma decimals', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '6', value: 1.5, variants: [{ id: 'v1', label: '1', sentences: [] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c2',
+							grades: [
+								{ id: 'g2', label: '2,5', variants: [{ id: 'v2', label: '1', sentences: [] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+
+		const summary = buildGradeAverageSummary(
+			makeStudent({
+				reportSelection: {
+					categories: {
+						c1: { gradeId: 'g1', variantIds: ['v1'] },
+						c2: { gradeId: 'g2', variantIds: ['v2'] },
+					},
+				},
+			}),
+			templateSet
+		)
+		expect(summary?.average).toBe(2)
+		expect(summary?.minGrade).toBe(1.5)
+		expect(summary?.maxGrade).toBe(2.5)
+	})
+
+	it('ignores excluded and non-numeric grades', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c2',
+							grades: [
+								{ id: 'g2', label: 'gut', variants: [{ id: 'v2', label: '1', sentences: [] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c3',
+							grades: [
+								{ id: 'g3', label: '3', variants: [{ id: 'v3', label: '1', sentences: [] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					c1: { gradeId: 'g1', variantIds: ['v1'] },
+					c2: { gradeId: 'g2', variantIds: ['v2'] },
+					c3: { gradeId: null, variantIds: [] },
+				},
+			},
+		})
+
+		const summary = buildGradeAverageSummary(student, templateSet)
+		expect(summary?.average).toBe(1)
+		expect(summary?.count).toBe(1)
+	})
+
+	it('normalizes progress so lower averages fill more of the circle', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [] }] },
+								{ id: 'g2', label: '6', variants: [{ id: 'v2', label: '1', sentences: [] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					c1: { gradeId: 'g2', variantIds: ['v2'] },
+				},
+			},
+		})
+
+		expect(buildGradeAverageSummary(makeSelectedStudent('c1', 'g1', ['v1']), templateSet)?.progress).toBe(1)
+		expect(buildGradeAverageSummary(student, templateSet)?.progress).toBe(0)
+	})
+
+	it('returns null when no selected grade has a numeric value', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: 'gut', variants: [{ id: 'v1', label: '1', sentences: [] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+
+		expect(buildGradeAverageSummary(makeStudent(), templateSet)).toBeNull()
+	})
+})
+
+describe('report text coverage summary', () => {
+	it('counts categories that contribute generated text', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [{ type: 'text', value: 'A.' }] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c2',
+							grades: [
+								{ id: 'g2', label: '2', variants: [{ id: 'v2', label: '1', sentences: [{ type: 'text', value: '   ' }] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+
+		const summary = buildReportTextCoverageSummary(
+			makeStudent({
+				reportSelection: {
+					categories: {
+						c1: { gradeId: 'g1', variantIds: ['v1'] },
+						c2: { gradeId: 'g2', variantIds: ['v2'] },
+					},
+				},
+			}),
+			templateSet
+		)
+		expect(summary).toEqual({
+			completed: 1,
+			total: 2,
+			progress: 0.5,
+			isFinished: false,
+		})
+	})
+
+	it('marks a student as finished only when every category contributes text', () => {
+		const templateSet = makeTemplateSet()
+		expect(buildReportTextCoverageSummary(makeSelectedStudent(), templateSet)).toEqual({
+			completed: 1,
+			total: 1,
+			progress: 1,
+			isFinished: true,
+		})
+	})
+
+	it('does not mark empty template sets as finished', () => {
+		const templateSet: TemplateSet = { id: 'set-1', label: 'Empty', subjects: [] }
+		expect(buildReportTextCoverageSummary(makeStudent(), templateSet)).toEqual({
+			completed: 0,
+			total: 0,
+			progress: 0,
+			isFinished: false,
+		})
+	})
+})
+
+describe('selection coverage summary', () => {
+	it('matches the edit page Auswahl logic by counting effective selected categories', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						makeCategory({
+							id: 'c1',
+							grades: [
+								{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [{ type: 'text', value: 'A.' }] }] },
+							],
+						}),
+						makeCategory({
+							id: 'c2',
+							grades: [
+								{ id: 'g2', label: '2', variants: [{ id: 'v2', label: '1', sentences: [{ type: 'text', value: '   ' }] }] },
+							],
+						}),
+					],
+				},
+			],
+		}
+
+		expect(buildSelectionCoverageSummary(
+			makeStudent({
+				reportSelection: {
+					categories: {
+						c1: { gradeId: 'g1', variantIds: ['v1'] },
+						c2: { gradeId: 'g2', variantIds: ['v2'] },
+					},
+				},
+			}),
+			templateSet
+		)).toEqual({
+			completed: 2,
+			total: 2,
+			progress: 1,
+			isFinished: true,
+		})
+	})
+
+	it('does not count explicitly disabled categories', () => {
+		const templateSet = makeTemplateSet()
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					'cat-1': { gradeId: null, variantIds: [] },
+				},
+			},
+		})
+
+		expect(buildSelectionCoverageSummary(student, templateSet)).toEqual({
+			completed: 0,
+			total: 1,
+			progress: 0,
+			isFinished: false,
+		})
+	})
+})
+
+describe('deactivated report selection', () => {
+	it('creates a disabled entry for every category in a template set', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-1',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S1',
+					categories: [makeCategory({ id: 'c1' })],
+				},
+				{
+					id: 's2',
+					label: 'S2',
+					categories: [makeCategory({ id: 'c2' })],
+				},
+			],
+		}
+
+		expect(buildDeactivatedReportSelection(templateSet)).toEqual({
+			categories: {
+				c1: { gradeId: null, variantIds: [] },
+				c2: { gradeId: null, variantIds: [] },
+			},
+		})
 	})
 })
 

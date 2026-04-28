@@ -13,6 +13,7 @@ export interface Variant {
 export interface Grade {
 	id: string
 	label: string
+	value?: number
 	variants: Variant[]
 }
 

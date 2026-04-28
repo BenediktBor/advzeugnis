@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import {
+	buildGradeAverageSummary,
+	buildSelectionCoverageSummary,
+} from '~/utils/reportText'
 import { studentFullName } from '~/utils/student'
 
 const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
 const {
 	setsWithData,
 	getSetLabel,
+	getSetData,
 	hasAnyTemplateSets,
 	isLoaded: templatesLoaded,
 	loadError: templatesLoadError,
@@ -14,6 +19,7 @@ const { createStudentAndOpen } = useCreateStudentFlow()
 const searchQuery = ref('')
 const filterTemplateSet = ref<string | null>(null)
 const filterGender = ref<'male' | 'female' | null>(null)
+const filterStatus = ref<'finished' | 'unfinished' | null>(null)
 
 const templateSetItems = computed(() => [
 	{ label: 'Alle Vorlagen', value: null as string | null },
@@ -26,23 +32,56 @@ const genderItems = [
 	{ label: 'Weiblich', value: 'female' as const },
 ]
 
+const statusItems = [
+	{ label: 'Alle', value: null as 'finished' | 'unfinished' | null },
+	{ label: 'Alle aktiv', value: 'finished' as const },
+	{ label: 'Mit deaktivierten', value: 'unfinished' as const },
+]
+
 function genderLabel(gender: 'male' | 'female') {
 	return gender === 'male' ? 'Männlich' : 'Weiblich'
 }
 
-const filteredStudents = computed(() => {
-	let list = [...students.value]
+function formatAverage(value: number): string {
+	return value.toLocaleString('de-DE', {
+		minimumFractionDigits: 1,
+		maximumFractionDigits: 1,
+	})
+}
+
+const studentCards = computed(() =>
+	students.value.map((student) => {
+		const templateSet = getSetData(student.templateSetId)
+		const averageSummary = templateSet
+			? buildGradeAverageSummary(student, templateSet)
+			: null
+		const coverageSummary = templateSet
+			? buildSelectionCoverageSummary(student, templateSet)
+			: null
+		return { student, averageSummary, coverageSummary }
+	})
+)
+
+const filteredStudentCards = computed(() => {
+	let list = [...studentCards.value]
 	const q = searchQuery.value.trim().toLowerCase()
 	if (q) {
-		list = list.filter((s) => studentFullName(s).toLowerCase().includes(q))
+		list = list.filter(({ student }) => studentFullName(student).toLowerCase().includes(q))
 	}
 	if (filterTemplateSet.value !== null) {
 		list = list.filter(
-			(s) => s.templateSetId === filterTemplateSet.value
+			({ student }) => student.templateSetId === filterTemplateSet.value
 		)
 	}
 	if (filterGender.value !== null) {
-		list = list.filter((s) => s.gender === filterGender.value)
+		list = list.filter(({ student }) => student.gender === filterGender.value)
+	}
+	if (filterStatus.value !== null) {
+		list = list.filter(({ coverageSummary }) =>
+			filterStatus.value === 'finished'
+				? coverageSummary?.isFinished === true
+				: coverageSummary?.isFinished !== true
+		)
 	}
 	return list
 })
@@ -51,13 +90,15 @@ const hasActiveFilters = computed(
 	() =>
 		searchQuery.value.trim() !== '' ||
 		filterTemplateSet.value !== null ||
-		filterGender.value !== null
+		filterGender.value !== null ||
+		filterStatus.value !== null
 )
 
 function resetFilters() {
 	searchQuery.value = ''
 	filterTemplateSet.value = null
 	filterGender.value = null
+	filterStatus.value = null
 }
 
 function onAddStudent() {
@@ -128,6 +169,18 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 											class="w-full"
 										/>
 									</UFormField>
+									<UFormField
+										label="Status"
+										name="filter-status"
+									>
+										<USelectMenu
+											v-model="filterStatus"
+											:items="statusItems"
+											value-key="value"
+											placeholder="Alle"
+											class="w-full"
+										/>
+									</UFormField>
 									<UButton
 										v-if="hasActiveFilters"
 										label="Zurücksetzen"
@@ -170,13 +223,13 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 					/>
 				</AppStateNotice>
 				<div
-					v-if="hasAnyTemplateSets && filteredStudents.length"
+					v-if="hasAnyTemplateSets && filteredStudentCards.length"
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
 				>
 					<ULink
-						v-for="s in filteredStudents"
-						:key="s.id"
-						:to="`/app/students/${s.id}`"
+						v-for="card in filteredStudentCards"
+						:key="card.student.id"
+						:to="`/app/students/${card.student.id}`"
 						class="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
 					>
 						<UCard
@@ -184,24 +237,57 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 							class="h-full transition-opacity hover:opacity-90"
 						>
 							<template #header>
-								<span class="font-semibold text-highlighted">
-									{{ studentFullName(s) }}
-								</span>
+								<div class="flex items-start justify-between gap-3">
+									<span class="font-semibold text-highlighted">
+										{{ studentFullName(card.student) }}
+									</span>
+									<CategoryProgressCircle
+										v-if="card.coverageSummary"
+										class="shrink-0"
+										:value="card.coverageSummary.completed"
+										:total="card.coverageSummary.total"
+										:label="`${card.coverageSummary.completed} aktiv, ${card.coverageSummary.total - card.coverageSummary.completed} deaktiviert`"
+										below-label="Kategorien"
+										:tone="card.coverageSummary.isFinished ? 'success' : 'primary'"
+									/>
+								</div>
 							</template>
 							<div class="flex flex-col gap-2 text-sm text-muted">
 								<div>
 									<span class="font-medium text-default"
 										>Vorlage
 									</span>
-									{{ getSetLabel(s.templateSetId) || 'Unbekannt' }}
+									{{ getSetLabel(card.student.templateSetId) || 'Unbekannt' }}
 								</div>
 								<div>
 									<span class="font-medium text-default"
 										>Geschlecht
 									</span>
-									{{ genderLabel(s.gender) }}
+									{{ genderLabel(card.student.gender) }}
 								</div>
-								<p class="text-xs text-muted">Notendurchschnitt ist noch nicht verfügbar.</p>
+								<div
+									v-if="card.averageSummary"
+									class="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border border-default bg-muted/30 p-3"
+								>
+									<div class="min-w-0">
+										<div class="font-medium text-default">Notendurchschnitt</div>
+										<div class="text-xs text-muted">
+											{{ card.averageSummary.count }} Noten gewertet
+										</div>
+									</div>
+									<CategoryProgressCircle
+										class="shrink-0"
+										:value="Math.round(card.averageSummary.progress * 100)"
+										:total="100"
+										:display-value="formatAverage(card.averageSummary.average)"
+										:label="`Notendurchschnitt ${formatAverage(card.averageSummary.average)}`"
+										below-label="Ø Note"
+										tone="success"
+									/>
+								</div>
+								<p v-else class="text-xs text-muted">
+									Notendurchschnitt ist noch nicht verfügbar.
+								</p>
 							</div>
 						</UCard>
 					</ULink>
@@ -222,7 +308,7 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 					v-else-if="
 						hasAnyTemplateSets &&
 						students.length &&
-						!filteredStudents.length
+						!filteredStudentCards.length
 					"
 					title="Keine Schüler entsprechen den Filtern"
 					description="Passe die Suche oder Filter an, um wieder Schüler zu sehen."

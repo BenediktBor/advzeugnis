@@ -21,6 +21,7 @@ export const VariantSchema = z.object({
 export const GradeSchema = z.object({
 	id: z.string().uuid(),
 	label: z.string(),
+	value: z.number().finite().optional(),
 	variants: z.array(VariantSchema),
 })
 

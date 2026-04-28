@@ -1,4 +1,9 @@
-import type { NamePartOverrides, NamePartReplacementKey, Student } from '~/types/student'
+import type {
+	NamePartOverrides,
+	NamePartReplacementKey,
+	ReportSelection,
+	Student,
+} from '~/types/student'
 import type {
 	Category,
 	Grade,
@@ -15,6 +20,28 @@ export interface ReportSegment {
 }
 
 export type OptionalPartOverrides = Record<string, boolean>
+
+export interface GradeAverageSummary {
+	average: number
+	count: number
+	minGrade: number
+	maxGrade: number
+	progress: number
+}
+
+export interface ReportTextCoverageSummary {
+	completed: number
+	total: number
+	progress: number
+	isFinished: boolean
+}
+
+export interface SelectionCoverageSummary {
+	completed: number
+	total: number
+	progress: number
+	isFinished: boolean
+}
 
 type Gender = Student['gender']
 type GenderVariantValue = readonly [string, string]
@@ -83,6 +110,75 @@ export function ensureVariantIdsForGrade(
 	return normalizedVariantIds.length > 0
 		? normalizedVariantIds
 		: getDefaultVariantIdsForGrade(grade)
+}
+
+function clampProgress(value: number): number {
+	return Math.min(1, Math.max(0, value))
+}
+
+export function parseGradeLabelValue(label: string): number | null {
+	const normalized = label.trim().replace(',', '.')
+	if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null
+	const value = Number(normalized)
+	return Number.isFinite(value) ? value : null
+}
+
+export function getGradeNumericValue(grade: Grade): number | null {
+	if (typeof grade.value === 'number' && Number.isFinite(grade.value)) {
+		return grade.value
+	}
+	return parseGradeLabelValue(grade.label)
+}
+
+export function getTemplateGradeRange(templateSet: TemplateSet): { minGrade: number; maxGrade: number } | null {
+	const values: number[] = []
+	for (const subject of templateSet.subjects) {
+		for (const category of subject.categories) {
+			for (const grade of category.grades) {
+				const value = getGradeNumericValue(grade)
+				if (value !== null) values.push(value)
+			}
+		}
+	}
+	if (values.length === 0) return null
+	return {
+		minGrade: Math.min(...values),
+		maxGrade: Math.max(...values),
+	}
+}
+
+export function buildGradeAverageSummary(
+	student: Student,
+	templateSet: TemplateSet
+): GradeAverageSummary | null {
+	const selectedValues: number[] = []
+	for (const subject of templateSet.subjects) {
+		for (const category of subject.categories) {
+			const effective = getEffectiveCategoryEntry(student, category)
+			if (!effective) continue
+			const grade = category.grades.find((g) => g.id === effective.gradeId)
+			if (!grade) continue
+			const value = getGradeNumericValue(grade)
+			if (value !== null) selectedValues.push(value)
+		}
+	}
+	if (selectedValues.length === 0) return null
+
+	const range = getTemplateGradeRange(templateSet)
+	if (!range) return null
+	const average = selectedValues.reduce((sum, value) => sum + value, 0) / selectedValues.length
+	const rangeSize = range.maxGrade - range.minGrade
+	const progress = rangeSize === 0
+		? 1
+		: clampProgress((range.maxGrade - average) / rangeSize)
+
+	return {
+		average,
+		count: selectedValues.length,
+		minGrade: range.minGrade,
+		maxGrade: range.maxGrade,
+		progress,
+	}
 }
 
 function resolveSentencePart(
@@ -205,13 +301,10 @@ export function getEffectiveCategoryEntry(
 
 	const entry = categoriesState[category.id]
 
-	if (entry?.gradeId === null) return null
+	if (!entry?.gradeId) return null
 
 	let grade: Grade | undefined
-	if (entry?.gradeId) {
-		grade = grades.find((g) => g.id === entry.gradeId)
-	}
-	if (!grade) grade = grades[0]
+	grade = grades.find((g) => g.id === entry.gradeId)
 	if (!grade) return null
 
 	const variants = grade.variants
@@ -287,4 +380,65 @@ export function buildReportPlainText(
 		.map((s) => s.text)
 		.filter(Boolean)
 		.join(' ')
+}
+
+export function buildSelectionCoverageSummary(
+	student: Student,
+	templateSet: TemplateSet
+): SelectionCoverageSummary {
+	const total = templateSet.subjects.reduce(
+		(sum, subject) => sum + subject.categories.length,
+		0
+	)
+	if (total === 0) {
+		return { completed: 0, total: 0, progress: 0, isFinished: false }
+	}
+
+	let completed = 0
+	for (const subject of templateSet.subjects) {
+		for (const category of subject.categories) {
+			if (getEffectiveCategoryEntry(student, category)) completed += 1
+		}
+	}
+
+	return {
+		completed,
+		total,
+		progress: clampProgress(completed / total),
+		isFinished: completed === total,
+	}
+}
+
+export function buildDeactivatedReportSelection(templateSet: TemplateSet): ReportSelection {
+	const categories: ReportSelection['categories'] = {}
+	for (const subject of templateSet.subjects) {
+		for (const category of subject.categories) {
+			categories[category.id] = { gradeId: null, variantIds: [] }
+		}
+	}
+	return { categories }
+}
+
+export function buildReportTextCoverageSummary(
+	student: Student,
+	templateSet: TemplateSet
+): ReportTextCoverageSummary {
+	const total = templateSet.subjects.reduce(
+		(sum, subject) => sum + subject.categories.length,
+		0
+	)
+	if (total === 0) {
+		return { completed: 0, total: 0, progress: 0, isFinished: false }
+	}
+
+	const completedCategoryIds = new Set(
+		buildReportSegments(student, templateSet).map((segment) => segment.categoryId)
+	)
+	const completed = completedCategoryIds.size
+	return {
+		completed,
+		total,
+		progress: clampProgress(completed / total),
+		isFinished: completed === total,
+	}
 }

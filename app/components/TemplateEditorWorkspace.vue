@@ -21,6 +21,7 @@ const {
 	updateSubjectLabel,
 	updateCategoryLabel,
 	updateGradeLabel,
+	updateGradeValue,
 	addVariant,
 	deleteVariant,
 	updateVariantLabel,
@@ -154,10 +155,21 @@ function addVariantAndSelect() {
 	})
 }
 
-function handleEditGradeLabel(gradeId: string, currentLabel: string) {
+function handleEditGradeLabel(gradeId: string, currentLabel: string, currentValue: number | undefined) {
 	if (!selectedCategory.value) return
 	const { subjectId, categoryId } = selectedCategory.value
-	openEditLabelModal(currentLabel, (label) => updateGradeLabel(subjectId, categoryId, gradeId, label))
+	openEditLabelModal(
+		currentLabel,
+		(label, value) => {
+			updateGradeLabel(subjectId, categoryId, gradeId, label)
+			updateGradeValue(subjectId, categoryId, gradeId, value ?? null)
+		},
+		{
+			title: 'Notenstufe bearbeiten',
+			supportsGradeValue: true,
+			gradeValue: currentValue,
+		}
+	)
 }
 
 function handleDeleteGrade(gradeId: string, label: string) {
@@ -173,8 +185,10 @@ function handleDeleteGrade(gradeId: string, label: string) {
 function handleEditVariantLabel(variantId: string, currentLabel: string) {
 	if (!selectedCategory.value || !selectedGradeId.value) return
 	const { subjectId, categoryId } = selectedCategory.value
-	openEditLabelModal(currentLabel, (label) =>
-		updateVariantLabel(subjectId, categoryId, selectedGradeId.value!, variantId, label)
+	openEditLabelModal(
+		currentLabel,
+		(label) => updateVariantLabel(subjectId, categoryId, selectedGradeId.value!, variantId, label),
+		{ title: 'Variante umbenennen' }
 	)
 }
 
@@ -323,19 +337,53 @@ function confirmAddPart() {
 }
 
 const editLabelModalOpen = ref(false)
+const editLabelTitle = ref('Umbenennen')
 const editLabelValue = ref('')
-const editLabelCallback = ref<((newLabel: string) => void) | null>(null)
+const editLabelSupportsGradeValue = ref(false)
+const editLabelGradeValueEnabled = ref(false)
+const editLabelGradeValueInput = ref('')
+const editLabelCallback = ref<((newLabel: string, gradeValue?: number | null) => void) | null>(null)
 
-function openEditLabelModal(currentLabel: string, onSave: (newLabel: string) => void) {
+type EditLabelOptions = {
+	title?: string
+	supportsGradeValue?: boolean
+	gradeValue?: number
+}
+
+function openEditLabelModal(
+	currentLabel: string,
+	onSave: (newLabel: string, gradeValue?: number | null) => void,
+	options: EditLabelOptions = {}
+) {
+	editLabelTitle.value = options.title ?? 'Umbenennen'
 	editLabelValue.value = currentLabel
+	editLabelSupportsGradeValue.value = options.supportsGradeValue === true
+	editLabelGradeValueEnabled.value = typeof options.gradeValue === 'number'
+	editLabelGradeValueInput.value = typeof options.gradeValue === 'number'
+		? String(options.gradeValue)
+		: ''
 	editLabelCallback.value = onSave
 	editLabelModalOpen.value = true
 }
 
+function getEditLabelGradeValue(): number | null {
+	const parsed = Number(editLabelGradeValueInput.value)
+	return Number.isFinite(parsed) ? parsed : null
+}
+
+const canConfirmEditLabel = computed(() => {
+	if (!editLabelValue.value.trim()) return false
+	if (!editLabelSupportsGradeValue.value || !editLabelGradeValueEnabled.value) return true
+	return getEditLabelGradeValue() !== null
+})
+
 function confirmEditLabel() {
 	const label = editLabelValue.value.trim()
-	if (!label || !editLabelCallback.value) return
-	editLabelCallback.value(label)
+	if (!canConfirmEditLabel.value || !editLabelCallback.value) return
+	const gradeValue = editLabelSupportsGradeValue.value
+		? (editLabelGradeValueEnabled.value ? getEditLabelGradeValue() : null)
+		: undefined
+	editLabelCallback.value(label, gradeValue)
 	editLabelModalOpen.value = false
 	editLabelCallback.value = null
 }
@@ -634,15 +682,38 @@ function createFirstCategory() {
 		</template>
 	</UModal>
 
-	<UModal v-model:open="editLabelModalOpen" title="Umbenennen" :ui="{ footer: 'justify-end' }">
+	<UModal v-model:open="editLabelModalOpen" :title="editLabelTitle" :ui="{ footer: 'justify-end' }">
 		<template #body>
 			<UFormField label="Name" name="edit-label">
 				<UInput v-model="editLabelValue" autofocus @keydown.enter="confirmEditLabel" />
 			</UFormField>
+			<template v-if="editLabelSupportsGradeValue">
+				<UCheckbox
+					:model-value="editLabelGradeValueEnabled"
+					label="Eigenen Wert für Durchschnitt verwenden"
+					class="mt-4"
+					@update:model-value="editLabelGradeValueEnabled = Boolean($event)"
+				/>
+				<UFormField
+					v-if="editLabelGradeValueEnabled"
+					label="Wert für Durchschnitt"
+					name="edit-grade-value"
+					description="Wenn deaktiviert, wird die Notenstufen-Bezeichnung als Zahl verwendet."
+					class="mt-3"
+				>
+					<UInput
+						v-model="editLabelGradeValueInput"
+						type="number"
+						step="0.1"
+						placeholder="z. B. 2.5"
+						@keydown.enter="confirmEditLabel"
+					/>
+				</UFormField>
+			</template>
 		</template>
 		<template #footer="{ close }">
 			<UButton label="Abbrechen" color="neutral" variant="outline" @click="close()" />
-			<UButton label="Speichern" :disabled="!editLabelValue.trim()" @click="confirmEditLabel" />
+			<UButton label="Speichern" :disabled="!canConfirmEditLabel" @click="confirmEditLabel" />
 		</template>
 	</UModal>
 

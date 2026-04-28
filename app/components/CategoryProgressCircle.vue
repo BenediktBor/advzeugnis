@@ -3,6 +3,9 @@ const props = defineProps<{
 	value: number
 	total: number
 	label: string
+	displayValue?: string
+	belowLabel?: string
+	tone?: 'primary' | 'success' | 'neutral'
 }>()
 
 const radius = 18
@@ -12,11 +15,16 @@ const progress = computed(() => {
 	return Math.min(1, Math.max(0, props.value / props.total))
 })
 const strokeOffset = computed(() => circumference * (1 - progress.value))
+const strokeToneClass = computed(() => {
+	if (props.tone === 'success') return 'text-success'
+	if (props.tone === 'neutral') return 'text-muted'
+	return 'text-primary'
+})
 </script>
 
 <template>
 	<div
-		class="flex items-center gap-2"
+		class="inline-flex flex-col items-center gap-1"
 		role="progressbar"
 		:aria-label="label"
 		:aria-valuemin="0"
@@ -34,7 +42,8 @@ const strokeOffset = computed(() => circumference * (1 - progress.value))
 					stroke-width="4"
 				/>
 				<circle
-					class="stroke-current text-primary transition-all duration-300"
+					class="stroke-current transition-all duration-300"
+					:class="strokeToneClass"
 					cx="22"
 					cy="22"
 					:r="radius"
@@ -46,9 +55,16 @@ const strokeOffset = computed(() => circumference * (1 - progress.value))
 				/>
 			</svg>
 			<span class="absolute inset-0 flex items-center justify-center text-xs font-medium text-default">
-				{{ value }}/{{ total }}
+				{{ displayValue ?? `${value}/${total}` }}
 			</span>
 		</div>
+		<span
+			v-if="belowLabel"
+			class="max-w-16 truncate text-center text-[11px] leading-tight text-muted"
+			:title="belowLabel"
+		>
+			{{ belowLabel }}
+		</span>
 		<span class="sr-only">{{ label }}</span>
 	</div>
 </template>

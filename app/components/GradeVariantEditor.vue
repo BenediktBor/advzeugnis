@@ -13,7 +13,7 @@ const emit = defineEmits<{
 	selectVariant: [variantId: string]
 	addGrade: []
 	addVariant: []
-	editGradeLabel: [gradeId: string, currentLabel: string]
+	editGradeLabel: [gradeId: string, currentLabel: string, currentValue: number | undefined]
 	deleteGrade: [gradeId: string, label: string]
 	editVariantLabel: [variantId: string, currentLabel: string]
 	deleteVariant: [variantId: string, label: string]
@@ -92,7 +92,7 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 							variant="ghost"
 							size="xs"
 							aria-label="Notenstufe umbenennen"
-							@click.stop="emit('editGradeLabel', grade.id, grade.label)"
+							@click.stop="emit('editGradeLabel', grade.id, grade.label, grade.value)"
 						/>
 						<UButton
 							icon="i-lucide-trash-2"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
 	NAME_PART_REPLACEMENTS,
+	getGradeNumericValue,
 	isOptionalPartEnabled,
 	namePartOverrideKey,
 	resolveGenderVariantValue,
@@ -348,8 +349,50 @@ const activeSelectedCategoryCount = computed(
 
 const activeCategoryProgressLabel = computed(
 	() =>
-		`${activeSelectedCategoryCount.value} von ${activeCategoryTotal.value} Kategorien ausgewählt`
+		`${activeSelectedCategoryCount.value} aktiv, ${activeCategoryTotal.value - activeSelectedCategoryCount.value} deaktiviert`
 )
+
+function formatAverage(value: number): string {
+	return value.toLocaleString('de-DE', {
+		minimumFractionDigits: 1,
+		maximumFractionDigits: 1,
+	})
+}
+
+const templateGradeRange = computed(() => {
+	const values: number[] = []
+	for (const group of props.subjectGroups) {
+		for (const row of group.categories) {
+			for (const grade of row.grades) {
+				const value = getGradeNumericValue(grade)
+				if (value !== null) values.push(value)
+			}
+		}
+	}
+	if (values.length === 0) return null
+	return {
+		minGrade: Math.min(...values),
+		maxGrade: Math.max(...values),
+	}
+})
+
+const activeSubjectAverageSummary = computed(() => {
+	const group = activeSubjectGroup.value
+	const range = templateGradeRange.value
+	if (!group || !range) return null
+	const values = group.categories
+		.map((row) => row.grades.find((grade) => grade.id === row.selectedGradeId))
+		.map((grade) => (grade ? getGradeNumericValue(grade) : null))
+		.filter((value): value is number => value !== null)
+	if (values.length === 0) return null
+
+	const average = values.reduce((sum, value) => sum + value, 0) / values.length
+	const rangeSize = range.maxGrade - range.minGrade
+	const progress = rangeSize === 0
+		? 1
+		: Math.min(1, Math.max(0, (range.maxGrade - average) / rangeSize))
+	return { average, count: values.length, progress }
+})
 </script>
 
 <template>
@@ -362,12 +405,23 @@ const activeCategoryProgressLabel = computed(
 						Wähle pro Kategorie eine Stufe und mindestens eine Variante. Die aktive Auswahl wird in der Textausgabe hervorgehoben.
 					</p>
 				</div>
-				<CategoryProgressCircle
-					class="shrink-0"
-					:value="activeSelectedCategoryCount"
-					:total="activeCategoryTotal"
-					:label="activeCategoryProgressLabel"
-				/>
+				<div class="flex shrink-0 items-start gap-3">
+					<CategoryProgressCircle
+						v-if="activeSubjectAverageSummary"
+						:value="Math.round(activeSubjectAverageSummary.progress * 100)"
+						:total="100"
+						:display-value="formatAverage(activeSubjectAverageSummary.average)"
+						:label="`Durchschnitt ${formatAverage(activeSubjectAverageSummary.average)} im aktiven Fach`"
+						below-label="Ø Fach"
+						tone="success"
+					/>
+					<CategoryProgressCircle
+						:value="activeSelectedCategoryCount"
+						:total="activeCategoryTotal"
+						:label="activeCategoryProgressLabel"
+						below-label="Kategorien"
+					/>
+				</div>
 			</div>
 		</div>
 		<div class="border-b border-default px-4 py-3">

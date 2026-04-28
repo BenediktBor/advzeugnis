@@ -4,6 +4,7 @@ import type { Category, Grade } from '~/types/template'
 import {
 	buildVariantPreviewText,
 	buildVariantsPreviewText,
+	buildGradeAverageSummary,
 	buildReportPlainText,
 	buildReportSegments,
 	ensureVariantIdsForGrade,
@@ -67,6 +68,13 @@ const textOutputContent = computed(() => {
 	const set = templateSetForReport.value
 	if (!s || !set) return ''
 	return buildReportPlainText(s, set)
+})
+
+const gradeAverageSummary = computed(() => {
+	const s = student.value
+	const set = templateSetForReport.value
+	if (!s || !set) return null
+	return buildGradeAverageSummary(s, set)
 })
 
 const focusedCategoryId = ref<string | null>(null)
@@ -463,6 +471,7 @@ watch(
 						:student="student"
 						:year-tab-items="yearTabItems"
 						:effective-template-set-id="effectiveTemplateSetId"
+						:grade-average-summary="gradeAverageSummary"
 						@update="onFieldUpdate"
 					/>
 
