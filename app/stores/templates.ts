@@ -8,37 +8,9 @@ import {
 } from '~/schemas/template'
 import { randomId } from '~/utils/randomId'
 import type { Subject, TemplateSet } from '~/types/template'
-import { TEMPLATE_SET_LABELS } from '~/types/template'
 
 const STORAGE_KEY = 'template-sets'
 const LIST_STORAGE_KEY = 'template-set-list'
-export type TemplateSetCreationMode = 'starter' | 'empty'
-
-function createDefaultSet(label: string, id: string = randomId()): TemplateSet {
-	return {
-		id,
-		label,
-		subjects: [
-			{
-				id: randomId(),
-				label: 'Fach',
-				categories: [
-					{
-						id: randomId(),
-						label: 'Kategorie',
-						grades: [
-							{
-								id: randomId(),
-								label: '1',
-								variants: [{ id: randomId(), label: '1', sentences: [] }],
-							},
-						],
-					},
-				],
-			},
-		],
-	}
-}
 
 function createEmptySet(id: string, label = 'Neue Vorlage'): TemplateSet {
 	return {
@@ -50,12 +22,9 @@ function createEmptySet(id: string, label = 'Neue Vorlage'): TemplateSet {
 
 export function createTemplateSet(
 	label: string,
-	mode: TemplateSetCreationMode = 'starter',
 	id: string = randomId(),
 ): TemplateSet {
-	return mode === 'empty'
-		? createEmptySet(id, label)
-		: createDefaultSet(label, id)
+	return createEmptySet(id, label)
 }
 
 function migrateTemplateSet(set: TemplateSet): TemplateSet {
@@ -133,7 +102,7 @@ export function sanitizeTemplateSetsRecord(record: TemplateSetsRecord): Template
 function normalizeTemplateSets(
 	raw: Record<string, TemplateSet | null | undefined>,
 	orderedIdsHint: string[] | undefined,
-	opts: { addDefaultsIfEmpty: boolean; schemaSafeParse: boolean },
+	opts: { schemaSafeParse: boolean },
 ): NormalizeTemplateSetsResult {
 	const migrated: TemplateSetsRecord = {}
 	let record: TemplateSetsRecord = migrated
@@ -198,19 +167,6 @@ function normalizeTemplateSets(
 		didMigrate = true
 	}
 
-	if (
-		opts.addDefaultsIfEmpty &&
-		orderedIds.length === 0 &&
-		Object.keys(record).length === 0
-	) {
-		const defaults = TEMPLATE_SET_LABELS.map((label) => createDefaultSet(label as string))
-		const nextRecord: TemplateSetsRecord = {}
-		for (const d of defaults) nextRecord[d.id] = d
-		record = nextRecord
-		orderedIds = defaults.map((d) => d.id)
-		didMigrate = true
-	}
-
 	return { record, orderedIds, didMigrate }
 }
 
@@ -241,7 +197,7 @@ export function mergeAzSetIntoTemplateState(
 	const normalizedIncoming = normalizeTemplateSets(
 		payload.templateSets as Record<string, TemplateSet | null | undefined>,
 		payload.orderedIds,
-		{ addDefaultsIfEmpty: false, schemaSafeParse: false },
+		{ schemaSafeParse: false },
 	)
 
 	const nextRecord: TemplateSetsRecord = {
@@ -355,7 +311,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		const normalized = normalizeTemplateSets(
 			(stored ?? {}) as Record<string, TemplateSet | null | undefined>,
 			storedList,
-			{ addDefaultsIfEmpty: false, schemaSafeParse: true },
+			{ schemaSafeParse: true },
 		)
 
 		record.value = normalized.record
@@ -394,10 +350,10 @@ export const useTemplatesStore = defineStore('templates', () => {
 		persistRecord()
 	}
 
-	function addSet(label: string, mode: TemplateSetCreationMode = 'starter'): string {
+	function addSet(label: string): string {
 		const trimmed = label.trim()
 		if (!trimmed) return ''
-		const newSet = createTemplateSet(trimmed, mode)
+		const newSet = createTemplateSet(trimmed)
 		upsertSet(newSet.id, newSet)
 		return newSet.id
 	}
@@ -520,7 +476,6 @@ export const useTemplatesStore = defineStore('templates', () => {
 		exportSubject,
 		importSubjectIntoSet,
 		createEmptySet,
-		createDefaultSet,
 	}
 })
 
@@ -528,4 +483,4 @@ function isUuid(s: string): boolean {
 	return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 }
 
-export { createDefaultSet, createEmptySet, type TemplateSetsRecord }
+export { createEmptySet, type TemplateSetsRecord }

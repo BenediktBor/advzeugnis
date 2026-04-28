@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import type { TemplateSetCreationMode } from '~/stores/templates'
-
 const route = useRoute()
 const router = useRouter()
 const { setsWithData, addSet, isLoaded } = useTemplateSets()
@@ -9,19 +7,9 @@ const hasTemplateSets = computed(() => setsWithData.value.length > 0)
 
 const addModalOpen = ref(false)
 const addModalLabel = ref('')
-const addModalMode = ref<TemplateSetCreationMode>('starter')
-const addModeItems = [
-	{ value: 'starter', label: 'Mit Standardstruktur starten' },
-	{ value: 'empty', label: 'Leere Vorlage erstellen' },
-]
-
-function setAddModalMode(mode: TemplateSetCreationMode = 'starter') {
-	addModalLabel.value = ''
-	addModalMode.value = mode
-}
 
 function openAddModal() {
-	setAddModalMode()
+	addModalLabel.value = ''
 	addModalOpen.value = true
 }
 
@@ -29,7 +17,7 @@ function confirmAddSet() {
 	const label = addModalLabel.value.trim()
 	if (!label) return
 	addModalOpen.value = false
-	const newId = addSet(label, addModalMode.value)
+	const newId = addSet(label)
 	if (newId) router.push(`/app/templates/${newId}`)
 }
 
@@ -154,21 +142,6 @@ watch(
 					Ein Vorlagensatz fasst Fächer, Kategorien und Satzbausteine pro
 					Jahrgang oder Schulstufe zusammen.
 				</p>
-				<UFormField label="Start" name="add-set-mode">
-					<UTabs
-						:items="addModeItems"
-						v-model="addModalMode"
-						:content="false"
-						class="w-full"
-					/>
-					<p class="mt-2 text-xs text-muted">
-						{{
-							addModalMode === 'starter'
-								? 'Erstellt direkt ein Fach mit einer Kategorie, Notenstufe und Variante.'
-								: 'Startet ohne Inhalte, damit du deine Struktur komplett selbst aufbauen kannst.'
-						}}
-					</p>
-				</UFormField>
 				<UFormField label="Bezeichnung" name="add-set-label">
 					<UInput
 						v-model="addModalLabel"

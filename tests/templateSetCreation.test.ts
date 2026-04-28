@@ -24,29 +24,22 @@ describe('template set creation', () => {
 		vi.useRealTimers()
 	})
 
-	it('creates starter sets with the default scaffold', () => {
+	it('creates empty sets without initial content', () => {
 		const templateSet = createTemplateSet(
 			'Klasse 5',
-			'starter',
 			'11111111-1111-1111-1111-111111111111',
 		)
 
-		expect(templateSet).toMatchObject({
+		expect(templateSet).toEqual({
 			id: '11111111-1111-1111-1111-111111111111',
 			label: 'Klasse 5',
+			subjects: [],
 		})
-		expect(templateSet.subjects).toHaveLength(1)
-		expect(templateSet.subjects[0]?.categories).toHaveLength(1)
-		expect(templateSet.subjects[0]?.categories[0]?.grades).toHaveLength(1)
-		expect(
-			templateSet.subjects[0]?.categories[0]?.grades[0]?.variants,
-		).toHaveLength(1)
 	})
 
-	it('creates empty sets without starter content', () => {
+	it('uses the provided ID when creating an empty set', () => {
 		const templateSet = createTemplateSet(
 			'Klasse 6',
-			'empty',
 			'22222222-2222-2222-2222-222222222222',
 		)
 
@@ -57,17 +50,20 @@ describe('template set creation', () => {
 		})
 	})
 
-	it('stores the requested creation mode when adding a set', () => {
+	it('stores empty template sets when adding a set', () => {
 		const store = useTemplatesStore()
 
-		const starterId = store.addSet(' Klasse 7 ')
-		const emptyId = store.addSet('Klasse 8', 'empty')
+		const firstId = store.addSet(' Klasse 7 ')
+		const secondId = store.addSet('Klasse 8')
 
-		expect(store.orderedIds).toEqual([starterId, emptyId])
-		expect(store.record[starterId!]?.label).toBe('Klasse 7')
-		expect(store.record[starterId!]?.subjects).toHaveLength(1)
-		expect(store.record[emptyId!]).toEqual({
-			id: emptyId,
+		expect(store.orderedIds).toEqual([firstId, secondId])
+		expect(store.record[firstId!]).toEqual({
+			id: firstId,
+			label: 'Klasse 7',
+			subjects: [],
+		})
+		expect(store.record[secondId!]).toEqual({
+			id: secondId,
 			label: 'Klasse 8',
 			subjects: [],
 		})
@@ -87,7 +83,7 @@ describe('template set creation', () => {
 	it('treats empty template sets as existing template sets', () => {
 		const store = useTemplatesStore()
 		store.load = vi.fn().mockResolvedValue(undefined)
-		const emptyId = store.addSet('Klasse 9', 'empty')
+		const emptyId = store.addSet('Klasse 9')
 
 		const { hasAnyTemplateSets } = useTemplateSets()
 
