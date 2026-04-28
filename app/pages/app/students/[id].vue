@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Student } from '~/types/student'
+import type { NamePartReplacementKey, Student } from '~/types/student'
 import type { Category, Grade } from '~/types/template'
 import {
 	buildVariantPreviewText,
@@ -9,6 +9,7 @@ import {
 	ensureVariantIdsForGrade,
 	getEffectiveCategoryEntry,
 	getDefaultVariantIdsForGrade,
+	namePartOverrideKey,
 	normalizeVariantIdsForGrade,
 	type ReportSegment,
 } from '~/composables/useReportText'
@@ -90,6 +91,10 @@ function getOptionalPartOverrides(categoryId: string) {
 	return getStoredCategoryEntry(categoryId)?.optionalPartOverrides ?? {}
 }
 
+function getNamePartOverrides(categoryId: string) {
+	return getStoredCategoryEntry(categoryId)?.namePartOverrides ?? {}
+}
+
 function getSelectedSubjectId() {
 	return student.value?.reportSelection?.selectedSubjectId ?? null
 }
@@ -121,6 +126,7 @@ function setGrade(categoryId: string, category: Category, grade: Grade) {
 			gradeId: grade.id,
 			variantIds: firstVariantIds,
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: getNamePartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -154,6 +160,7 @@ function toggleVariant(categoryId: string, category: Category, variantId: string
 			gradeId: entry.gradeId,
 			variantIds: next,
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: getNamePartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -180,6 +187,7 @@ function selectVariants(categoryId: string, category: Category, variantIds: stri
 			gradeId: entry.gradeId,
 			variantIds: nextVariantIds,
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: getNamePartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -216,6 +224,7 @@ function disableCategory(categoryId: string) {
 			gradeId: null,
 			variantIds: [],
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: getNamePartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -249,6 +258,40 @@ function toggleOptionalPart(
 				...getOptionalPartOverrides(categoryId),
 				[partId]: enabled,
 			},
+			namePartOverrides: getNamePartOverrides(categoryId),
+		},
+	}
+	updateStudent(id.value, {
+		reportSelection: { ...student.value.reportSelection, categories: nextCategories },
+	})
+	focusedCategoryId.value = categoryId
+	lastChangedVariantId.value = variantId
+}
+
+function setNamePartReplacement(
+	categoryId: string,
+	category: Category,
+	variantId: string,
+	partIndex: number,
+	replacementKey: NamePartReplacementKey | null
+) {
+	if (!id.value || !student.value) return
+	const entry = getCategoryEntry(category)
+	if (!entry.gradeId) return
+	const nextNamePartOverrides = { ...getNamePartOverrides(categoryId) }
+	const key = namePartOverrideKey(variantId, partIndex)
+	if (replacementKey) {
+		nextNamePartOverrides[key] = replacementKey
+	} else {
+		delete nextNamePartOverrides[key]
+	}
+	const nextCategories = {
+		...student.value.reportSelection?.categories,
+		[categoryId]: {
+			gradeId: entry.gradeId,
+			variantIds: entry.variantIds,
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: nextNamePartOverrides,
 		},
 	}
 	updateStudent(id.value, {
@@ -276,6 +319,7 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 				entry.variantIds.includes(variant.id)
 			)
 			const optionalPartOverrides = getOptionalPartOverrides(category.id)
+			const namePartOverrides = getNamePartOverrides(category.id)
 			return {
 				subjectLabel: subject.label || 'Unbenannt',
 				categoryId: category.id,
@@ -285,12 +329,23 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 				selectedGradeId: entry.gradeId,
 				selectedVariantIds: entry.variantIds,
 				optionalPartOverrides,
+				namePartOverrides,
 				variants: grade?.variants ?? [],
-				selectedPreviewText: buildVariantsPreviewText(s, selectedVariants, optionalPartOverrides),
+				selectedPreviewText: buildVariantsPreviewText(
+					s,
+					selectedVariants,
+					optionalPartOverrides,
+					namePartOverrides
+				),
 				variantPreviewById: Object.fromEntries(
 					(grade?.variants ?? []).map((variant) => [
 						variant.id,
-						buildVariantPreviewText(s, variant, optionalPartOverrides),
+						buildVariantPreviewText(
+							s,
+							variant,
+							optionalPartOverrides,
+							namePartOverrides
+						),
 					])
 				),
 			}
@@ -428,6 +483,7 @@ watch(
 					@disable-category="disableCategory"
 					@toggle-variant="toggleVariant"
 					@toggle-optional-part="toggleOptionalPart"
+					@set-name-part-replacement="setNamePartReplacement"
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
 					@update:selected-subject-id="setSelectedSubjectId"

@@ -7,7 +7,10 @@ import {
 	ensureVariantIdsForGrade,
 	getDefaultVariantIdsForGrade,
 	getEffectiveCategoryEntry,
+	namePartOverrideKey,
 	normalizeVariantIdsForGrade,
+	resolveGenderVariantValue,
+	resolveNamePartReplacement,
 } from '~/composables/useReportText'
 import type { Student } from '~/types/student'
 import type { Category, TemplateSet } from '~/types/template'
@@ -569,6 +572,56 @@ describe('buildReportSegments', () => {
 		expect(segments).toHaveLength(2)
 		expect(segments.map((segment) => segment.text)).toEqual(['A.', 'B.'])
 	})
+
+	it('applies persisted name part overrides when building report text', () => {
+		const templateSet: TemplateSet = {
+			id: 'set-test-10',
+			label: 'Test',
+			subjects: [
+				{
+					id: 's1',
+					label: 'S',
+					categories: [
+						{
+							id: 'c1',
+							label: 'C',
+							grades: [
+								{
+									id: 'g1',
+									label: '1',
+									variants: [
+										{
+											id: 'v1',
+											label: '1',
+											sentences: [
+												{ type: 'name' },
+												{ type: 'text', value: 'arbeitet gut.' },
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		}
+		const student = makeStudent({
+			gender: 'female',
+			reportSelection: {
+				categories: {
+					c1: {
+						gradeId: 'g1',
+						variantIds: ['v1'],
+						namePartOverrides: { [namePartOverrideKey('v1', 0)]: 'erSie' },
+					},
+				},
+			},
+		})
+
+		expect(buildReportSegments(student, templateSet)[0]?.text).toBe('Sie arbeitet gut.')
+		expect(buildReportPlainText(student, templateSet)).toBe('Sie arbeitet gut.')
+	})
 })
 
 describe('buildReportPlainText', () => {
@@ -723,6 +776,85 @@ describe('preview helpers', () => {
 		]
 
 		expect(buildVariantsPreviewText(student, variants)).toBe('Sehr gut! Wirklich?')
+	})
+
+	it('keeps name parts unchanged without name overrides', () => {
+		const student = makeStudent({ name: 'Lisa', gender: 'female' })
+		const text = buildVariantPreviewText(student, {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'name' },
+				{ type: 'text', value: 'arbeitet konzentriert.' },
+			],
+		})
+
+		expect(text).toBe('Lisa arbeitet konzentriert.')
+	})
+
+	it('replaces a sentence-start name with the uppercase gendered replacement', () => {
+		const student = makeStudent({ name: 'Lisa', gender: 'female' })
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'name' as const },
+				{ type: 'text' as const, value: 'arbeitet konzentriert.' },
+			],
+		}
+
+		const text = buildVariantPreviewText(student, variant, {}, {
+			[namePartOverrideKey('v1', 0)]: 'erSie',
+		})
+
+		expect(text).toBe('Sie arbeitet konzentriert.')
+	})
+
+	it('replaces an in-sentence name with the lowercase gendered replacement', () => {
+		const student = makeStudent({ name: 'Max', gender: 'male' })
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'text' as const, value: 'Heute zeigt' },
+				{ type: 'name' as const },
+				{ type: 'text' as const, value: 'viel Ausdauer.' },
+			],
+		}
+
+		const text = buildVariantPreviewText(student, variant, {}, {
+			[namePartOverrideKey('v1', 1)]: 'erSie',
+		})
+
+		expect(text).toBe('Heute zeigt er viel Ausdauer.')
+	})
+
+	it('treats a name after sentence punctuation as sentence-start', () => {
+		const student = makeStudent({ name: 'Max', gender: 'male' })
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'text' as const, value: 'Heute klappt es.' },
+				{ type: 'name' as const },
+				{ type: 'text' as const, value: 'meldet sich zuverlässig.' },
+			],
+		}
+
+		const text = buildVariantPreviewText(student, variant, {}, {
+			[namePartOverrideKey('v1', 1)]: 'erSie',
+		})
+
+		expect(text).toBe('Heute klappt es. Er meldet sich zuverlässig.')
+	})
+
+	it('uses the same gender tuple behavior for name replacements and gender variants', () => {
+		expect(resolveNamePartReplacement('erSie', 'female', true)).toBe(
+			resolveGenderVariantValue(['Er', 'Sie'], 'female')
+		)
+		expect(resolveNamePartReplacement('erSie', 'male', false)).toBe(
+			resolveGenderVariantValue(['er', 'sie'], 'male')
+		)
 	})
 })
 

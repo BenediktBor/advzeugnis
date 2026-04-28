@@ -4,6 +4,7 @@ import {
 	AzSubjectExportPayloadSchema,
 	SentencePartSchema,
 } from '~/schemas/template'
+import { StudentSchema } from '~/schemas/student'
 
 describe('AzSetExportPayloadSchema', () => {
 	it('accepts a valid export payload', () => {
@@ -291,6 +292,54 @@ describe('SentencePartSchema', () => {
 			id: 'not-a-uuid',
 			value: 'arbeitet besonders sorgfältig',
 			enabledByDefault: 'yes',
+		})
+
+		expect(result.success).toBe(false)
+	})
+})
+
+describe('StudentSchema', () => {
+	it('accepts name part replacement overrides', () => {
+		const result = StudentSchema.safeParse({
+			id: 'student-1',
+			name: 'Max',
+			surname: 'Müller',
+			gender: 'male',
+			templateSetId: 'set-1',
+			reportSelection: {
+				categories: {
+					'category-1': {
+						gradeId: 'grade-1',
+						variantIds: ['variant-1'],
+						namePartOverrides: {
+							'variant-1:0': 'erSie',
+						},
+					},
+				},
+			},
+		})
+
+		expect(result.success).toBe(true)
+	})
+
+	it('rejects unknown name part replacement keys', () => {
+		const result = StudentSchema.safeParse({
+			id: 'student-1',
+			name: 'Max',
+			surname: 'Müller',
+			gender: 'male',
+			templateSetId: 'set-1',
+			reportSelection: {
+				categories: {
+					'category-1': {
+						gradeId: 'grade-1',
+						variantIds: ['variant-1'],
+						namePartOverrides: {
+							'variant-1:0': 'unknownReplacement',
+						},
+					},
+				},
+			},
 		})
 
 		expect(result.success).toBe(false)
