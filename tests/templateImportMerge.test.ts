@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AzSetExportPayload } from '~/schemas/template'
 import {
+	createSingleSetAzsetPayload,
 	mergeAzSetIntoTemplateState,
 	mergeSubjectIntoTemplateSet,
 	type TemplateStoreSnapshot,
@@ -115,6 +116,41 @@ describe('mergeAzSetIntoTemplateState', () => {
 		const merged = mergeAzSetIntoTemplateState(current, payload)
 
 		expect(merged).toEqual(current)
+	})
+})
+
+describe('createSingleSetAzsetPayload', () => {
+	it('exports only the requested template set as an azset payload', () => {
+		const current: TemplateStoreSnapshot = {
+			record: {
+				[setIdA]: makeTemplateSet(setIdA, 'Klasse 1', 'Bestehend A'),
+				[setIdB]: makeTemplateSet(setIdB, 'Klasse 2', 'Bestehend B'),
+			},
+			orderedIds: [setIdB, setIdA],
+		}
+
+		const payload = createSingleSetAzsetPayload(current, setIdA)
+
+		expect(payload).toEqual({
+			schemaVersion: 1,
+			orderedIds: [setIdA],
+			templateSets: {
+				[setIdA]: current.record[setIdA],
+			},
+		})
+		expect(payload?.templateSets[setIdB]).toBeUndefined()
+		expect(payload?.templateSets[setIdA]).not.toBe(current.record[setIdA])
+	})
+
+	it('returns null when the template set is missing', () => {
+		const current: TemplateStoreSnapshot = {
+			record: {
+				[setIdA]: makeTemplateSet(setIdA, 'Klasse 1', 'Bestehend A'),
+			},
+			orderedIds: [setIdA],
+		}
+
+		expect(createSingleSetAzsetPayload(current, setIdB)).toBeNull()
 	})
 })
 

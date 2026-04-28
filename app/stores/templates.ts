@@ -264,6 +264,22 @@ export function mergeAzSetIntoTemplateState(
 
 export const mergeAdvZeUIntoTemplateState = mergeAzSetIntoTemplateState
 
+export function createSingleSetAzsetPayload(
+	current: TemplateStoreSnapshot,
+	setId: string,
+): AzSetExportPayload | null {
+	const templateSet = current.record[setId]
+	if (!templateSet) return null
+
+	return {
+		schemaVersion: 1,
+		orderedIds: [setId],
+		templateSets: {
+			[setId]: JSON.parse(JSON.stringify(templateSet)) as TemplateSet,
+		},
+	}
+}
+
 function cloneSubjectWithFreshIds(subject: Subject): Subject {
 	return produce(subject, (draft) => {
 		draft.id = randomId()
@@ -424,7 +440,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		return record.value[setId]?.label ?? ''
 	}
 
-	async function exportAllAzset() {
+	async function exportAllAzset(): Promise<AzSetExportPayload> {
 		await load()
 
 		// Export a plain JSON object (avoid Vue/Pinia reactivity).
@@ -434,6 +450,15 @@ export const useTemplatesStore = defineStore('templates', () => {
 			orderedIds: [...orderedIds.value],
 			templateSets,
 		}
+	}
+
+	async function exportAzsetForSet(setId: string): Promise<AzSetExportPayload | null> {
+		await load()
+
+		return createSingleSetAzsetPayload(
+			{ record: record.value, orderedIds: orderedIds.value },
+			setId,
+		)
 	}
 
 	async function mergeFromAzset(payload: AzSetExportPayload) {
@@ -490,6 +515,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		saveSetData,
 		getSetLabel,
 		exportAllAzset,
+		exportAzsetForSet,
 		mergeFromAzset,
 		exportSubject,
 		importSubjectIntoSet,

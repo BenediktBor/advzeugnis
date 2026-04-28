@@ -40,6 +40,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const deleteDialog = useConfirmDialog()
+const { onDownloadAzsetForSet } = useAdvZeUTemplatesImportExport()
 const {
 	importFileInput: subjectImportFileInput,
 	collisionModalOpen: subjectImportCollisionOpen,
@@ -387,24 +388,33 @@ function confirmDeleteLabel(label: string): string {
 					<UDashboardSidebarCollapse />
 				</template>
 				<template #right>
-					<UButton
-						v-if="setId && canEdit"
-						label="Löschen"
-						icon="i-lucide-trash-2"
-						color="error"
-						variant="ghost"
-						aria-label="Vorlage löschen"
-						@click="
-							deleteDialog.show({
-								title: 'Vorlage löschen?',
-								description: confirmDeleteLabel(templateSet.label),
-								onConfirm: () => {
-									removeSet(setId)
-									router.push('/app/templates')
-								},
-							})
-						"
-					/>
+					<div v-if="setId && canEdit" class="flex items-center gap-1">
+						<UButton
+							label="Exportieren"
+							icon="i-lucide-download"
+							color="neutral"
+							variant="ghost"
+							aria-label="Vorlagensatz exportieren"
+							@click="onDownloadAzsetForSet(setId)"
+						/>
+						<UButton
+							label="Löschen"
+							icon="i-lucide-trash-2"
+							color="error"
+							variant="ghost"
+							aria-label="Vorlage löschen"
+							@click="
+								deleteDialog.show({
+									title: 'Vorlage löschen?',
+									description: confirmDeleteLabel(templateSet.label),
+									onConfirm: () => {
+										removeSet(setId)
+										router.push('/app/templates')
+									},
+								})
+							"
+						/>
+					</div>
 				</template>
 			</UDashboardNavbar>
 		</template>
