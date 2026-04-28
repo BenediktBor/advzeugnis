@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/*
 const pricingId = 'preise'
 
 const plans = [
@@ -33,6 +34,7 @@ const plans = [
 		scale: true,
 	},
 ]
+*/
 </script>
 
 <template>
@@ -66,17 +68,20 @@ const plans = [
 				title="AdvancedZeugnis"
 				description="Zeugnisverwaltung für Lehrkräfte: Schüler verwalten, Vorlagen bearbeiten und Zeugnisse effizient erstellen – solo oder im Schulteam."
 				:links="[
+					/*
 					{
 						label: 'Preise ansehen',
 						to: `#${pricingId}`,
 						color: 'neutral',
 						variant: 'outline',
 					},
+					*/
 					{ label: 'Kostenlos starten', to: '/app' },
 				]"
 			/>
 
 			<!-- Pricing -->
+			<!--
 			<section
 				:id="pricingId"
 				class="border-t border-default bg-elevated/30 py-16"
@@ -97,6 +102,7 @@ const plans = [
 					/>
 				</UContainer>
 			</section>
+			-->
 		</main>
 	</div>
 </template>

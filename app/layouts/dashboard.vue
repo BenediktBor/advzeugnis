@@ -5,7 +5,8 @@ import { studentFullName } from '~/utils/student'
 const open = ref(false)
 const router = useRouter()
 const { students } = useStudents()
-const { currentUser, canEditTemplates } = useCurrentUser()
+const { canEditTemplates } = useCurrentUser()
+// const { currentUser, canEditTemplates } = useCurrentUser()
 const { orderedIds, setsWithData, hasAnyTemplateSets } = useTemplateSets()
 const { createStudentAndOpen } = useCreateStudentFlow()
 
@@ -19,6 +20,7 @@ function onAddTemplate() {
 	void router.push({ path: '/app/templates', query: { create: '1' } })
 }
 
+/*
 const accountNavItem = computed<NavigationMenuItem>(() =>
 	currentUser.value.type === 'school'
 		? {
@@ -38,11 +40,12 @@ const accountNavItem = computed<NavigationMenuItem>(() =>
 				},
 		  }
 )
+*/
 
 const links = computed<NavigationMenuItem[]>(() => {
 	const hasStudents = students.value.length > 0
 	return [
-		accountNavItem.value,
+		// accountNavItem.value,
 		{
 			label: 'Schüler',
 			icon: 'i-lucide-users',
@@ -169,6 +172,7 @@ const links = computed<NavigationMenuItem[]>(() => {
 				</UNavigationMenu>
 			</template>
 
+			<!--
 			<template #footer="{ collapsed }">
 				<UButton
 					:to="
@@ -195,6 +199,7 @@ const links = computed<NavigationMenuItem[]>(() => {
 					class="data-[state=open]:bg-elevated"
 				/>
 			</template>
+			-->
 		</UDashboardSidebar>
 
 		<slot />

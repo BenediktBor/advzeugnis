@@ -1,4 +1,7 @@
 <script setup lang="ts">
+await navigateTo('/app', { replace: true })
+
+/*
 import type { TableColumn } from '@nuxt/ui'
 import type { SchoolMember } from '~/types/user'
 
@@ -37,9 +40,12 @@ function handleAddMember() {
 	newMember.value = { displayName: '', email: '', role: 'teacher' }
 	showAddForm.value = false
 }
+*/
 </script>
 
 <template>
+	<div />
+	<!--
 	<UDashboardPanel>
 		<template #header>
 			<UDashboardNavbar title="Schule">
@@ -161,4 +167,5 @@ function handleAddMember() {
 			</div>
 		</template>
 	</UDashboardPanel>
+	-->
 </template>

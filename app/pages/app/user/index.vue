@@ -1,4 +1,7 @@
 <script setup lang="ts">
+await navigateTo('/app', { replace: true })
+
+/*
 const { currentUser, setUserType, setUserRole } = useCurrentUser()
 const router = useRouter()
 const showPrototypeTools = import.meta.dev
@@ -17,9 +20,12 @@ function switchToSchool() {
 function switchToSolo() {
 	setUserType('solo')
 }
+*/
 </script>
 
 <template>
+	<div />
+	<!--
 	<UDashboardPanel>
 		<template #header>
 			<UDashboardNavbar title="Benutzer">
@@ -129,4 +135,5 @@ function switchToSolo() {
 			</div>
 		</template>
 	</UDashboardPanel>
+	-->
 </template>
