@@ -13,6 +13,15 @@ type SortableLikeEvent = {
 	item?: HTMLElement
 }
 
+type TemplateActionMenuItem =
+	| {
+			label: string
+			icon: string
+			color?: 'neutral' | 'error'
+			onSelect: () => void
+	  }
+	| { type: 'separator' }
+
 const props = defineProps<{
 	setId: string
 	templateSet: TemplateSet
@@ -378,6 +387,66 @@ function confirmEditLabel() {
 function confirmDeleteLabel(label: string): string {
 	return `Möchtest du „${label || 'Unbenannt'}" wirklich löschen?`
 }
+
+function subjectActionItems(subjectId: string): TemplateActionMenuItem[] {
+	return [
+		{
+			label: 'Fach exportieren',
+			icon: 'i-lucide-download',
+			color: 'neutral',
+			onSelect: () => onDownloadSubject(subjectId),
+		},
+		{
+			label: 'Fach umbenennen',
+			icon: 'i-lucide-pencil',
+			color: 'neutral',
+			onSelect: () =>
+				openEditLabelModal(
+					getSubject(subjectId)?.label || '',
+					(label) => props.updateSubjectLabel(subjectId, label),
+				),
+		},
+		{ type: 'separator' },
+		{
+			label: 'Fach löschen',
+			icon: 'i-lucide-trash-2',
+			color: 'error',
+			onSelect: () =>
+				deleteDialog.show({
+					title: 'Fach löschen?',
+					description: confirmDeleteLabel(getSubject(subjectId)?.label || ''),
+					onConfirm: () => props.deleteSubject(subjectId),
+				}),
+		},
+	]
+}
+
+function categoryActionItems(subjectId: string, categoryId: string): TemplateActionMenuItem[] {
+	return [
+		{
+			label: 'Umbenennen',
+			icon: 'i-lucide-pencil',
+			color: 'neutral',
+			onSelect: () =>
+				openEditLabelModal(
+					getCategory(subjectId, categoryId)?.label || '',
+					(label) => props.updateCategoryLabel(subjectId, categoryId, label),
+				),
+		},
+		{ type: 'separator' },
+		{
+			label: 'Löschen',
+			icon: 'i-lucide-trash-2',
+			color: 'error',
+			onSelect: () =>
+				deleteDialog.show({
+					title: 'Kategorie löschen?',
+					description: confirmDeleteLabel(getCategory(subjectId, categoryId)?.label || ''),
+					onConfirm: () => props.deleteCategory(subjectId, categoryId),
+				}),
+		},
+	]
+}
 </script>
 
 <template>
@@ -501,7 +570,12 @@ function confirmDeleteLabel(label: string): string {
 											aria-label="Kategorie hinzufügen"
 											@click.stop="openCreateCategoryModal(descriptor.subjectId)"
 										/>
-										<UPopover :ui="{ content: 'p-2 w-48' }">
+										<UDropdownMenu
+											:items="subjectActionItems(descriptor.subjectId)"
+											:content="{ align: 'end' }"
+											:ui="{ content: 'w-48' }"
+											size="sm"
+										>
 											<UButton
 												icon="i-lucide-more-horizontal"
 												color="neutral"
@@ -510,49 +584,7 @@ function confirmDeleteLabel(label: string): string {
 												aria-label="Fachaktionen öffnen"
 												@click.stop
 											/>
-											<template #content>
-												<div class="flex flex-col gap-1">
-													<UButton
-														label="Fach exportieren"
-														icon="i-lucide-download"
-														color="neutral"
-														variant="ghost"
-														size="sm"
-														block
-														@click="onDownloadSubject(descriptor.subjectId)"
-													/>
-													<UButton
-														label="Fach umbenennen"
-														icon="i-lucide-pencil"
-														color="neutral"
-														variant="ghost"
-														size="sm"
-														block
-														@click="
-															openEditLabelModal(
-																getSubject(descriptor.subjectId)?.label || '',
-																(label) => updateSubjectLabel(descriptor.subjectId, label)
-															)
-														"
-													/>
-													<UButton
-														label="Fach löschen"
-														icon="i-lucide-trash-2"
-														color="error"
-														variant="ghost"
-														size="sm"
-														block
-														@click="
-															deleteDialog.show({
-																title: 'Fach löschen?',
-																description: confirmDeleteLabel(getSubject(descriptor.subjectId)?.label || ''),
-																onConfirm: () => deleteSubject(descriptor.subjectId),
-															})
-														"
-													/>
-												</div>
-											</template>
-										</UPopover>
+										</UDropdownMenu>
 									</div>
 								</template>
 
@@ -586,7 +618,12 @@ function confirmDeleteLabel(label: string): string {
 										v-if="canEdit"
 										class="ml-auto flex items-center gap-1"
 									>
-										<UPopover :ui="{ content: 'p-2 w-48' }">
+										<UDropdownMenu
+											:items="categoryActionItems(descriptor.subjectId, descriptor.categoryId)"
+											:content="{ align: 'end' }"
+											:ui="{ content: 'w-48' }"
+											size="sm"
+										>
 											<UButton
 												icon="i-lucide-more-horizontal"
 												color="neutral"
@@ -595,51 +632,7 @@ function confirmDeleteLabel(label: string): string {
 												aria-label="Kategorieaktionen öffnen"
 												@click.stop
 											/>
-											<template #content>
-												<div class="flex flex-col gap-1">
-													<UButton
-														label="Umbenennen"
-														icon="i-lucide-pencil"
-														color="neutral"
-														variant="ghost"
-														size="sm"
-														block
-														@click="
-															openEditLabelModal(
-																getCategory(descriptor.subjectId, descriptor.categoryId)?.label || '',
-																(label) =>
-																	updateCategoryLabel(
-																		descriptor.subjectId,
-																		descriptor.categoryId,
-																		label,
-																	)
-															)
-														"
-													/>
-													<UButton
-														label="Löschen"
-														icon="i-lucide-trash-2"
-														color="error"
-														variant="ghost"
-														size="sm"
-														block
-														@click="
-															deleteDialog.show({
-																title: 'Kategorie löschen?',
-																description: confirmDeleteLabel(
-																	getCategory(descriptor.subjectId, descriptor.categoryId)?.label || '',
-																),
-																onConfirm: () =>
-																	deleteCategory(
-																		descriptor.subjectId,
-																		descriptor.categoryId,
-																	),
-															})
-														"
-													/>
-												</div>
-											</template>
-										</UPopover>
+										</UDropdownMenu>
 									</div>
 								</template>
 							</div>
