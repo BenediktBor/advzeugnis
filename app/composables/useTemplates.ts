@@ -14,6 +14,12 @@ export type SetWithData = {
 	id: string
 	label: string
 	subjects: string[]
+	subjectPreview: string[]
+	remainingSubjectCount: number
+	subjectCount: number
+	categoryCount: number
+	gradeCount: number
+	variantCount: number
 }
 
 export function useTemplateSets() {
@@ -25,10 +31,50 @@ export function useTemplateSets() {
 	const setsWithData = computed<SetWithData[]>(() =>
 		store.orderedIds.map((setId) => {
 			const setData = store.getSetData(setId)
-			const subjects = (setData?.subjects ?? [])
-				.filter((s): s is Subject => s != null)
-				.map((s) => s.label)
-			return { id: setId, label: setData?.label ?? '', subjects }
+			const subjects = (setData?.subjects ?? []).filter(
+				(s): s is Subject => s != null,
+			)
+			const subjectLabels = subjects.map((s) => s.label)
+			const categoryCount = subjects.reduce(
+				(total, subject) => total + subject.categories.length,
+				0,
+			)
+			const gradeCount = subjects.reduce(
+				(total, subject) =>
+					total +
+					subject.categories.reduce(
+						(categoryTotal, category) => categoryTotal + category.grades.length,
+						0,
+					),
+				0,
+			)
+			const variantCount = subjects.reduce(
+				(total, subject) =>
+					total +
+					subject.categories.reduce(
+						(categoryTotal, category) =>
+							categoryTotal +
+							category.grades.reduce(
+								(gradeTotal, grade) => gradeTotal + grade.variants.length,
+								0,
+							),
+						0,
+					),
+				0,
+			)
+			const subjectPreview = subjectLabels.slice(0, 4)
+
+			return {
+				id: setId,
+				label: setData?.label ?? '',
+				subjects: subjectLabels,
+				subjectPreview,
+				remainingSubjectCount: Math.max(0, subjectLabels.length - subjectPreview.length),
+				subjectCount: subjectLabels.length,
+				categoryCount,
+				gradeCount,
+				variantCount,
+			}
 		})
 	)
 

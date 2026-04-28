@@ -231,64 +231,114 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 						v-for="card in filteredStudentCards"
 						:key="card.student.id"
 						:to="`/app/students/${card.student.id}`"
-						class="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+						class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
 					>
 						<UCard
 							variant="soft"
-							class="h-full transition-opacity hover:opacity-90"
+							class="h-full overflow-hidden border border-default bg-default/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
 						>
 							<template #header>
 								<div class="flex items-start justify-between gap-3">
-									<span class="font-semibold text-highlighted">
-										{{ studentFullName(card.student) }}
-									</span>
-									<CategoryProgressCircle
-										v-if="card.coverageSummary"
-										class="shrink-0"
-										:value="card.coverageSummary.completed"
-										:total="card.coverageSummary.total"
-										:label="`${card.coverageSummary.completed} aktiv, ${card.coverageSummary.total - card.coverageSummary.completed} deaktiviert`"
-										below-label="Kategorien"
-										:tone="card.coverageSummary.isFinished ? 'success' : 'primary'"
+									<div class="flex min-w-0 items-start gap-3">
+										<div
+											class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+											aria-hidden="true"
+										>
+											<UIcon name="i-lucide-user" class="size-5" />
+										</div>
+										<div class="min-w-0">
+											<div class="truncate font-semibold text-highlighted">
+												{{ studentFullName(card.student) }}
+											</div>
+											<div class="mt-1 text-xs text-muted">
+												Schülerprofil bearbeiten
+											</div>
+										</div>
+									</div>
+									<UIcon
+										name="i-lucide-arrow-right"
+										class="mt-1 size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+										aria-hidden="true"
 									/>
 								</div>
 							</template>
-							<div class="flex flex-col gap-2 text-sm text-muted">
-								<div>
-									<span class="font-medium text-default"
-										>Vorlage
-									</span>
-									{{ getSetLabel(card.student.templateSetId) || 'Unbekannt' }}
-								</div>
-								<div>
-									<span class="font-medium text-default"
-										>Geschlecht
-									</span>
-									{{ genderLabel(card.student.gender) }}
-								</div>
-								<div
-									v-if="card.averageSummary"
-									class="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border border-default bg-muted/30 p-3"
-								>
-									<div class="min-w-0">
-										<div class="font-medium text-default">Notendurchschnitt</div>
-										<div class="text-xs text-muted">
-											{{ card.averageSummary.count }} Noten gewertet
-										</div>
+							<div class="flex flex-col gap-4 text-sm">
+								<div class="space-y-2">
+									<div class="text-xs font-medium uppercase tracking-wide text-muted">
+										Schülerdaten
 									</div>
-									<CategoryProgressCircle
-										class="shrink-0"
-										:value="Math.round(card.averageSummary.progress * 100)"
-										:total="100"
-										:display-value="formatAverage(card.averageSummary.average)"
-										:label="`Notendurchschnitt ${formatAverage(card.averageSummary.average)}`"
-										below-label="Ø Note"
-										tone="success"
-									/>
+									<div class="flex flex-wrap gap-2">
+										<span
+											class="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-default bg-elevated px-2.5 py-1 text-xs font-medium text-default"
+										>
+											<UIcon
+												name="i-lucide-file-text"
+												class="size-3.5 shrink-0 text-muted"
+												aria-hidden="true"
+											/>
+											<span class="truncate">
+												{{ getSetLabel(card.student.templateSetId) || 'Unbekannt' }}
+											</span>
+										</span>
+										<span
+											class="inline-flex items-center gap-1.5 rounded-full border border-default bg-elevated px-2.5 py-1 text-xs font-medium text-default"
+										>
+											<UIcon
+												name="i-lucide-venus-and-mars"
+												class="size-3.5 shrink-0 text-muted"
+												aria-hidden="true"
+											/>
+											{{ genderLabel(card.student.gender) }}
+										</span>
+									</div>
 								</div>
-								<p v-else class="text-xs text-muted">
-									Notendurchschnitt ist noch nicht verfügbar.
-								</p>
+
+								<div class="grid grid-cols-1 gap-2">
+									<div
+										v-if="card.coverageSummary"
+										class="flex min-w-0 flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border border-default bg-muted/30 p-3"
+									>
+										<div class="min-w-0">
+											<div class="font-medium text-default">Auswahlstatus</div>
+											<div class="text-xs text-muted">
+												{{ card.coverageSummary.completed }} von
+												{{ card.coverageSummary.total }} Kategorien aktiv
+											</div>
+										</div>
+										<CategoryProgressCircle
+											class="shrink-0"
+											:value="card.coverageSummary.completed"
+											:total="card.coverageSummary.total"
+											:label="`${card.coverageSummary.completed} aktiv, ${card.coverageSummary.total - card.coverageSummary.completed} deaktiviert`"
+											below-label="Kategorien"
+											:tone="card.coverageSummary.isFinished ? 'success' : 'primary'"
+										/>
+									</div>
+
+									<div
+										v-if="card.averageSummary"
+										class="flex min-w-0 flex-wrap items-center justify-between gap-3 overflow-hidden rounded-lg border border-default bg-muted/30 p-3"
+									>
+										<div class="min-w-0">
+											<div class="font-medium text-default">Notendurchschnitt</div>
+											<div class="text-xs text-muted">
+												{{ card.averageSummary.count }} Noten gewertet
+											</div>
+										</div>
+										<CategoryProgressCircle
+											class="shrink-0"
+											:value="Math.round(card.averageSummary.progress * 100)"
+											:total="100"
+											:display-value="formatAverage(card.averageSummary.average)"
+											:label="`Notendurchschnitt ${formatAverage(card.averageSummary.average)}`"
+											below-label="Ø Note"
+											tone="success"
+										/>
+									</div>
+									<p v-else class="text-xs text-muted">
+										Notendurchschnitt ist noch nicht verfügbar.
+									</p>
+								</div>
 							</div>
 						</UCard>
 					</ULink>
