@@ -13,38 +13,82 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 		</template>
 		<template #body>
 			<div class="flex flex-col gap-4">
-				<StorageLoadErrorAlert v-if="isLoaded && loadError" />
-				<div
-					v-else-if="isLoaded && !hasAnyTemplateSets"
-					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+				<AppStateNotice
+					v-if="!isLoaded"
+					title="Daten werden geladen"
+					icon="i-lucide-loader-2"
+					loading
+				/>
+				<StorageLoadErrorAlert v-else-if="loadError" />
+				<AppStateNotice
+					v-else-if="!hasAnyTemplateSets"
+					title="Zuerst Satzvorlagen anlegen"
+					description="Lege unter Vorlagen einen Vorlagensatz an oder importiere bestehende Satzvorlagen, bevor du Schüler anlegst."
+					icon="i-lucide-file-text"
+					tone="primary"
 				>
-					<p class="font-medium text-default">
-						Zuerst Satzvorlagen anlegen
-					</p>
-					<p class="mt-1 text-muted">
-						Lege unter Vorlagen einen Vorlagensatz an oder importiere
-						bestehende Satzvorlagen, bevor du Schüler anlegst.
-					</p>
 					<UButton
 						label="Zu Vorlagen"
 						to="/app/templates"
-						class="mt-3"
 						icon="i-lucide-file-text"
 					/>
+				</AppStateNotice>
+				<div v-else class="flex flex-col gap-6">
+					<div class="space-y-2">
+						<h1 class="text-xl font-semibold text-highlighted">
+							Willkommen bei AdvancedZeugnis
+						</h1>
+						<p class="max-w-2xl text-muted">
+							Erstelle Zeugnisformulierungen in drei Schritten: Vorlagen vorbereiten,
+							Schüler anlegen und den fertigen Text kopieren.
+						</p>
+					</div>
+					<div class="grid gap-3 md:grid-cols-3">
+						<UCard variant="soft">
+							<div class="flex flex-col gap-2">
+								<UBadge label="1" class="w-fit" />
+								<h2 class="font-medium text-default">Vorlagen vorbereiten</h2>
+								<p class="text-sm text-muted">
+									Lege Satzvorlagen an oder importiere bestehende `.azset`-Dateien.
+								</p>
+								<UButton
+									label="Zu den Vorlagen"
+									to="/app/templates"
+									icon="i-lucide-file-text"
+									color="neutral"
+									variant="outline"
+									class="mt-2 w-fit"
+								/>
+							</div>
+						</UCard>
+						<UCard variant="soft">
+							<div class="flex flex-col gap-2">
+								<UBadge label="2" class="w-fit" />
+								<h2 class="font-medium text-default">Schüler anlegen</h2>
+								<p class="text-sm text-muted">
+									Wähle Name, Geschlecht und passende Vorlage für jeden Schüler.
+								</p>
+								<UButton
+									label="Zur Schülerliste"
+									to="/app/students"
+									icon="i-lucide-users"
+									color="neutral"
+									variant="outline"
+									class="mt-2 w-fit"
+								/>
+							</div>
+						</UCard>
+						<UCard variant="soft">
+							<div class="flex flex-col gap-2">
+								<UBadge label="3" class="w-fit" />
+								<h2 class="font-medium text-default">Text auswählen und kopieren</h2>
+								<p class="text-sm text-muted">
+									Wähle Stufen und Varianten aus. Die Textausgabe aktualisiert sich automatisch.
+								</p>
+							</div>
+						</UCard>
+					</div>
 				</div>
-				<h1 class="text-xl font-semibold text-highlighted">
-					Willkommen bei AdvancedZeugnis
-				</h1>
-				<p class="text-muted">
-					Nutze die Sidebar, um Schüler und Jahrgangs-Satzvorlagen zu
-					verwalten.
-				</p>
-				<ULink to="/app/students" class="text-primary hover:underline">
-					Zur Schülerliste
-				</ULink>
-				<ULink to="/app/templates" class="text-primary hover:underline">
-					Zu den Vorlagen
-				</ULink>
 			</div>
 		</template>
 	</UDashboardPanel>

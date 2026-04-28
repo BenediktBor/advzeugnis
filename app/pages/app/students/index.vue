@@ -148,29 +148,27 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 			<div class="flex flex-col gap-4">
 				<div
 					v-if="!isLoaded"
-					class="rounded-lg border border-default bg-default p-4 text-sm text-muted"
 				>
-					Schüler und Vorlagen werden geladen…
+					<AppStateNotice
+						title="Schüler und Vorlagen werden geladen"
+						icon="i-lucide-loader-2"
+						loading
+					/>
 				</div>
 				<StorageLoadErrorAlert v-else-if="loadError" />
-				<div
+				<AppStateNotice
 					v-else-if="!hasAnyTemplateSets"
-					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+					title="Zuerst Satzvorlagen anlegen"
+					description="Lege zuerst Satzvorlagen unter Vorlagen an, bevor du Schüler anlegst."
+					icon="i-lucide-file-text"
+					tone="primary"
 				>
-					<p class="font-medium text-default">
-						Zuerst Satzvorlagen anlegen
-					</p>
-					<p class="mt-1 text-muted">
-						Lege zuerst Satzvorlagen unter Vorlagen an, bevor du
-						Schüler anlegst.
-					</p>
 					<UButton
 						label="Zu Vorlagen"
 						to="/app/templates"
-						class="mt-3"
 						icon="i-lucide-file-text"
 					/>
-				</div>
+				</AppStateNotice>
 				<div
 					v-if="hasAnyTemplateSets && filteredStudents.length"
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
@@ -203,27 +201,42 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 									</span>
 									{{ genderLabel(s.gender) }}
 								</div>
-								<p class="text-xs text-muted">Notendurchschnitt ist noch nicht verfugbar.</p>
+								<p class="text-xs text-muted">Notendurchschnitt ist noch nicht verfügbar.</p>
 							</div>
 						</UCard>
 					</ULink>
 				</div>
-				<p
+				<AppStateNotice
 					v-else-if="hasAnyTemplateSets && !students.length"
-					class="text-sm text-muted"
+					title="Noch keine Schüler"
+					description="Lege einen Schüler an, um mit der Textauswahl zu starten."
+					icon="i-lucide-user-plus"
 				>
-					Noch keine Schüler. Lege einen an, um zu starten.
-				</p>
-				<p
+					<UButton
+						label="Schüler anlegen"
+						icon="i-lucide-plus"
+						@click="onAddStudent"
+					/>
+				</AppStateNotice>
+				<AppStateNotice
 					v-else-if="
 						hasAnyTemplateSets &&
 						students.length &&
 						!filteredStudents.length
 					"
-					class="text-sm text-muted"
+					title="Keine Schüler entsprechen den Filtern"
+					description="Passe die Suche oder Filter an, um wieder Schüler zu sehen."
+					icon="i-lucide-search-x"
 				>
-					Keine Schüler entsprechen den Filtern.
-				</p>
+					<UButton
+						v-if="hasActiveFilters"
+						label="Filter zurücksetzen"
+						color="neutral"
+						variant="outline"
+						size="sm"
+						@click="resetFilters"
+					/>
+				</AppStateNotice>
 			</div>
 		</template>
 	</UDashboardPanel>

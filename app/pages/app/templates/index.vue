@@ -72,30 +72,31 @@ watch(
 				<p v-if="!canEdit" class="text-xs text-muted shrink-0">
 					Nur für Benutzer mit Rolle Editor oder Admin bearbeitbar.
 				</p>
-				<div
+				<AppStateNotice
 					v-if="!isLoaded"
-					class="rounded-lg border border-default bg-default p-4 text-sm text-muted"
-				>
-					Vorlagen werden geladen…
-				</div>
+					title="Vorlagen werden geladen"
+					icon="i-lucide-loader-2"
+					loading
+				/>
 				<StorageLoadErrorAlert v-else-if="loadError" />
-				<div
+				<AppStateNotice
 					v-else-if="!hasTemplateSets"
-					class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+					title="Noch keine Vorlagen vorhanden"
+					description="Lege einen Vorlagensatz an oder importiere bestehende `.azset`-Dateien, damit du Satzvorlagen pflegen kannst."
+					icon="i-lucide-file-plus"
+					tone="primary"
 				>
-					<p class="font-medium text-default">Noch keine Vorlagen vorhanden</p>
-					<p class="mt-1 text-muted">
-						Lege einen Vorlagensatz an oder importiere bestehende `.azset`-Dateien,
-						damit du Satzvorlagen pflegen kannst.
-					</p>
 					<UButton
 						v-if="canEdit"
 						label="Vorlagensatz anlegen"
 						icon="i-lucide-plus"
-						class="mt-3"
 						@click="openAddModal"
 					/>
-				</div>
+					<TemplateImportExportActions
+						:can-edit="canEdit"
+						:disabled="!hasTemplateSets"
+					/>
+				</AppStateNotice>
 				<div
 					v-else
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"

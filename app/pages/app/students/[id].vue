@@ -436,16 +436,27 @@ watch(
 			</UDashboardNavbar>
 		</template>
 		<template #body>
-			<div v-if="!isLoaded" class="flex flex-col gap-4">
-				<p class="text-muted">Schüler wird geladen.</p>
-			</div>
+			<AppStateNotice
+				v-if="!isLoaded"
+				title="Schüler wird geladen"
+				icon="i-lucide-loader-2"
+				loading
+			/>
 			<StorageLoadErrorAlert v-else-if="loadError" />
-			<div v-else-if="!student" class="flex flex-col gap-4">
-				<p class="text-muted">Schüler nicht gefunden.</p>
-				<ULink to="/app/students" class="text-primary hover:underline">
-					Zurück zur Schülerliste
-				</ULink>
-			</div>
+			<AppStateNotice
+				v-else-if="!student"
+				title="Schüler nicht gefunden"
+				description="Der Datensatz ist nicht mehr vorhanden oder konnte nicht geladen werden."
+				icon="i-lucide-user-x"
+			>
+				<UButton
+					label="Zurück zur Schülerliste"
+					to="/app/students"
+					icon="i-lucide-users"
+					color="neutral"
+					variant="outline"
+				/>
+			</AppStateNotice>
 			<div v-else class="flex h-full min-h-0 flex-col gap-4">
 				<div class="flex shrink-0 flex-col gap-4">
 					<StudentForm
@@ -455,21 +466,19 @@ watch(
 						@update="onFieldUpdate"
 					/>
 
-					<div
+					<AppStateNotice
 						v-if="!effectiveTemplateSetId"
-						class="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm"
+						title="Keine passende Vorlage gefunden"
+						description="Wähle oben einen vorhandenen Vorlagensatz aus oder lege zuerst neue Vorlagen an."
+						icon="i-lucide-file-text"
+						tone="primary"
 					>
-						<p class="font-medium text-default">Keine passende Vorlage gefunden</p>
-						<p class="mt-1 text-muted">
-							Wähle oben einen vorhandenen Vorlagensatz aus oder lege zuerst neue Vorlagen an.
-						</p>
 						<UButton
 							label="Zu Vorlagen"
 							to="/app/templates"
-							class="mt-3"
 							icon="i-lucide-file-text"
 						/>
-					</div>
+					</AppStateNotice>
 				</div>
 
 				<SentenceSelector
@@ -509,6 +518,7 @@ watch(
 						:disabled="!hasTextOutput"
 						@click="copyToClipboard(textOutputContent)"
 					/>
+					<!--
 					<UButton
 						v-if="rewriter.isAvailable.value"
 						label="Mit KI verbessern"
@@ -518,6 +528,7 @@ watch(
 						:disabled="!hasTextOutput"
 						@click="onEnhanceWithAI"
 					/>
+					-->
 				</div>
 			</div>
 		</template>
@@ -533,8 +544,10 @@ watch(
 						color="neutral"
 						variant="ghost"
 						aria-label="Textausgabe in Zwischenablage kopieren"
+						:disabled="!hasTextOutput"
 						@click="copyToClipboard(textOutputContent)"
 					/>
+					<!--
 					<UButton
 						v-if="rewriter.isAvailable.value"
 						label="Mit KI verbessern"
@@ -544,6 +557,7 @@ watch(
 						aria-label="Text mit KI verbessern"
 						@click="onEnhanceWithAI"
 					/>
+					-->
 				</template>
 			</UDashboardNavbar>
 		</template>
@@ -582,8 +596,10 @@ watch(
 						color="neutral"
 						variant="outline"
 						size="sm"
+						:disabled="!hasTextOutput"
 						@click="copyToClipboard(textOutputContent)"
 					/>
+					<!--
 					<UButton
 						v-if="rewriter.isAvailable.value"
 						label="Mit KI verbessern"
@@ -593,6 +609,7 @@ watch(
 						size="sm"
 						@click="onEnhanceWithAI"
 					/>
+					-->
 				</div>
 				<TextOutputPanel
 					:segments="reportSegments"

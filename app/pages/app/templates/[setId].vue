@@ -33,8 +33,12 @@ useLoadedMissingRedirect({
 			<div v-if="loadError" class="p-4">
 				<StorageLoadErrorAlert />
 			</div>
-			<div v-else class="flex min-h-64 items-center justify-center text-sm text-muted">
-				{{ isLoaded ? 'Vorlage wird vorbereitet…' : 'Vorlagen werden geladen…' }}
+			<div v-else class="p-4">
+				<AppStateNotice
+					:title="isLoaded ? 'Vorlage wird vorbereitet' : 'Vorlagen werden geladen'"
+					icon="i-lucide-loader-2"
+					loading
+				/>
 			</div>
 		</template>
 	</UDashboardPanel>

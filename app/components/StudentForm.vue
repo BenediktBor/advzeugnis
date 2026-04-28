@@ -44,7 +44,7 @@ const genderOptions = [
 				/>
 			</UFormField>
 			<UFormField
-				label="Sprachform"
+				label="Geschlecht"
 				name="student-gender"
 			>
 				<USelectMenu

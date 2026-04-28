@@ -171,7 +171,7 @@ function toggleOptionalTextPart(
 	row: CategoryRow,
 	variant: Variant,
 	part: OptionalTextPart,
-	event: Event
+	enabled: boolean
 ) {
 	emit(
 		'toggleOptionalPart',
@@ -179,7 +179,7 @@ function toggleOptionalTextPart(
 		row.category,
 		variant.id,
 		part.id,
-		(event.target as HTMLInputElement).checked
+		enabled
 	)
 }
 
@@ -336,24 +336,19 @@ const activeSubjectGroup = computed(
 	() => props.subjectGroups.find((group) => group.subjectId === activeSubjectId.value) ?? null
 )
 
-const selectedCategoryCount = computed(() =>
-	props.subjectGroups.reduce(
-		(total, group) =>
-			total + group.categories.filter((category) => category.selectedGradeId).length,
-		0
-	)
+const activeCategoryTotal = computed(
+	() => activeSubjectGroup.value?.categories.length ?? 0
 )
 
-const selectedVariantTotal = computed(() =>
-	props.subjectGroups.reduce(
-		(total, group) =>
-			total +
-			group.categories.reduce(
-				(categoryTotal, category) => categoryTotal + category.selectedVariantIds.length,
-				0
-			),
+const activeSelectedCategoryCount = computed(
+	() =>
+		activeSubjectGroup.value?.categories.filter((category) => category.selectedGradeId).length ??
 		0
-	)
+)
+
+const activeCategoryProgressLabel = computed(
+	() =>
+		`${activeSelectedCategoryCount.value} von ${activeCategoryTotal.value} Kategorien ausgewählt`
 )
 </script>
 
@@ -364,13 +359,15 @@ const selectedVariantTotal = computed(() =>
 				<div class="space-y-1">
 					<div class="text-sm font-medium text-default">Satzauswahl</div>
 					<p class="text-xs leading-relaxed text-muted">
-						Wähle pro Kategorie eine Stufe und mindestens eine Variante.
+						Wähle pro Kategorie eine Stufe und mindestens eine Variante. Die aktive Auswahl wird in der Textausgabe hervorgehoben.
 					</p>
 				</div>
-				<div class="shrink-0 text-right text-xs text-muted">
-					<div>{{ selectedCategoryCount }} Kategorien aktiv</div>
-					<div>{{ selectedVariantTotal }} Varianten ausgewählt</div>
-				</div>
+				<CategoryProgressCircle
+					class="shrink-0"
+					:value="activeSelectedCategoryCount"
+					:total="activeCategoryTotal"
+					:label="activeCategoryProgressLabel"
+				/>
 			</div>
 		</div>
 		<div class="border-b border-default px-4 py-3">
@@ -399,8 +396,8 @@ const selectedVariantTotal = computed(() =>
 					tabindex="0"
 					:aria-pressed="focusedCategoryId === row.categoryId"
 					@click="emit('focusCategory', row.categoryId)"
-					@keydown.enter="emit('focusCategory', row.categoryId)"
-					@keydown.space.prevent="emit('focusCategory', row.categoryId)"
+					@keydown.enter.self="emit('focusCategory', row.categoryId)"
+					@keydown.space.self.prevent="emit('focusCategory', row.categoryId)"
 				>
 					<div class="flex items-start justify-between gap-3">
 						<div class="min-w-0">
@@ -473,12 +470,12 @@ const selectedVariantTotal = computed(() =>
 										v-if="part.type === 'optionalText'"
 										class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
 									>
-										<input
-											type="checkbox"
-											class="size-3.5 rounded border-default"
-											:checked="isOptionalTextSelected(part, row)"
-											@change="toggleOptionalTextPart(row, variant, part, $event)"
-										>
+										<UCheckbox
+											:model-value="isOptionalTextSelected(part, row)"
+											:aria-label="`${part.value} ein- oder ausblenden`"
+											size="xs"
+											@update:model-value="toggleOptionalTextPart(row, variant, part, Boolean($event))"
+										/>
 										<span
 											:class="
 												isOptionalTextSelected(part, row)
@@ -561,11 +558,11 @@ const selectedVariantTotal = computed(() =>
 									canToggleVariant(variant.id, row) &&
 									emit('toggleVariant', row.categoryId, row.category, variant.id)
 								"
-								@keydown.enter="
+								@keydown.enter.self="
 									canToggleVariant(variant.id, row) &&
 									emit('toggleVariant', row.categoryId, row.category, variant.id)
 								"
-								@keydown.space.prevent="
+								@keydown.space.self.prevent="
 									canToggleVariant(variant.id, row) &&
 									emit('toggleVariant', row.categoryId, row.category, variant.id)
 								"
@@ -591,12 +588,12 @@ const selectedVariantTotal = computed(() =>
 											v-if="part.type === 'optionalText'"
 											class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
 										>
-											<input
-												type="checkbox"
-												class="size-3.5 rounded border-default"
-												:checked="isOptionalTextSelected(part, row)"
-												@change="toggleOptionalTextPart(row, variant, part, $event)"
-											>
+											<UCheckbox
+												:model-value="isOptionalTextSelected(part, row)"
+												:aria-label="`${part.value} ein- oder ausblenden`"
+												size="xs"
+												@update:model-value="toggleOptionalTextPart(row, variant, part, Boolean($event))"
+											/>
 											<span
 												:class="
 													isOptionalTextSelected(part, row)

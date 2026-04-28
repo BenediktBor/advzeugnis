@@ -238,6 +238,18 @@ const addPartTabItems = [
 	{ value: 'name' as const, label: 'Name' },
 	{ value: 'optionalText' as const, label: 'Optionaler Text' },
 ]
+const addPartHelp = computed(() => {
+	if (addPartType.value === 'text') {
+		return 'Fester Text erscheint immer genau so in der Textausgabe.'
+	}
+	if (addPartType.value === 'genderVariant') {
+		return 'Variabler Text wechselt je nach Geschlecht des Schülers.'
+	}
+	if (addPartType.value === 'name') {
+		return 'Name setzt den Schülernamen ein und kann später durch Pronomen ersetzt werden.'
+	}
+	return 'Optionaler Text kann in der Satzauswahl pro Schüler ein- oder ausgeblendet werden.'
+})
 const genderVariantPresets = [
 	{ label: 'Er/Sie', male: 'Er', female: 'Sie' },
 	{ label: 'er/sie', male: 'er', female: 'sie' },
@@ -491,6 +503,9 @@ function createFirstCategory() {
 								: 'Dieser Vorlagensatz ist noch leer. Starte mit einem ersten Fach und einer Kategorie, damit du sofort Inhalte pflegen kannst.'
 						}}
 					</p>
+					<p class="mt-3 text-xs text-muted">
+						Struktur: Fach -> Kategorie -> Stufe -> Variante -> Satzbausteine.
+					</p>
 					<div v-if="canEditTemplates" class="mt-4 flex justify-center">
 						<UButton
 							v-if="hasSubjects"
@@ -526,6 +541,7 @@ function createFirstCategory() {
 					@update:model-value="(value) => (addPartType = value as typeof addPartType)"
 				/>
 			</UFormField>
+			<p class="mt-2 text-sm text-muted">{{ addPartHelp }}</p>
 			<template v-if="addPartType === 'text'">
 				<UFormField label="Text" name="add-part-text" class="mt-3">
 					<UInput v-model="addPartText" placeholder="Text eingeben" autofocus @keydown.enter="confirmAddPart" />
@@ -566,14 +582,12 @@ function createFirstCategory() {
 						@keydown.enter="confirmAddPart"
 					/>
 				</UFormField>
-				<label class="mt-3 flex items-center gap-2 text-sm text-default">
-					<input
-						v-model="addPartOptionalEnabledByDefault"
-						type="checkbox"
-						class="size-4 rounded border-default"
-					>
-					<span>Standardmäßig aktiv</span>
-				</label>
+				<UCheckbox
+					:model-value="addPartOptionalEnabledByDefault"
+					label="Standardmäßig aktiv"
+					class="mt-3"
+					@update:model-value="addPartOptionalEnabledByDefault = Boolean($event)"
+				/>
 			</template>
 		</template>
 		<template #footer="{ close }">
@@ -606,14 +620,12 @@ function createFirstCategory() {
 						@keydown.enter="confirmEditPart"
 					/>
 				</UFormField>
-				<label class="mt-3 flex items-center gap-2 text-sm text-default">
-					<input
-						v-model="editPartOptionalEnabledByDefault"
-						type="checkbox"
-						class="size-4 rounded border-default"
-					>
-					<span>Standardmäßig aktiv</span>
-				</label>
+				<UCheckbox
+					:model-value="editPartOptionalEnabledByDefault"
+					label="Standardmäßig aktiv"
+					class="mt-3"
+					@update:model-value="editPartOptionalEnabledByDefault = Boolean($event)"
+				/>
 			</template>
 		</template>
 		<template #footer="{ close }">

@@ -53,9 +53,9 @@ watch(
 							class="inline-block rounded py-0.5 transition-colors"
 							:class="
 								highlightedVariantId === seg.variantId
-									? 'bg-primary/10 ring-1 ring-primary/20'
+									? 'bg-primary/25 ring-2 ring-primary/50'
 									: focusedCategoryId === seg.categoryId
-										? 'bg-primary/5'
+										? 'bg-primary/15 ring-1 ring-primary/30'
 										: ''
 							"
 						>{{ seg.text }}</span>
@@ -64,7 +64,7 @@ watch(
 				</template>
 				<template v-else>
 					<span class="text-muted">
-						Wahle links Notenstufen und Varianten aus, damit hier die Textausgabe erscheint.
+						Wähle links Notenstufen und Varianten aus, damit hier die Textausgabe erscheint.
 					</span>
 				</template>
 			</div>
