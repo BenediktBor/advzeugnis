@@ -328,20 +328,13 @@ const selectedVariantTotal = computed(() =>
 						<div class="text-xs font-medium text-muted">Vorschau</div>
 						<div
 							v-if="row.selectedPreviewText"
-							class="mt-1 flex flex-col gap-1 text-xs leading-relaxed text-default"
+							class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-relaxed text-default"
 							@click.stop
 						>
-							<div
+							<template
 								v-for="variant in selectedVariants(row)"
 								:key="variant.id"
-								class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
 							>
-								<div
-									v-if="selectedVariantCount(row) > 1"
-									class="mr-1 font-medium text-muted"
-								>
-									{{ variant.label }}:
-								</div>
 								<template
 									v-for="(part, partIndex) in variant.sentences"
 									:key="`${variant.id}-${partIndex}`"
@@ -371,7 +364,7 @@ const selectedVariantTotal = computed(() =>
 									</span>
 								</template>
 								<span v-if="inlinePreviewSuffix(variant, row)" class="-ml-1.5">{{ inlinePreviewSuffix(variant, row) }}</span>
-							</div>
+							</template>
 						</div>
 						<p v-else class="mt-1 text-xs leading-relaxed text-default">
 							Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.
