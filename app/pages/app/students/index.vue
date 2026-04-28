@@ -34,7 +34,7 @@ const genderItems = [
 
 const statusItems = [
 	{ label: 'Alle', value: null as 'finished' | 'unfinished' | null },
-	{ label: 'Alle aktiv', value: 'finished' as const },
+	{ label: 'Keine deaktiviert', value: 'finished' as const },
 	{ label: 'Mit deaktivierten', value: 'unfinished' as const },
 ]
 
@@ -170,7 +170,7 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 										/>
 									</UFormField>
 									<UFormField
-										label="Status"
+										label="Kategorien"
 										name="filter-status"
 									>
 										<USelectMenu
