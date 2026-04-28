@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { canEditTemplates } = useCurrentUser()
 const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 </script>
 
@@ -23,15 +24,29 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 				<AppStateNotice
 					v-else-if="!hasAnyTemplateSets"
 					title="Zuerst Satzvorlagen anlegen"
-					description="Lege unter Vorlagen einen Vorlagensatz an oder importiere bestehende Satzvorlagen, bevor du Schüler anlegst."
+					description="Satzvorlagen sind die Grundlage für spätere Zeugnisformulierungen. Importiere bestehende Vorlagen oder lege einen neuen Vorlagensatz an."
 					icon="i-lucide-file-text"
 					tone="primary"
 				>
-					<UButton
-						label="Zu Vorlagen"
-						to="/app/templates"
-						icon="i-lucide-file-text"
-					/>
+					<div class="flex flex-wrap justify-center gap-2">
+						<TemplateImportExportActions
+							:can-edit="canEditTemplates"
+							:disabled="true"
+						/>
+						<UButton
+							v-if="canEditTemplates"
+							label="Vorlagensatz anlegen"
+							to="/app/templates?create=1"
+							icon="i-lucide-plus"
+						/>
+						<UButton
+							label="Zu Vorlagen"
+							to="/app/templates"
+							icon="i-lucide-file-text"
+							color="neutral"
+							variant="outline"
+						/>
+					</div>
 				</AppStateNotice>
 				<div v-else class="flex flex-col gap-6">
 					<div class="space-y-2">

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-await navigateTo('/app', { replace: true })
-
 /*
 const { currentUser, setUserType, setUserRole } = useCurrentUser()
 const router = useRouter()
@@ -24,7 +22,30 @@ function switchToSolo() {
 </script>
 
 <template>
-	<div />
+	<UDashboardPanel>
+		<template #header>
+			<UDashboardNavbar title="Benutzer">
+				<template #leading>
+					<UDashboardSidebarCollapse />
+				</template>
+			</UDashboardNavbar>
+		</template>
+		<template #body>
+			<AppStateNotice
+				title="Benutzerkonto noch nicht aktiv"
+				description="AdvancedZeugnis läuft aktuell ohne Anmeldung. Deine Daten bleiben lokal in diesem Browser gespeichert."
+				icon="i-lucide-user"
+			>
+				<UButton
+					label="Zur Übersicht"
+					to="/app"
+					icon="i-lucide-layout-dashboard"
+					color="neutral"
+					variant="outline"
+				/>
+			</AppStateNotice>
+		</template>
+	</UDashboardPanel>
 	<!--
 	<UDashboardPanel>
 		<template #header>

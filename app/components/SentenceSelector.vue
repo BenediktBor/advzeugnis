@@ -462,7 +462,7 @@ const activeSubjectAverageSummary = computed(() => {
 								{{
 									row.selectedGradeId
 										? variantSummary(row)
-										: 'Kategorie deaktiviert. Wähle eine Stufe, um sie wieder einzuschalten.'
+										: 'Noch deaktiviert. Wähle eine Stufe, um diese Kategorie in den Text aufzunehmen.'
 								}}
 							</p>
 						</div>
@@ -483,7 +483,28 @@ const activeSubjectAverageSummary = computed(() => {
 							/>
 						</div>
 					</div>
-					<span class="text-xs font-medium text-muted">Stufe</span>
+					<div
+						v-if="!row.selectedGradeId && row.grades.length"
+						class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-elevated/40 px-3 py-2"
+						@click.stop
+					>
+						<p class="text-xs font-medium text-default">
+							Kategorie aktivieren
+						</p>
+						<UButton
+							:label="`Stufe ${row.grades[0]?.label ?? ''} wählen`"
+							size="xs"
+							color="neutral"
+							variant="outline"
+							@click.stop="
+								row.grades[0] &&
+								emit('setGrade', row.categoryId, row.category, row.grades[0])
+							"
+						/>
+					</div>
+					<span class="text-xs font-medium text-muted">
+						{{ row.selectedGradeId ? 'Stufe' : 'Stufe wählen' }}
+					</span>
 					<div class="flex flex-wrap gap-1.5" @click.stop>
 						<TemplatePill
 							v-for="grade in row.grades"

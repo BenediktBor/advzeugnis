@@ -516,24 +516,29 @@ function createFirstCategory() {
 			<UDashboardNavbar :title="gradeVariantTitle(selectedCategoryData)" />
 		</template>
 		<template #body>
-			<GradeVariantEditor
-				:category="selectedCategoryData"
-				:selected-grade-id="selectedGradeId"
-				:selected-variant-id="selectedVariantId"
-				:can-edit="canEditTemplates"
-				@select-grade="selectedGradeId = $event"
-				@select-variant="selectedVariantId = $event"
-				@add-grade="addGradeAndSelect"
-				@add-variant="addVariantAndSelect"
-				@edit-grade-label="handleEditGradeLabel"
-				@delete-grade="handleDeleteGrade"
-				@edit-variant-label="handleEditVariantLabel"
-				@delete-variant="handleDeleteVariant"
-				@add-sentence-part="openAddPartModal"
-				@edit-sentence-part="handleEditSentencePart"
-				@delete-sentence-part="handleDeleteSentencePart"
-				@reorder-sentence-parts="handleReorderSentenceParts"
-			/>
+			<div class="flex h-full flex-col gap-3">
+				<p class="shrink-0 text-sm text-muted">
+					Bearbeite rechts die ausgewählte Kategorie aus der Vorlagenstruktur.
+				</p>
+				<GradeVariantEditor
+					:category="selectedCategoryData"
+					:selected-grade-id="selectedGradeId"
+					:selected-variant-id="selectedVariantId"
+					:can-edit="canEditTemplates"
+					@select-grade="selectedGradeId = $event"
+					@select-variant="selectedVariantId = $event"
+					@add-grade="addGradeAndSelect"
+					@add-variant="addVariantAndSelect"
+					@edit-grade-label="handleEditGradeLabel"
+					@delete-grade="handleDeleteGrade"
+					@edit-variant-label="handleEditVariantLabel"
+					@delete-variant="handleDeleteVariant"
+					@add-sentence-part="openAddPartModal"
+					@edit-sentence-part="handleEditSentencePart"
+					@delete-sentence-part="handleDeleteSentencePart"
+					@reorder-sentence-parts="handleReorderSentenceParts"
+				/>
+			</div>
 		</template>
 	</UDashboardPanel>
 

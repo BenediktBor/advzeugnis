@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import StudentCreateModal from '~/components/StudentCreateModal.vue'
 import { studentFullName } from '~/utils/student'
 
 const open = ref(false)
@@ -7,11 +8,11 @@ const router = useRouter()
 const { students } = useStudents()
 const { canEditTemplates } = useCurrentUser()
 // const { currentUser, canEditTemplates } = useCurrentUser()
-const { orderedIds, setsWithData, hasAnyTemplateSets } = useTemplateSets()
-const { createStudentAndOpen } = useCreateStudentFlow()
+const { setsWithData, hasAnyTemplateSets } = useTemplateSets()
+const createStudentModalOpen = ref(false)
 
 function onAddStudent() {
-	createStudentAndOpen()
+	createStudentModalOpen.value = true
 	open.value = false
 }
 
@@ -204,5 +205,6 @@ const links = computed<NavigationMenuItem[]>(() => {
 
 		<slot />
 
+		<StudentCreateModal v-model:open="createStudentModalOpen" />
 	</UDashboardGroup>
 </template>

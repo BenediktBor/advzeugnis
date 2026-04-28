@@ -55,6 +55,7 @@ function formatAverage(value: number): string {
 			<UFormField
 				label="Geschlecht"
 				name="student-gender"
+				description="Steuert Pronomen in den Satzvorlagen."
 			>
 				<USelectMenu
 					id="student-gender"

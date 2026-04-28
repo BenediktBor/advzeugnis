@@ -3,6 +3,7 @@ import {
 	buildGradeAverageSummary,
 	buildSelectionCoverageSummary,
 } from '~/utils/reportText'
+import StudentCreateModal from '~/components/StudentCreateModal.vue'
 import { studentFullName } from '~/utils/student'
 
 const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
@@ -14,7 +15,7 @@ const {
 	isLoaded: templatesLoaded,
 	loadError: templatesLoadError,
 } = useTemplateSets()
-const { createStudentAndOpen } = useCreateStudentFlow()
+const createStudentModalOpen = ref(false)
 
 const searchQuery = ref('')
 const filterTemplateSet = ref<string | null>(null)
@@ -34,8 +35,8 @@ const genderItems = [
 
 const statusItems = [
 	{ label: 'Alle', value: null as 'finished' | 'unfinished' | null },
-	{ label: 'Keine deaktiviert', value: 'finished' as const },
-	{ label: 'Mit deaktivierten', value: 'unfinished' as const },
+	{ label: 'Alle Kategorien aktiv', value: 'finished' as const },
+	{ label: 'Mit deaktivierten Kategorien', value: 'unfinished' as const },
 ]
 
 function genderLabel(gender: 'male' | 'female') {
@@ -102,7 +103,7 @@ function resetFilters() {
 }
 
 function onAddStudent() {
-	createStudentAndOpen()
+	createStudentModalOpen.value = true
 }
 
 const isLoaded = computed(() => studentsLoaded.value && templatesLoaded.value)
@@ -170,7 +171,7 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 										/>
 									</UFormField>
 									<UFormField
-										label="Kategorien"
+										label="Auswahlstatus"
 										name="filter-status"
 									>
 										<USelectMenu
@@ -326,4 +327,5 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 			</div>
 		</template>
 	</UDashboardPanel>
+	<StudentCreateModal v-model:open="createStudentModalOpen" />
 </template>

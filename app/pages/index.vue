@@ -56,7 +56,7 @@ const plans = [
 				</ULink>
 				<UButton
 					to="/app"
-					label="Anmelden"
+					label="App öffnen"
 					trailing-icon="i-lucide-arrow-right"
 				/>
 			</UContainer>
@@ -76,7 +76,7 @@ const plans = [
 						variant: 'outline',
 					},
 					*/
-					{ label: 'Kostenlos starten', to: '/app' },
+					{ label: 'Jetzt starten', to: '/app' },
 				]"
 			/>
 

@@ -369,6 +369,28 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 	})
 })
 
+const selectedCategoryCount = computed(() =>
+	subjectGroups.value.reduce(
+		(total, group) =>
+			total + group.categories.filter((category) => category.selectedGradeId).length,
+		0
+	)
+)
+
+const totalCategoryCount = computed(() =>
+	subjectGroups.value.reduce((total, group) => total + group.categories.length, 0)
+)
+
+const mobileOutputStatus = computed(() => {
+	if (hasTextOutput.value) {
+		return `${reportSegments.value.length} Textbausteine bereit zum Kopieren.`
+	}
+	if (selectedCategoryCount.value > 0) {
+		return 'Auswahl begonnen, aber noch kein Text verfügbar.'
+	}
+	return 'Noch keine Kategorie aktiv. Wähle zuerst eine Stufe.'
+})
+
 const deleteModalOpen = ref(false)
 const enhanceModalOpen = ref(false)
 const mobileTextOutputOpen = ref(false)
@@ -518,6 +540,12 @@ watch(
 					v-if="hasSelectionWorkspace"
 					class="grid shrink-0 grid-cols-2 gap-2 rounded-lg border border-default bg-default/95 p-3 backdrop-blur lg:hidden"
 				>
+					<div class="col-span-2 rounded-md bg-elevated/50 px-3 py-2 text-xs text-muted">
+						<div class="font-medium text-default">
+							{{ selectedCategoryCount }}/{{ totalCategoryCount }} Kategorien aktiv
+						</div>
+						<div>{{ mobileOutputStatus }}</div>
+					</div>
 					<UButton
 						label="Vorschau"
 						icon="i-lucide-file-text"

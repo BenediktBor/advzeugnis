@@ -1,6 +1,4 @@
 <script setup lang="ts">
-await navigateTo('/app', { replace: true })
-
 /*
 import type { TableColumn } from '@nuxt/ui'
 import type { SchoolMember } from '~/types/user'
@@ -44,7 +42,30 @@ function handleAddMember() {
 </script>
 
 <template>
-	<div />
+	<UDashboardPanel>
+		<template #header>
+			<UDashboardNavbar title="Schule">
+				<template #leading>
+					<UDashboardSidebarCollapse />
+				</template>
+			</UDashboardNavbar>
+		</template>
+		<template #body>
+			<AppStateNotice
+				title="Schulverwaltung noch nicht aktiv"
+				description="Team- und Rollenfunktionen sind vorbereitet, aber in dieser Version noch nicht freigeschaltet."
+				icon="i-lucide-building-2"
+			>
+				<UButton
+					label="Zur Übersicht"
+					to="/app"
+					icon="i-lucide-layout-dashboard"
+					color="neutral"
+					variant="outline"
+				/>
+			</AppStateNotice>
+		</template>
+	</UDashboardPanel>
 	<!--
 	<UDashboardPanel>
 		<template #header>

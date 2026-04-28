@@ -1,5 +1,12 @@
 import { buildDeactivatedReportSelection } from '~/utils/reportText'
 
+export interface CreateStudentInput {
+	name: string
+	surname: string
+	gender: 'male' | 'female'
+	templateSetId: string
+}
+
 export function useCreateStudentFlow() {
 	const router = useRouter()
 	const { orderedIds, getSetData } = useTemplateSets()
@@ -7,16 +14,16 @@ export function useCreateStudentFlow() {
 
 	const canCreateStudent = computed(() => orderedIds.value.length > 0)
 
-	function createStudentAndOpen() {
-		const defaultSetId = orderedIds.value[0]
-		if (!defaultSetId) return null
-		const templateSet = getSetData(defaultSetId)
+	function createStudentAndOpen(input: CreateStudentInput) {
+		const templateSetId = input.templateSetId || orderedIds.value[0]
+		if (!templateSetId) return null
+		const templateSet = getSetData(templateSetId)
 
 		const newId = addStudent({
-			name: '',
-			surname: '',
-			gender: 'male',
-			templateSetId: defaultSetId,
+			name: input.name.trim(),
+			surname: input.surname.trim(),
+			gender: input.gender,
+			templateSetId,
 			reportSelection: templateSet
 				? buildDeactivatedReportSelection(templateSet)
 				: { categories: {} },
