@@ -4,6 +4,7 @@ export interface ReportSelection {
 		variantIds: string[]
 		optionalPartOverrides?: Record<string, boolean>
 	}>
+	selectedSubjectId?: string
 }
 
 export interface Student {

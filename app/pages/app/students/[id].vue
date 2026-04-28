@@ -90,6 +90,23 @@ function getOptionalPartOverrides(categoryId: string) {
 	return getStoredCategoryEntry(categoryId)?.optionalPartOverrides ?? {}
 }
 
+function getSelectedSubjectId() {
+	return student.value?.reportSelection?.selectedSubjectId ?? null
+}
+
+function setSelectedSubjectId(subjectId: string) {
+	if (!id.value || !student.value) return
+	const current = getSelectedSubjectId()
+	if (current === subjectId) return
+	updateStudent(id.value, {
+		reportSelection: {
+			...student.value.reportSelection,
+			categories: student.value.reportSelection?.categories ?? {},
+			selectedSubjectId: subjectId,
+		},
+	})
+}
+
 function setGrade(categoryId: string, category: Category, grade: Grade) {
 	if (!id.value || !student.value) return
 	const currentEntry = getCategoryEntry(category)
@@ -319,6 +336,27 @@ function confirmDeleteStudent() {
 watch(enhanceModalOpen, (open) => {
 	if (!open) rewriter.reset()
 })
+
+watch(
+	[subjectGroups, student, id],
+	([groups, currentStudent]) => {
+		if (!currentStudent) return
+		const subjectIds = groups.map((group) => group.subjectId)
+		if (!subjectIds.length) return
+		const selectedSubjectId = currentStudent.reportSelection?.selectedSubjectId
+		if (selectedSubjectId && subjectIds.includes(selectedSubjectId)) return
+		const fallbackSubjectId = subjectIds[0]
+		if (!fallbackSubjectId) return
+		updateStudent(currentStudent.id, {
+			reportSelection: {
+				...currentStudent.reportSelection,
+				categories: currentStudent.reportSelection?.categories ?? {},
+				selectedSubjectId: fallbackSubjectId,
+			},
+		})
+	},
+	{ immediate: true }
+)
 </script>
 
 <template>
@@ -382,6 +420,7 @@ watch(enhanceModalOpen, (open) => {
 					class="min-h-0 flex-1"
 					:subject-groups="subjectGroups"
 					:focused-category-id="focusedCategoryId"
+					:selected-subject-id="student.reportSelection?.selectedSubjectId ?? null"
 					:student-name="student.name"
 					:student-gender="student.gender"
 					@focus-category="focusCategory"
@@ -391,6 +430,7 @@ watch(enhanceModalOpen, (open) => {
 					@toggle-optional-part="toggleOptionalPart"
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
+					@update:selected-subject-id="setSelectedSubjectId"
 				/>
 
 				<div

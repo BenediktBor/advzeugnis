@@ -9,6 +9,7 @@ export const ReportSelectionSchema = z.object({
 			optionalPartOverrides: z.record(z.string(), z.boolean()).optional(),
 		})
 	),
+	selectedSubjectId: z.string().optional(),
 })
 
 export const StudentSchema = z.object({

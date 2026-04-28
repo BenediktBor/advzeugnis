@@ -102,6 +102,25 @@ describe('getEffectiveCategoryEntry', () => {
 		expect(entry).toEqual({ gradeId: 'g2', variantIds: ['v2'] })
 	})
 
+	it('ignores selectedSubjectId when resolving category entries', () => {
+		const category = makeCategory({
+			grades: [
+				{ id: 'g1', label: '1', variants: [{ id: 'v1', label: '1', sentences: [] }] },
+				{ id: 'g2', label: '2', variants: [{ id: 'v2', label: '1', sentences: [] }] },
+			],
+		})
+		const student = makeStudent({
+			reportSelection: {
+				categories: {
+					'cat-1': { gradeId: 'g2', variantIds: ['v2'] },
+				},
+				selectedSubjectId: 'subject-2',
+			},
+		})
+		const entry = getEffectiveCategoryEntry(student, category)
+		expect(entry).toEqual({ gradeId: 'g2', variantIds: ['v2'] })
+	})
+
 	it('auto-selects single variant', () => {
 		const student = makeStudent()
 		const category = makeCategory()

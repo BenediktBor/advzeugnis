@@ -27,6 +27,7 @@ export interface SubjectGroup {
 const props = defineProps<{
 	subjectGroups: SubjectGroup[]
 	focusedCategoryId: string | null
+	selectedSubjectId?: string | null
 	studentName: string
 	studentGender: 'male' | 'female'
 }>()
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 	]
 	selectAllVariants: [categoryId: string, category: Category]
 	clearAllVariants: [categoryId: string, category: Category]
+	'update:selectedSubjectId': [subjectId: string]
 }>()
 
 function isVariantSelected(variantId: string, row: CategoryRow): boolean {
@@ -158,6 +160,12 @@ function fallbackSubjectId(): string {
 
 const activeSubjectId = ref('')
 
+function setActiveSubjectId(subjectId: string) {
+	if (activeSubjectId.value === subjectId) return
+	activeSubjectId.value = subjectId
+	emit('update:selectedSubjectId', subjectId)
+}
+
 watch(
 	() => props.subjectGroups.map((group) => group.subjectId),
 	(subjectIds) => {
@@ -165,18 +173,32 @@ watch(
 			activeSubjectId.value = ''
 			return
 		}
+		if (props.selectedSubjectId && subjectIds.includes(props.selectedSubjectId)) {
+			setActiveSubjectId(props.selectedSubjectId)
+			return
+		}
 		if (!subjectIds.includes(activeSubjectId.value)) {
-			activeSubjectId.value = fallbackSubjectId()
+			setActiveSubjectId(fallbackSubjectId())
 		}
 	},
 	{ immediate: true }
 )
 
 watch(
+	() => props.selectedSubjectId,
+	(nextSelectedSubjectId) => {
+		if (!nextSelectedSubjectId) return
+		const subjectExists = props.subjectGroups.some((group) => group.subjectId === nextSelectedSubjectId)
+		if (!subjectExists || activeSubjectId.value === nextSelectedSubjectId) return
+		activeSubjectId.value = nextSelectedSubjectId
+	}
+)
+
+watch(
 	() => props.focusedCategoryId,
 	() => {
 		if (!activeSubjectId.value) {
-			activeSubjectId.value = fallbackSubjectId()
+			setActiveSubjectId(fallbackSubjectId())
 		}
 	}
 )
@@ -235,7 +257,7 @@ const selectedVariantTotal = computed(() =>
 				:model-value="activeSubjectId || undefined"
 				:content="false"
 				class="w-full"
-				@update:model-value="activeSubjectId = ($event as string) ?? ''"
+				@update:model-value="setActiveSubjectId(($event as string) ?? '')"
 			/>
 		</div>
 		<div class="min-h-0 flex-1 overflow-y-auto p-3">

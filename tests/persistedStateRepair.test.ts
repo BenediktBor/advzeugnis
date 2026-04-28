@@ -35,6 +35,36 @@ describe('persisted state repair helpers', () => {
 		])
 	})
 
+	it('keeps selectedSubjectId in repaired student reportSelection', () => {
+		const repaired = repairStoredStudents([
+			{
+				id: 'student-1',
+				name: 'Max',
+				surname: 'Muller',
+				gender: 'male',
+				templateSetId: 'set-1',
+				reportSelection: {
+					categories: {},
+					selectedSubjectId: 'subject-2',
+				},
+			},
+		])
+
+		expect(repaired).toEqual([
+			{
+				id: 'student-1',
+				name: 'Max',
+				surname: 'Muller',
+				gender: 'male',
+				templateSetId: 'set-1',
+				reportSelection: {
+					categories: {},
+					selectedSubjectId: 'subject-2',
+				},
+			},
+		])
+	})
+
 	it('resets invalid current user payloads to the default demo user', () => {
 		const repaired = repairStoredCurrentUser({
 			id: 'user-1',
