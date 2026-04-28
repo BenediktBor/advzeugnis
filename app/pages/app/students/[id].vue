@@ -40,11 +40,13 @@ const { getSet } = useTemplates(
 const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.value)
 
 const student = computed(() => students.value.find((s) => s.id === id.value))
+const isDeletingStudent = ref(false)
+const studentExistsForRedirect = computed(() => isDeletingStudent.value || student.value)
 
 useLoadedMissingRedirect({
 	id,
 	isLoaded,
-	exists: student,
+	exists: studentExistsForRedirect,
 	redirectTo: '/app/students',
 	onMissing: () => {
 		showError({ statusCode: 404, message: 'Schüler nicht gefunden' })
@@ -390,11 +392,14 @@ function closeEnhanceModal() {
 	enhanceModalOpen.value = false
 }
 
-function confirmDeleteStudent() {
-	if (!id.value || !student.value) return
-	deleteStudent(id.value)
-	router.push('/app/students')
+async function confirmDeleteStudent() {
+	const studentId = id.value
+	if (!studentId || !student.value) return
+	isDeletingStudent.value = true
 	deleteModalOpen.value = false
+	await nextTick()
+	deleteStudent(studentId)
+	await router.replace('/app/students')
 }
 
 watch(enhanceModalOpen, (open) => {
