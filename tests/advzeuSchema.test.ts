@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { AzSetExportPayloadSchema, AzSubjectExportPayloadSchema } from '~/schemas/template'
+import {
+	AzSetExportPayloadSchema,
+	AzSubjectExportPayloadSchema,
+	SentencePartSchema,
+} from '~/schemas/template'
 
 describe('AzSetExportPayloadSchema', () => {
 	it('accepts a valid export payload', () => {
@@ -263,6 +267,30 @@ describe('AzSetExportPayloadSchema', () => {
 					// missing `subjects`
 				},
 			},
+		})
+
+		expect(result.success).toBe(false)
+	})
+})
+
+describe('SentencePartSchema', () => {
+	it('accepts optional text sentence parts', () => {
+		const result = SentencePartSchema.safeParse({
+			type: 'optionalText',
+			id: '66666666-6666-6666-6666-666666666666',
+			value: 'arbeitet besonders sorgfältig',
+			enabledByDefault: true,
+		})
+
+		expect(result.success).toBe(true)
+	})
+
+	it('rejects optional text sentence parts with invalid fields', () => {
+		const result = SentencePartSchema.safeParse({
+			type: 'optionalText',
+			id: 'not-a-uuid',
+			value: 'arbeitet besonders sorgfältig',
+			enabledByDefault: 'yes',
 		})
 
 		expect(result.success).toBe(false)

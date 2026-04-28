@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { Category, Grade, Variant } from '~/types/template'
+import { isOptionalPartEnabled } from '~/composables/useReportText'
+import type { Category, Grade, SentencePart, Variant } from '~/types/template'
+
+type OptionalTextPart = Extract<SentencePart, { type: 'optionalText' }>
 
 export interface CategoryRow {
 	subjectLabel: string
@@ -9,6 +12,7 @@ export interface CategoryRow {
 	grades: Grade[]
 	selectedGradeId: string | null
 	selectedVariantIds: string[]
+	optionalPartOverrides: Record<string, boolean>
 	variants: Variant[]
 	selectedPreviewText: string
 	variantPreviewById: Record<string, string>
@@ -23,6 +27,8 @@ export interface SubjectGroup {
 const props = defineProps<{
 	subjectGroups: SubjectGroup[]
 	focusedCategoryId: string | null
+	studentName: string
+	studentGender: 'male' | 'female'
 }>()
 
 const emit = defineEmits<{
@@ -30,6 +36,13 @@ const emit = defineEmits<{
 	setGrade: [categoryId: string, category: Category, grade: Grade]
 	disableCategory: [categoryId: string]
 	toggleVariant: [categoryId: string, category: Category, variantId: string]
+	toggleOptionalPart: [
+		categoryId: string,
+		category: Category,
+		variantId: string,
+		partId: string,
+		enabled: boolean,
+	]
 	selectAllVariants: [categoryId: string, category: Category]
 	clearAllVariants: [categoryId: string, category: Category]
 }>()
@@ -66,6 +79,59 @@ function canToggleVariant(variantId: string, row: CategoryRow): boolean {
 function allVariantsSelected(row: CategoryRow): boolean {
 	if (!row.selectedGradeId) return false
 	return row.variants.length > 0 && selectedVariantCount(row) >= row.variants.length
+}
+
+function selectedVariants(row: CategoryRow): Variant[] {
+	return row.variants.filter((variant) => isVariantSelected(variant.id, row))
+}
+
+function isOptionalTextSelected(part: OptionalTextPart, row: CategoryRow): boolean {
+	return isOptionalPartEnabled(part, row.optionalPartOverrides)
+}
+
+function resolveInlinePreviewPart(part: SentencePart, row: CategoryRow): string {
+	switch (part.type) {
+		case 'text':
+			return part.value
+		case 'genderVariant':
+			return props.studentGender === 'male' ? part.value[0] ?? '' : part.value[1] ?? ''
+		case 'name':
+			return part.value?.trim() ?? props.studentName.trim()
+		case 'optionalText':
+			return isOptionalTextSelected(part, row) ? part.value : ''
+		default:
+			return ''
+	}
+}
+
+function inlinePreviewText(variant: Variant, row: CategoryRow): string {
+	return variant.sentences
+		.map((part) => resolveInlinePreviewPart(part, row).trim())
+		.filter(Boolean)
+		.join(' ')
+}
+
+function inlinePreviewSuffix(variant: Variant, row: CategoryRow): string {
+	const text = inlinePreviewText(variant, row)
+	if (!text || /[.!?]$/.test(text)) return ''
+	const preview = row.variantPreviewById[variant.id]?.trim() ?? ''
+	return preview.match(/[.!?]$/)?.[0] ?? '.'
+}
+
+function toggleOptionalTextPart(
+	row: CategoryRow,
+	variant: Variant,
+	part: OptionalTextPart,
+	event: Event
+) {
+	emit(
+		'toggleOptionalPart',
+		row.categoryId,
+		row.category,
+		variant.id,
+		part.id,
+		(event.target as HTMLInputElement).checked
+	)
 }
 
 function variantSummary(row: CategoryRow): string {
@@ -238,11 +304,55 @@ const selectedVariantTotal = computed(() =>
 						class="rounded-md border border-default bg-elevated/40 px-3 py-2"
 					>
 						<div class="text-xs font-medium text-muted">Vorschau</div>
-						<p class="mt-1 text-xs leading-relaxed text-default">
-							{{
-								row.selectedPreviewText ||
-								'Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.'
-							}}
+						<div
+							v-if="row.selectedPreviewText"
+							class="mt-1 flex flex-col gap-1 text-xs leading-relaxed text-default"
+							@click.stop
+						>
+							<div
+								v-for="variant in selectedVariants(row)"
+								:key="variant.id"
+								class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+							>
+								<div
+									v-if="selectedVariantCount(row) > 1"
+									class="mr-1 font-medium text-muted"
+								>
+									{{ variant.label }}:
+								</div>
+								<template
+									v-for="(part, partIndex) in variant.sentences"
+									:key="`${variant.id}-${partIndex}`"
+								>
+									<label
+										v-if="part.type === 'optionalText'"
+										class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
+									>
+										<input
+											type="checkbox"
+											class="size-3.5 rounded border-default"
+											:checked="isOptionalTextSelected(part, row)"
+											@change="toggleOptionalTextPart(row, variant, part, $event)"
+										>
+										<span
+											:class="
+												isOptionalTextSelected(part, row)
+													? 'text-default'
+													: 'text-muted line-through'
+											"
+										>
+											{{ part.value }}
+										</span>
+									</label>
+									<span v-else-if="resolveInlinePreviewPart(part, row).trim()">
+										{{ resolveInlinePreviewPart(part, row).trim() }}
+									</span>
+								</template>
+								<span v-if="inlinePreviewSuffix(variant, row)" class="-ml-1.5">{{ inlinePreviewSuffix(variant, row) }}</span>
+							</div>
+						</div>
+						<p v-else class="mt-1 text-xs leading-relaxed text-default">
+							Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.
 						</p>
 					</div>
 					<template v-if="row.selectedGradeId && row.variants.length > 1">

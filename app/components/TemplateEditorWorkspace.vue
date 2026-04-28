@@ -226,14 +226,23 @@ function handleReorderSentenceParts(oldIndex: number, newIndex: number) {
 }
 
 const addPartModalOpen = ref(false)
-const addPartType = ref<'text' | 'genderVariant' | 'name'>('text')
+const addPartType = ref<'text' | 'genderVariant' | 'name' | 'optionalText'>('text')
 const addPartText = ref('')
 const addPartMale = ref('')
 const addPartFemale = ref('')
+const addPartOptionalText = ref('')
+const addPartOptionalEnabledByDefault = ref(true)
 const addPartTabItems = [
 	{ value: 'text' as const, label: 'Text' },
 	{ value: 'genderVariant' as const, label: 'Variabler Text' },
 	{ value: 'name' as const, label: 'Name' },
+	{ value: 'optionalText' as const, label: 'Optionaler Text' },
+]
+const genderVariantPresets = [
+	{ label: 'Er/Sie', male: 'Er', female: 'Sie' },
+	{ label: 'er/sie', male: 'er', female: 'sie' },
+	{ label: 'Ihn/Sie', male: 'Ihn', female: 'Sie' },
+	{ label: 'ihn/sie', male: 'ihn', female: 'sie' },
 ]
 
 function openAddPartModal() {
@@ -241,7 +250,16 @@ function openAddPartModal() {
 	addPartText.value = ''
 	addPartMale.value = ''
 	addPartFemale.value = ''
+	addPartOptionalText.value = ''
+	addPartOptionalEnabledByDefault.value = true
 	addPartModalOpen.value = true
+}
+
+function applyGenderVariantPreset(preset: (typeof genderVariantPresets)[number]) {
+	addPartType.value = 'genderVariant'
+	addPartMale.value = preset.male
+	addPartFemale.value = preset.female
+	confirmAddPart()
 }
 
 const canConfirmAddPart = computed(() => {
@@ -249,6 +267,7 @@ const canConfirmAddPart = computed(() => {
 	if (addPartType.value === 'genderVariant') {
 		return addPartMale.value.trim() !== '' && addPartFemale.value.trim() !== ''
 	}
+	if (addPartType.value === 'optionalText') return addPartOptionalText.value.trim() !== ''
 	return true
 })
 
@@ -268,6 +287,14 @@ function confirmAddPart() {
 			break
 		case 'name':
 			part = { type: 'name' }
+			break
+		case 'optionalText':
+			part = {
+				type: 'optionalText',
+				id: crypto.randomUUID(),
+				value: addPartOptionalText.value.trim(),
+				enabledByDefault: addPartOptionalEnabledByDefault.value,
+			}
 			break
 		default:
 			return
@@ -302,10 +329,13 @@ function confirmEditLabel() {
 }
 
 const editPartModalOpen = ref(false)
-const editPartType = ref<'text' | 'genderVariant'>('text')
+const editPartType = ref<'text' | 'genderVariant' | 'optionalText'>('text')
 const editPartText = ref('')
 const editPartMale = ref('')
 const editPartFemale = ref('')
+const editPartOptionalId = ref('')
+const editPartOptionalText = ref('')
+const editPartOptionalEnabledByDefault = ref(true)
 const editPartSaveCallback = ref<((part: SentencePart) => void) | null>(null)
 
 function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => void) {
@@ -317,6 +347,11 @@ function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => v
 		editPartType.value = 'genderVariant'
 		editPartMale.value = part.value[0] ?? ''
 		editPartFemale.value = part.value[1] ?? ''
+	} else if (part.type === 'optionalText') {
+		editPartType.value = 'optionalText'
+		editPartOptionalId.value = part.id
+		editPartOptionalText.value = part.value
+		editPartOptionalEnabledByDefault.value = part.enabledByDefault
 	} else {
 		return
 	}
@@ -325,9 +360,19 @@ function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => v
 
 function confirmEditPart() {
 	if (!editPartSaveCallback.value) return
-	const part: SentencePart = editPartType.value === 'text'
-		? { type: 'text', value: editPartText.value }
-		: { type: 'genderVariant', value: [editPartMale.value, editPartFemale.value] }
+	let part: SentencePart
+	if (editPartType.value === 'text') {
+		part = { type: 'text', value: editPartText.value }
+	} else if (editPartType.value === 'genderVariant') {
+		part = { type: 'genderVariant', value: [editPartMale.value, editPartFemale.value] }
+	} else {
+		part = {
+			type: 'optionalText',
+			id: editPartOptionalId.value,
+			value: editPartOptionalText.value,
+			enabledByDefault: editPartOptionalEnabledByDefault.value,
+		}
+	}
 
 	editPartSaveCallback.value(part)
 	editPartModalOpen.value = false
@@ -487,15 +532,48 @@ function createFirstCategory() {
 				</UFormField>
 			</template>
 			<template v-else-if="addPartType === 'genderVariant'">
-				<UFormField label="Männliche Form" name="add-part-male" class="mt-3">
-					<UInput v-model="addPartMale" placeholder="z. B. Er" autofocus />
-				</UFormField>
-				<UFormField label="Weibliche Form" name="add-part-female">
-					<UInput v-model="addPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmAddPart" />
-				</UFormField>
+				<div class="mt-3 flex items-start gap-2">
+					<div class="flex-1">
+						<UFormField label="Männliche Form" name="add-part-male">
+							<UInput v-model="addPartMale" placeholder="z. B. Er" autofocus />
+						</UFormField>
+						<UFormField label="Weibliche Form" name="add-part-female">
+							<UInput v-model="addPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmAddPart" />
+						</UFormField>
+					</div>
+					<div class="flex shrink-0 flex-col gap-1 pt-6">
+						<UButton
+							v-for="preset in genderVariantPresets"
+							:key="preset.label"
+							:label="preset.label"
+							color="neutral"
+							variant="outline"
+							size="xs"
+							@click="applyGenderVariantPreset(preset)"
+						/>
+					</div>
+				</div>
 			</template>
 			<template v-else-if="addPartType === 'name'">
 				<p class="mt-3 text-sm text-muted">Keine weitere Eingabe nötig.</p>
+			</template>
+			<template v-else-if="addPartType === 'optionalText'">
+				<UFormField label="Optionaler Text" name="add-part-optional-text" class="mt-3">
+					<UInput
+						v-model="addPartOptionalText"
+						placeholder="Text eingeben"
+						autofocus
+						@keydown.enter="confirmAddPart"
+					/>
+				</UFormField>
+				<label class="mt-3 flex items-center gap-2 text-sm text-default">
+					<input
+						v-model="addPartOptionalEnabledByDefault"
+						type="checkbox"
+						class="size-4 rounded border-default"
+					>
+					<span>Standardmäßig aktiv</span>
+				</label>
 			</template>
 		</template>
 		<template #footer="{ close }">
@@ -518,6 +596,24 @@ function createFirstCategory() {
 				<UFormField label="Weibliche Form" name="edit-part-female">
 					<UInput v-model="editPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmEditPart" />
 				</UFormField>
+			</template>
+			<template v-else-if="editPartType === 'optionalText'">
+				<UFormField label="Optionaler Text" name="edit-part-optional-text">
+					<UInput
+						v-model="editPartOptionalText"
+						placeholder="Text eingeben"
+						autofocus
+						@keydown.enter="confirmEditPart"
+					/>
+				</UFormField>
+				<label class="mt-3 flex items-center gap-2 text-sm text-default">
+					<input
+						v-model="editPartOptionalEnabledByDefault"
+						type="checkbox"
+						class="size-4 rounded border-default"
+					>
+					<span>Standardmäßig aktiv</span>
+				</label>
 			</template>
 		</template>
 		<template #footer="{ close }">

@@ -47,6 +47,7 @@ function sentencePartLabel(part: SentencePart): string {
 		case 'text': return part.value || '(leer)'
 		case 'genderVariant': return `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
 		case 'name': return 'Name'
+		case 'optionalText': return `Optional: ${part.value || '(leer)'}`
 		default: return ''
 	}
 }
@@ -166,7 +167,7 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 				</template>
 				<template #actions="{ part, partIndex }">
 					<UButton
-						v-if="part.type === 'text' || part.type === 'genderVariant'"
+						v-if="part.type === 'text' || part.type === 'genderVariant' || part.type === 'optionalText'"
 						icon="i-lucide-pencil"
 						color="neutral"
 						variant="ghost"

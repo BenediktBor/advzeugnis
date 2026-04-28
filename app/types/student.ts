@@ -1,5 +1,9 @@
 export interface ReportSelection {
-	categories: Record<string, { gradeId: string | null; variantIds: string[] }>
+	categories: Record<string, {
+		gradeId: string | null
+		variantIds: string[]
+		optionalPartOverrides?: Record<string, boolean>
+	}>
 }
 
 export interface Student {

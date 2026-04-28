@@ -14,6 +14,8 @@ export interface ReportSegment {
 	text: string
 }
 
+export type OptionalPartOverrides = Record<string, boolean>
+
 export function getDefaultVariantIdsForGrade(grade: Grade): string[] {
 	const firstVariant = grade.variants[0]
 	return firstVariant ? [firstVariant.id] : []
@@ -42,7 +44,8 @@ export function ensureVariantIdsForGrade(
 function resolveSentencePart(
 	part: SentencePart,
 	firstName: string,
-	gender: 'male' | 'female'
+	gender: 'male' | 'female',
+	optionalPartOverrides: OptionalPartOverrides = {}
 ): string {
 	switch (part.type) {
 		case 'text':
@@ -53,37 +56,56 @@ function resolveSentencePart(
 			// `name` parts optionally override the resolved student first name.
 			// When `value` is missing, fall back to the student's first name.
 			return part.value?.trim() ?? firstName
+		case 'optionalText':
+			return isOptionalPartEnabled(part, optionalPartOverrides) ? part.value : ''
 		default:
 			return ''
 	}
 }
 
+export function isOptionalPartEnabled(
+	part: Extract<SentencePart, { type: 'optionalText' }>,
+	optionalPartOverrides: OptionalPartOverrides = {}
+): boolean {
+	return optionalPartOverrides[part.id] ?? part.enabledByDefault
+}
+
+function ensureFinalPunctuation(text: string): string {
+	const trimmed = text.trim()
+	if (!trimmed || /[.!?]$/.test(trimmed)) return trimmed
+	return `${trimmed}.`
+}
+
 function resolveVariantToText(
 	variant: Variant,
 	firstName: string,
-	gender: 'male' | 'female'
+	gender: 'male' | 'female',
+	optionalPartOverrides: OptionalPartOverrides = {}
 ): string {
-	return variant.sentences
-		.map((p) => resolveSentencePart(p, firstName, gender))
+	const text = variant.sentences
+		.map((p) => resolveSentencePart(p, firstName, gender, optionalPartOverrides))
 		.map((t) => t.trim())
 		.filter((t) => t.length > 0)
 		.join(' ')
+	return ensureFinalPunctuation(text)
 }
 
 export function buildVariantPreviewText(
 	student: Pick<Student, 'name' | 'gender'>,
-	variant: Variant
+	variant: Variant,
+	optionalPartOverrides: OptionalPartOverrides = {}
 ): string {
 	const firstName = student.name?.trim() ?? ''
-	return resolveVariantToText(variant, firstName, student.gender)
+	return resolveVariantToText(variant, firstName, student.gender, optionalPartOverrides)
 }
 
 export function buildVariantsPreviewText(
 	student: Pick<Student, 'name' | 'gender'>,
-	variants: Variant[]
+	variants: Variant[],
+	optionalPartOverrides: OptionalPartOverrides = {}
 ): string {
 	return variants
-		.map((variant) => buildVariantPreviewText(student, variant))
+		.map((variant) => buildVariantPreviewText(student, variant, optionalPartOverrides))
 		.filter(Boolean)
 		.join(' ')
 }
@@ -91,6 +113,7 @@ export function buildVariantsPreviewText(
 export interface EffectiveCategoryEntry {
 	gradeId: string
 	variantIds: string[]
+	optionalPartOverrides?: OptionalPartOverrides
 }
 
 /**
@@ -130,7 +153,11 @@ export function getEffectiveCategoryEntry(
 		variantIds = getDefaultVariantIdsForGrade(grade)
 	}
 
-	return { gradeId: grade.id, variantIds }
+	const result: EffectiveCategoryEntry = { gradeId: grade.id, variantIds }
+	if (entry?.optionalPartOverrides) {
+		result.optionalPartOverrides = entry.optionalPartOverrides
+	}
+	return result
 }
 
 export function buildReportSegments(
@@ -154,7 +181,11 @@ export function buildReportSegments(
 			for (const vId of effective.variantIds) {
 				const variant = variants.find((v) => v.id === vId)
 				if (!variant) continue
-				const text = buildVariantPreviewText({ name: firstName, gender }, variant)
+				const text = buildVariantPreviewText(
+					{ name: firstName, gender },
+					variant,
+					effective.optionalPartOverrides
+				)
 				if (!text) continue
 				segments.push({
 					categoryId: category.id,
