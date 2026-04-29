@@ -33,8 +33,44 @@ const {
 const { canEditTemplates } = useCurrentUser()
 
 const selectedCategory = ref<{ subjectId: string; categoryId: string } | null>(null)
-const selectedGradeId = ref<string | null>(null)
-const selectedVariantId = ref<string | null>(null)
+type CategorySelection = {
+	gradeId: string | null
+	variantId: string | null
+}
+
+const categorySelections = ref<Record<string, CategorySelection>>({})
+
+function categorySelectionKey(category: { subjectId: string; categoryId: string }) {
+	return `${category.subjectId}:${category.categoryId}`
+}
+
+function getCategorySelection(category: { subjectId: string; categoryId: string } | null): CategorySelection | null {
+	if (!category) return null
+	return categorySelections.value[categorySelectionKey(category)] ?? null
+}
+
+function updateCategorySelection(
+	category: { subjectId: string; categoryId: string } | null,
+	patch: Partial<CategorySelection>
+) {
+	if (!category) return
+	const key = categorySelectionKey(category)
+	const current = categorySelections.value[key] ?? { gradeId: null, variantId: null }
+	categorySelections.value[key] = {
+		...current,
+		...patch,
+	}
+}
+
+const selectedGradeId = computed<string | null>({
+	get: () => getCategorySelection(selectedCategory.value)?.gradeId ?? null,
+	set: (gradeId) => updateCategorySelection(selectedCategory.value, { gradeId }),
+})
+
+const selectedVariantId = computed<string | null>({
+	get: () => getCategorySelection(selectedCategory.value)?.variantId ?? null,
+	set: (variantId) => updateCategorySelection(selectedCategory.value, { variantId }),
+})
 
 function getFirstCategorySelection(templateSet: TemplateSet) {
 	for (const subject of templateSet.subjects) {
@@ -58,30 +94,19 @@ const selectedCategoryData = computed<Category | null>(() => {
 	return subject?.categories.find((category) => category.id === selected.categoryId) ?? null
 })
 
-watch(
-	selectedCategoryData,
-	(category) => {
-		if (category) return
-		selectedGradeId.value = null
-		selectedVariantId.value = null
-	},
-	{ immediate: true }
-)
-
 function selectCategory(category: { subjectId: string; categoryId: string } | null) {
 	selectedCategory.value = category
 	const selected = selectedCategoryData.value
+	const rememberedSelection = getCategorySelection(category)
 	if (!selected?.grades.length) {
-		selectedGradeId.value = null
-		selectedVariantId.value = null
+		updateCategorySelection(category, { gradeId: null, variantId: null })
 		return
 	}
 
-	const currentGrade = selected.grades.find((grade) => grade.id === selectedGradeId.value)
+	const currentGrade = selected.grades.find((grade) => grade.id === rememberedSelection?.gradeId)
 	const grade = currentGrade ?? selected.grades[0]
 	if (!grade) {
-		selectedGradeId.value = null
-		selectedVariantId.value = null
+		updateCategorySelection(category, { gradeId: null, variantId: null })
 		return
 	}
 
@@ -91,7 +116,7 @@ function selectCategory(category: { subjectId: string; categoryId: string } | nu
 		return
 	}
 
-	const currentVariant = grade.variants.find((variant) => variant.id === selectedVariantId.value)
+	const currentVariant = grade.variants.find((variant) => variant.id === rememberedSelection?.variantId)
 	selectedVariantId.value = currentVariant?.id ?? grade.variants[0]?.id ?? null
 }
 
@@ -99,15 +124,17 @@ watch(
 	() => props.setId,
 	() => {
 		selectedCategory.value = null
-		selectedGradeId.value = null
-		selectedVariantId.value = null
+		categorySelections.value = {}
 	}
 )
 
 watch(
 	() => props.templateSet,
 	() => {
-		if (selectedCategory.value && selectedCategoryData.value) return
+		if (selectedCategory.value && selectedCategoryData.value) {
+			selectCategory(selectedCategory.value)
+			return
+		}
 		const firstCategory = getFirstCategorySelection(props.templateSet)
 		if (firstCategory) selectCategory(firstCategory)
 	},
