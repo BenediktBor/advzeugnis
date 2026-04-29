@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
 import type { Category, SentencePart, TemplateSet } from '~/types/template'
+import { useTemplatesStore } from '~/stores/templates'
 
 const props = defineProps<{
 	setId: string
 	templateSet: TemplateSet
 }>()
 
+const templatesStore = useTemplatesStore()
 const { removeSet } = useTemplateSets()
 const deleteDialog = useConfirmDialog()
 const {
@@ -38,15 +40,13 @@ type CategorySelection = {
 	variantId: string | null
 }
 
-const categorySelections = ref<Record<string, CategorySelection>>({})
-
 function categorySelectionKey(category: { subjectId: string; categoryId: string }) {
 	return `${category.subjectId}:${category.categoryId}`
 }
 
 function getCategorySelection(category: { subjectId: string; categoryId: string } | null): CategorySelection | null {
 	if (!category) return null
-	return categorySelections.value[categorySelectionKey(category)] ?? null
+	return templatesStore.getLastCategorySelection(props.setId, categorySelectionKey(category))
 }
 
 function updateCategorySelection(
@@ -54,12 +54,11 @@ function updateCategorySelection(
 	patch: Partial<CategorySelection>
 ) {
 	if (!category) return
-	const key = categorySelectionKey(category)
-	const current = categorySelections.value[key] ?? { gradeId: null, variantId: null }
-	categorySelections.value[key] = {
+	const current = getCategorySelection(category) ?? { gradeId: null, variantId: null }
+	templatesStore.setLastCategorySelection(props.setId, categorySelectionKey(category), {
 		...current,
 		...patch,
-	}
+	})
 }
 
 const selectedGradeId = computed<string | null>({
@@ -86,6 +85,15 @@ function getFirstCategorySelection(templateSet: TemplateSet) {
 	return null
 }
 
+function categoryExists(
+	templateSet: TemplateSet,
+	category: { subjectId: string; categoryId: string } | null,
+): category is { subjectId: string; categoryId: string } {
+	if (!category) return false
+	const subject = templateSet.subjects.find((item) => item.id === category.subjectId)
+	return Boolean(subject?.categories.some((item) => item.id === category.categoryId))
+}
+
 const selectedCategoryData = computed<Category | null>(() => {
 	const selected = selectedCategory.value
 	if (!selected) return null
@@ -97,6 +105,12 @@ const selectedCategoryData = computed<Category | null>(() => {
 function selectCategory(category: { subjectId: string; categoryId: string } | null) {
 	selectedCategory.value = category
 	const selected = selectedCategoryData.value
+	if (!category || !selected) {
+		templatesStore.setLastSelectedCategory(props.setId, null)
+	}
+	else {
+		templatesStore.setLastSelectedCategory(props.setId, category)
+	}
 	const rememberedSelection = getCategorySelection(category)
 	if (!selected?.grades.length) {
 		updateCategorySelection(category, { gradeId: null, variantId: null })
@@ -124,7 +138,6 @@ watch(
 	() => props.setId,
 	() => {
 		selectedCategory.value = null
-		categorySelections.value = {}
 	}
 )
 
@@ -135,8 +148,23 @@ watch(
 			selectCategory(selectedCategory.value)
 			return
 		}
+		if (selectedCategory.value && !selectedCategoryData.value) {
+			templatesStore.setLastSelectedCategory(props.setId, null)
+		}
+		const persisted = templatesStore.getLastSelectedCategory(props.setId)
+		if (categoryExists(props.templateSet, persisted)) {
+			selectCategory(persisted)
+			return
+		}
+		if (persisted) {
+			templatesStore.setLastSelectedCategory(props.setId, null)
+		}
 		const firstCategory = getFirstCategorySelection(props.templateSet)
-		if (firstCategory) selectCategory(firstCategory)
+		if (firstCategory) {
+			selectCategory(firstCategory)
+			return
+		}
+		selectCategory(null)
 	},
 	{ immediate: true, deep: true },
 )
@@ -513,7 +541,8 @@ function createFirstCategory() {
 
 <template>
 	<TemplateTreePanel
-		v-model:selected-category="selectedCategory"
+		:selected-category="selectedCategory"
+		@update:selected-category="selectCategory"
 		:set-id="setId"
 		:template-set="templateSet"
 		:can-edit="canEditTemplates"

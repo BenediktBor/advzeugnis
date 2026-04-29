@@ -11,6 +11,20 @@ import type { Subject, TemplateSet } from '~/types/template'
 
 const STORAGE_KEY = 'template-sets'
 const LIST_STORAGE_KEY = 'template-set-list'
+const LAST_SELECTED_CATEGORY_STORAGE_KEY = 'template-set-last-selected-category'
+const LAST_CATEGORY_SELECTIONS_STORAGE_KEY = 'template-set-last-category-selections'
+
+type SelectedCategoryRef = {
+	subjectId: string
+	categoryId: string
+}
+
+type PersistedCategorySelection = {
+	gradeId: string | null
+	variantId: string | null
+}
+
+type CategorySelectionMapBySet = Record<string, Record<string, PersistedCategorySelection>>
 
 function createEmptySet(id: string, label = 'Neue Vorlage'): TemplateSet {
 	return {
@@ -291,10 +305,18 @@ export function mergeSubjectIntoTemplateSet(
 export const useTemplatesStore = defineStore('templates', () => {
 	const record = ref<TemplateSetsRecord>({})
 	const orderedIds = ref<string[]>([])
+	const lastSelectedCategoryBySetId = ref<Record<string, SelectedCategoryRef>>({})
+	const lastCategorySelectionsBySetId = ref<CategorySelectionMapBySet>({})
 	const isLoaded = ref(false)
 	const loadError = ref<unknown>(null)
 	const { persist: debouncedPersistRecord } = createDebouncedPersist<TemplateSetsRecord>(STORAGE_KEY)
 	const { persist: debouncedPersistList } = createDebouncedPersist<string[]>(LIST_STORAGE_KEY)
+	const { persist: debouncedPersistLastSelectedCategory } = createDebouncedPersist<Record<string, SelectedCategoryRef>>(
+		LAST_SELECTED_CATEGORY_STORAGE_KEY,
+	)
+	const { persist: debouncedPersistLastCategorySelections } = createDebouncedPersist<CategorySelectionMapBySet>(
+		LAST_CATEGORY_SELECTIONS_STORAGE_KEY,
+	)
 	let loadPromise: Promise<void> | null = null
 
 	function load() {
@@ -304,11 +326,13 @@ export const useTemplatesStore = defineStore('templates', () => {
 	}
 
 	async function doLoad() {
-		const [storedResult, storedListResult] = await Promise.all([
+		const [storedResult, storedListResult, storedSelectedCategoryResult, storedCategorySelectionsResult] = await Promise.all([
 			idbLoad<Record<string, TemplateSet>>(STORAGE_KEY),
 			idbLoad<string[]>(LIST_STORAGE_KEY),
+			idbLoad<Record<string, SelectedCategoryRef>>(LAST_SELECTED_CATEGORY_STORAGE_KEY),
+			idbLoad<CategorySelectionMapBySet>(LAST_CATEGORY_SELECTIONS_STORAGE_KEY),
 		])
-		loadError.value = storedResult.error ?? storedListResult.error
+		loadError.value = storedResult.error ?? storedListResult.error ?? storedSelectedCategoryResult.error ?? storedCategorySelectionsResult.error
 
 		const normalized = normalizeTemplateSets(
 			(storedResult.value ?? {}) as Record<string, TemplateSet | null | undefined>,
@@ -318,6 +342,33 @@ export const useTemplatesStore = defineStore('templates', () => {
 
 		record.value = normalized.record
 		orderedIds.value = normalized.orderedIds
+		const rawSelectedCategories = storedSelectedCategoryResult.value ?? {}
+		const nextSelectedCategories: Record<string, SelectedCategoryRef> = {}
+		for (const [setId, selection] of Object.entries(rawSelectedCategories)) {
+			if (!selection || typeof selection !== 'object') continue
+			if (typeof selection.subjectId !== 'string' || typeof selection.categoryId !== 'string') continue
+			nextSelectedCategories[setId] = {
+				subjectId: selection.subjectId,
+				categoryId: selection.categoryId,
+			}
+		}
+		lastSelectedCategoryBySetId.value = nextSelectedCategories
+		const rawCategorySelections = storedCategorySelectionsResult.value ?? {}
+		const nextCategorySelections: CategorySelectionMapBySet = {}
+		for (const [setId, byCategory] of Object.entries(rawCategorySelections)) {
+			if (!byCategory || typeof byCategory !== 'object') continue
+			const nextByCategory: Record<string, PersistedCategorySelection> = {}
+			for (const [categoryKey, selection] of Object.entries(byCategory)) {
+				if (!selection || typeof selection !== 'object') continue
+				const gradeId = typeof selection.gradeId === 'string' ? selection.gradeId : null
+				const variantId = typeof selection.variantId === 'string' ? selection.variantId : null
+				nextByCategory[categoryKey] = { gradeId, variantId }
+			}
+			if (Object.keys(nextByCategory).length > 0) {
+				nextCategorySelections[setId] = nextByCategory
+			}
+		}
+		lastCategorySelectionsBySetId.value = nextCategorySelections
 		isLoaded.value = true
 		if (normalized.didMigrate) {
 			debouncedPersistRecord(record.value)
@@ -331,6 +382,14 @@ export const useTemplatesStore = defineStore('templates', () => {
 
 	function persistList() {
 		debouncedPersistList(orderedIds.value)
+	}
+
+	function persistLastSelectedCategory() {
+		debouncedPersistLastSelectedCategory(lastSelectedCategoryBySetId.value)
+	}
+
+	function persistLastCategorySelections() {
+		debouncedPersistLastCategorySelections(lastCategorySelectionsBySetId.value)
 	}
 
 	function upsertSet(setId: string, setData: TemplateSet) {
@@ -375,6 +434,72 @@ export const useTemplatesStore = defineStore('templates', () => {
 			record.value = rest
 			persistRecord()
 		}
+
+		if (Object.prototype.hasOwnProperty.call(lastSelectedCategoryBySetId.value, setId)) {
+			const { [setId]: _, ...restSelections } = lastSelectedCategoryBySetId.value
+			lastSelectedCategoryBySetId.value = restSelections
+			persistLastSelectedCategory()
+		}
+
+		if (Object.prototype.hasOwnProperty.call(lastCategorySelectionsBySetId.value, setId)) {
+			const { [setId]: _, ...restCategorySelections } = lastCategorySelectionsBySetId.value
+			lastCategorySelectionsBySetId.value = restCategorySelections
+			persistLastCategorySelections()
+		}
+	}
+
+	function getLastSelectedCategory(setId: string): SelectedCategoryRef | null {
+		return lastSelectedCategoryBySetId.value[setId] ?? null
+	}
+
+	function setLastSelectedCategory(setId: string, category: SelectedCategoryRef | null) {
+		if (!setId) return
+		if (!category) {
+			if (!Object.prototype.hasOwnProperty.call(lastSelectedCategoryBySetId.value, setId)) return
+			const { [setId]: _, ...rest } = lastSelectedCategoryBySetId.value
+			lastSelectedCategoryBySetId.value = rest
+			persistLastSelectedCategory()
+			return
+		}
+		lastSelectedCategoryBySetId.value = {
+			...lastSelectedCategoryBySetId.value,
+			[setId]: category,
+		}
+		persistLastSelectedCategory()
+	}
+
+	function getLastCategorySelection(setId: string, categoryKey: string): PersistedCategorySelection | null {
+		return lastCategorySelectionsBySetId.value[setId]?.[categoryKey] ?? null
+	}
+
+	function setLastCategorySelection(
+		setId: string,
+		categoryKey: string,
+		selection: PersistedCategorySelection | null,
+	) {
+		if (!setId || !categoryKey) return
+		const setSelections = lastCategorySelectionsBySetId.value[setId] ?? {}
+		if (!selection) {
+			if (!Object.prototype.hasOwnProperty.call(setSelections, categoryKey)) return
+			const { [categoryKey]: _, ...rest } = setSelections
+			const nextBySetId = { ...lastCategorySelectionsBySetId.value }
+			if (Object.keys(rest).length === 0) {
+				delete nextBySetId[setId]
+			} else {
+				nextBySetId[setId] = rest
+			}
+			lastCategorySelectionsBySetId.value = nextBySetId
+			persistLastCategorySelections()
+			return
+		}
+		lastCategorySelectionsBySetId.value = {
+			...lastCategorySelectionsBySetId.value,
+			[setId]: {
+				...setSelections,
+				[categoryKey]: selection,
+			},
+		}
+		persistLastCategorySelections()
 	}
 
 	function getSetData(setId: string): TemplateSet | null {
@@ -467,6 +592,10 @@ export const useTemplatesStore = defineStore('templates', () => {
 		isLoaded,
 		loadError,
 		load,
+		getLastSelectedCategory,
+		setLastSelectedCategory,
+		getLastCategorySelection,
+		setLastCategorySelection,
 		addSet,
 		removeSet,
 		getSetData,
