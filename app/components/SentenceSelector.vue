@@ -425,12 +425,15 @@ const activeSubjectAverageSummary = computed(() => {
 			</div>
 		</div>
 		<div class="border-b border-default px-4 py-3">
-			<UTabs
+			<HorizontalScrollableTabStrip
 				:items="subjectTabItems"
-				:model-value="activeSubjectId || undefined"
-				:content="false"
-				class="w-full"
-				@update:model-value="setActiveSubjectId(($event as string) ?? '')"
+				:model-value="activeSubjectId"
+				@update:modelValue="setActiveSubjectId(($event as string) ?? '')"
+				:search-enabled="true"
+				search-placeholder="Fach suchen"
+				left-aria-label="Fächer nach links scrollen"
+				right-aria-label="Fächer nach rechts scrollen"
+				search-aria-label="Fächer suchen"
 			/>
 		</div>
 		<div class="min-h-0 flex-1 overflow-y-auto p-3">
