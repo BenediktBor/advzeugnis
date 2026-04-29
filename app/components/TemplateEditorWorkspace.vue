@@ -239,6 +239,25 @@ function handleReorderSentenceParts(oldIndex: number, newIndex: number) {
 	)
 }
 
+function handleToggleOptionalTextDefault(partIndex: number, enabledByDefault: boolean) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	const variant = selectedVariantData()
+	const part = variant?.sentences[partIndex]
+	if (!part || part.type !== 'optionalText') return
+	const { subjectId, categoryId } = selectedCategory.value
+	updateSentencePart(subjectId, categoryId, selectedGradeId.value, selectedVariantId.value, partIndex, {
+		...part,
+		enabledByDefault,
+	})
+}
+
+function selectedVariantData() {
+	const category = selectedCategoryData.value
+	if (!category || !selectedGradeId.value || !selectedVariantId.value) return null
+	const grade = category.grades.find((item) => item.id === selectedGradeId.value)
+	return grade?.variants.find((item) => item.id === selectedVariantId.value) ?? null
+}
+
 const addPartModalOpen = ref(false)
 const addPartType = ref<'text' | 'genderVariant' | 'name' | 'optionalText'>('text')
 const addPartText = ref('')
@@ -506,6 +525,7 @@ function createFirstCategory() {
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@toggle-optional-text-default="handleToggleOptionalTextDefault"
 				/>
 			</div>
 		</template>
@@ -537,6 +557,7 @@ function createFirstCategory() {
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@toggle-optional-text-default="handleToggleOptionalTextDefault"
 				/>
 			</div>
 		</template>

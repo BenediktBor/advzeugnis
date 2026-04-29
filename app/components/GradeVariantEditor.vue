@@ -21,6 +21,7 @@ const emit = defineEmits<{
 	editSentencePart: [part: SentencePart, partIndex: number]
 	deleteSentencePart: [partIndex: number]
 	reorderSentenceParts: [oldIndex: number, newIndex: number]
+	toggleOptionalTextDefault: [partIndex: number, enabledByDefault: boolean]
 }>()
 
 const selectedGradeData = computed(() => {
@@ -47,7 +48,8 @@ function sentencePartLabel(part: SentencePart): string {
 		case 'text': return part.value || '(leer)'
 		case 'genderVariant': return `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
 		case 'name': return 'Name'
-		case 'optionalText': return `Optional: ${part.value || '(leer)'}`
+		case 'optionalText':
+			return `Optional (${part.enabledByDefault ? 'aktiv' : 'inaktiv'}): ${part.value || '(leer)'}`
 		default: return ''
 	}
 }
@@ -105,6 +107,9 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 					</template>
 				</TemplatePill>
 			</div>
+			<p v-if="category.grades.length === 0" class="mt-2 text-sm text-muted">
+				Noch keine Notenstufen vorhanden. Lege eine erste Notenstufe an.
+			</p>
 		</section>
 
 		<section v-if="selectedGradeData">
@@ -150,6 +155,9 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 					</template>
 				</TemplatePill>
 			</div>
+			<p v-if="selectedGradeVariants.length === 0" class="mt-2 text-sm text-muted">
+				Diese Notenstufe enthält noch keine Varianten.
+			</p>
 		</section>
 
 		<section v-if="selectedVariantData" class="mt-4">
@@ -185,6 +193,18 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 					/>
 				</template>
 			</SortablePillList>
+			<p v-if="selectedVariantData.sentences.length === 0" class="mt-2 text-sm text-muted">
+				Noch keine Satzbausteine. Füge den ersten Baustein hinzu.
+			</p>
+			<VariantSentencePreview
+				class="mt-3"
+				:variant="selectedVariantData"
+				:can-edit="canEdit"
+				@toggle-optional-text-default="
+					(partIndex, enabledByDefault) =>
+						emit('toggleOptionalTextDefault', partIndex, enabledByDefault)
+				"
+			/>
 		</section>
 	</div>
 </template>

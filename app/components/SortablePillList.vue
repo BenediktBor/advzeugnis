@@ -29,6 +29,15 @@ function partKey(part: SentencePart): string {
 	return key
 }
 
+function defaultPartLabel(part: SentencePart): string {
+	if (part.type === 'text') return part.value || '(leer)'
+	if (part.type === 'genderVariant') return `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
+	if (part.type === 'optionalText') {
+		return `Optional (${part.enabledByDefault ? 'aktiv' : 'inaktiv'}): ${part.value || '(leer)'}`
+	}
+	return 'Name'
+}
+
 watch(
 	() => props.parts,
 	(newVal) => {
@@ -62,18 +71,14 @@ useSortable(listRef, localList, {
 		<div ref="listRef" class="flex flex-wrap items-center gap-2">
 			<template v-for="(part, partIndex) in localList" :key="partKey(part)">
 				<TemplatePill
-					:label="''"
+					:label="defaultPartLabel(part)"
 					:show-drag-handle="canEdit"
 					:can-edit="canEdit"
 					:selectable="false"
 				>
 					<slot name="label" :part="part" :part-index="partIndex">
 						{{
-							part.type === 'text'
-								? part.value || '(leer)'
-								: part.type === 'genderVariant'
-									? `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
-									: 'Name'
+							defaultPartLabel(part)
 						}}
 					</slot>
 					<template v-if="canEdit" #actions>

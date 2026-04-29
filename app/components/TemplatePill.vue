@@ -32,6 +32,7 @@ const pillClasses = computed(() => [
 	<button
 		type="button"
 		:class="pillClasses"
+		:title="label || undefined"
 		:role="selectable ? 'button' : undefined"
 		:tabindex="selectable ? 0 : undefined"
 		:aria-pressed="selectable ? active : undefined"
@@ -48,7 +49,7 @@ const pillClasses = computed(() => [
 			<UIcon class="size-4" name="i-lucide-grip-vertical" />
 		</span>
 
-		<span class="min-w-0 max-w-[200px] truncate">
+		<span class="min-w-0 max-w-[200px] truncate" :title="label || undefined">
 			<slot>{{ label }}</slot>
 		</span>
 
