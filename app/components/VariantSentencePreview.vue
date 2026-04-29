@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { NamePartOverrides } from '~/types/student'
 import type { NamePartReplacementKey } from '~/types/student'
-import type { SentencePart, Variant } from '~/types/template'
+import type { Variant } from '~/types/template'
 import {
 	buildVariantPreviewText,
 	namePartOverrideKey,
-	resolveGenderVariantValue,
-	resolveNamePartReplacement,
 } from '~/utils/reportText'
 
 type NamePreviewMode = 'name' | NamePartReplacementKey
@@ -63,13 +61,6 @@ function onToggleCustomName(value: boolean) {
 	}
 }
 
-function partSummary(part: SentencePart): string {
-	if (part.type === 'name') return 'Name-Baustein'
-	if (part.type === 'optionalText') return part.value || 'Optionaler Text'
-	if (part.type === 'genderVariant') return `${part.value[0] ?? ''} / ${part.value[1] ?? ''}`
-	return part.value || 'Text'
-}
-
 function nameSelectionValue(partIndex: number): NamePreviewMode {
 	return previewNameSelection.value[partIndex] ?? 'name'
 }
@@ -78,53 +69,6 @@ function setNameSelection(partIndex: number, value: NamePreviewMode) {
 	previewNameSelection.value = {
 		...previewNameSelection.value,
 		[partIndex]: value,
-	}
-}
-
-function resolvedInlinePartsBefore(partIndex: number): string[] {
-	const resolvedParts: string[] = []
-	for (const [index, part] of props.variant.sentences.entries()) {
-		if (index >= partIndex) break
-		const text = resolveInlineTemplatePart(part, index, resolvedParts).trim()
-		if (text) resolvedParts.push(text)
-	}
-	return resolvedParts
-}
-
-function isNextInlinePartSentenceStart(partsBefore: string[]): boolean {
-	const previousText = partsBefore
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.join(' ')
-	if (!previousText) return true
-	return /[.!?]$/.test(previousText)
-}
-
-function resolveInlineTemplatePart(
-	part: SentencePart,
-	partIndex: number,
-	partsBefore: string[] = []
-): string {
-	switch (part.type) {
-		case 'text':
-			return part.value
-		case 'genderVariant':
-			return resolveGenderVariantValue(part.value, previewGender.value)
-		case 'optionalText':
-			return part.enabledByDefault ? part.value : ''
-		case 'name': {
-			const selection = nameSelectionValue(partIndex)
-			if (selection !== 'name') {
-				return resolveNamePartReplacement(
-					selection,
-					previewGender.value,
-					isNextInlinePartSentenceStart(partsBefore)
-				)
-			}
-			return previewName.value.trim() || defaultNameByGender[previewGender.value]
-		}
-		default:
-			return ''
 	}
 }
 
@@ -149,11 +93,30 @@ const previewText = computed(() =>
 	)
 )
 
-const previewSuffix = computed(() => {
-	const trimmed = previewText.value.trim()
-	if (!trimmed) return ''
-	return trimmed.match(/[.!?]$/)?.[0] ?? '.'
-})
+const namePartSelections = computed<Record<number, NamePreviewMode>>(() =>
+	Object.fromEntries(
+		props.variant.sentences
+			.map((part, partIndex) => [part, partIndex] as const)
+			.filter(([part]) => part.type === 'name')
+			.map(([, partIndex]) => [partIndex, nameSelectionValue(partIndex)])
+	)
+)
+
+const optionalPartEnabledMap = computed<Record<string, boolean>>(() =>
+	Object.fromEntries(
+		props.variant.sentences
+			.filter((part): part is Extract<(typeof props.variant.sentences)[number], { type: 'optionalText' }> => part.type === 'optionalText')
+			.map((part) => [part.id, part.enabledByDefault])
+	)
+)
+
+function toggleOptionalTextById(partId: string, enabled: boolean) {
+	const partIndex = props.variant.sentences.findIndex(
+		(part) => part.type === 'optionalText' && part.id === partId
+	)
+	if (partIndex === -1) return
+	emit('toggleOptionalTextDefault', partIndex, enabled)
+}
 </script>
 
 <template>
@@ -171,53 +134,20 @@ const previewSuffix = computed(() => {
 		</div>
 
 		<div class="mt-3 rounded border border-default bg-default px-3 py-2 text-sm text-default">
-			<div
+			<VariantSentenceInlinePreview
 				v-if="previewText"
-				class="flex flex-wrap items-center gap-x-1.5 gap-y-1 leading-relaxed"
-			>
-				<template
-					v-for="(part, partIndex) in variant.sentences"
-					:key="`${variant.id}-${partIndex}`"
-				>
-					<label
-						v-if="part.type === 'optionalText'"
-						class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
-					>
-						<UCheckbox
-							:model-value="part.enabledByDefault"
-							:disabled="!canEdit"
-							:aria-label="`${partSummary(part)} ein- oder ausblenden`"
-							size="xs"
-							@update:model-value="
-								emit('toggleOptionalTextDefault', partIndex, Boolean($event))
-							"
-						/>
-						<span
-							:class="part.enabledByDefault ? 'text-default' : 'text-muted line-through'"
-						>
-							{{ part.value }}
-						</span>
-					</label>
-					<USelectMenu
-						v-else-if="part.type === 'name'"
-						:model-value="nameSelectionValue(partIndex)"
-						:items="[
-							{ label: previewName || defaultNameByGender[previewGender], value: 'name' },
-							{ label: 'Er/Sie', value: 'erSie' },
-						]"
-						value-key="value"
-						size="xs"
-						class="w-auto min-w-20"
-						@update:model-value="
-							setNameSelection(partIndex, (($event as NamePreviewMode) ?? 'name'))
-						"
-					/>
-					<span v-else-if="resolveInlineTemplatePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim()">
-						{{ resolveInlineTemplatePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim() }}
-					</span>
-				</template>
-				<span v-if="previewSuffix" class="-ml-1.5">{{ previewSuffix }}</span>
-			</div>
+				:variant="variant"
+				:preview-text="previewText"
+				:preview-name="previewName || defaultNameByGender[previewGender]"
+				:preview-gender="previewGender"
+				:name-part-selections="namePartSelections"
+				:optional-part-enabled-map="optionalPartEnabledMap"
+				:can-edit-optional="canEdit"
+				@toggle-optional-text="toggleOptionalTextById"
+				@set-name-part-selection="
+					(partIndex, value) => setNameSelection(partIndex, value)
+				"
+			/>
 			<p v-else class="text-muted">Kein Vorschautext vorhanden.</p>
 		</div>
 

@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import {
-	NAME_PART_REPLACEMENTS,
 	getGradeNumericValue,
 	isOptionalPartEnabled,
 	namePartOverrideKey,
-	resolveGenderVariantValue,
-	resolveNamePartReplacement,
 } from '~/utils/reportText'
 import type { NamePartOverrides, NamePartReplacementKey } from '~/types/student'
 import type { Category, Grade, SentencePart, Variant } from '~/types/template'
 
 type OptionalTextPart = Extract<SentencePart, { type: 'optionalText' }>
-type NamePart = Extract<SentencePart, { type: 'name' }>
 type NamePartSelectionValue = NamePartReplacementKey | 'name'
 
 export interface CategoryRow {
@@ -109,65 +105,6 @@ function isOptionalTextSelected(part: OptionalTextPart, row: CategoryRow): boole
 	return isOptionalPartEnabled(part, row.optionalPartOverrides)
 }
 
-function isNextInlinePartSentenceStart(resolvedParts: string[]): boolean {
-	const previousText = resolvedParts
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.join(' ')
-	if (!previousText) return true
-	return /[.!?]$/.test(previousText)
-}
-
-function resolveNamePartValue(part: NamePart): string {
-	return part.value?.trim() ?? props.studentName.trim()
-}
-
-function resolveInlinePreviewPart(
-	part: SentencePart,
-	row: CategoryRow,
-	variant: Variant,
-	partIndex: number,
-	resolvedParts: string[] = []
-): string {
-	switch (part.type) {
-		case 'text':
-			return part.value
-		case 'genderVariant':
-			return resolveGenderVariantValue(part.value, props.studentGender)
-		case 'name': {
-			const replacementKey = row.namePartOverrides[namePartOverrideKey(variant.id, partIndex)]
-			if (replacementKey) {
-				return resolveNamePartReplacement(
-					replacementKey,
-					props.studentGender,
-					isNextInlinePartSentenceStart(resolvedParts)
-				)
-			}
-			return resolveNamePartValue(part)
-		}
-		case 'optionalText':
-			return isOptionalTextSelected(part, row) ? part.value : ''
-		default:
-			return ''
-	}
-}
-
-function inlinePreviewText(variant: Variant, row: CategoryRow): string {
-	const resolvedParts: string[] = []
-	for (const [partIndex, part] of variant.sentences.entries()) {
-		const text = resolveInlinePreviewPart(part, row, variant, partIndex, resolvedParts).trim()
-		if (text) resolvedParts.push(text)
-	}
-	return resolvedParts.join(' ')
-}
-
-function inlinePreviewSuffix(variant: Variant, row: CategoryRow): string {
-	const text = inlinePreviewText(variant, row)
-	if (!text || /[.!?]$/.test(text)) return ''
-	const preview = row.variantPreviewById[variant.id]?.trim() ?? ''
-	return preview.match(/[.!?]$/)?.[0] ?? '.'
-}
-
 function toggleOptionalTextPart(
 	row: CategoryRow,
 	variant: Variant,
@@ -184,32 +121,11 @@ function toggleOptionalTextPart(
 	)
 }
 
-function resolvedInlinePartsBefore(
-	variant: Variant,
-	row: CategoryRow,
-	partIndex: number
-): string[] {
-	const resolvedParts: string[] = []
-	for (const [index, part] of variant.sentences.entries()) {
-		if (index >= partIndex) break
-		const text = resolveInlinePreviewPart(part, row, variant, index, resolvedParts).trim()
-		if (text) resolvedParts.push(text)
-	}
-	return resolvedParts
-}
-
-function resolveInlineTemplatePart(
-	part: SentencePart,
-	row: CategoryRow,
-	variant: Variant,
-	partIndex: number
-): string {
-	return resolveInlinePreviewPart(
-		part,
-		row,
-		variant,
-		partIndex,
-		resolvedInlinePartsBefore(variant, row, partIndex)
+function findOptionalTextPart(variant: Variant, partId: string): OptionalTextPart | null {
+	return (
+		variant.sentences.find(
+			(part): part is OptionalTextPart => part.type === 'optionalText' && part.id === partId
+		) ?? null
 	)
 }
 
@@ -219,28 +135,6 @@ function namePartSelectionValue(
 	partIndex: number
 ): NamePartSelectionValue {
 	return row.namePartOverrides[namePartOverrideKey(variantId, partIndex)] ?? 'name'
-}
-
-function namePartReplacementOptions(
-	part: NamePart,
-	row: CategoryRow,
-	variant: Variant,
-	partIndex: number
-): { label: string; value: NamePartSelectionValue }[] {
-	const isSentenceStart = isNextInlinePartSentenceStart(
-		resolvedInlinePartsBefore(variant, row, partIndex)
-	)
-	return [
-		{ label: resolveNamePartValue(part) || 'Name', value: 'name' },
-		...Object.entries(NAME_PART_REPLACEMENTS).map(([value, replacement]) => ({
-			label: resolveNamePartReplacement(
-				value as NamePartReplacementKey,
-				props.studentGender,
-				isSentenceStart
-			),
-			value: value as NamePartReplacementKey,
-		})),
-	]
 }
 
 function setNamePartReplacement(
@@ -257,6 +151,15 @@ function setNamePartReplacement(
 		partIndex,
 		value === 'name' ? null : value
 	)
+}
+
+function namePartSelectionsForVariant(row: CategoryRow, variant: Variant): Record<number, NamePartSelectionValue> {
+	const selections: Record<number, NamePartSelectionValue> = {}
+	for (const [partIndex, part] of variant.sentences.entries()) {
+		if (part.type !== 'name') continue
+		selections[partIndex] = namePartSelectionValue(row, variant.id, partIndex)
+	}
+	return selections
 }
 
 function variantSummary(row: CategoryRow): string {
@@ -531,61 +434,32 @@ const activeSubjectAverageSummary = computed(() => {
 						</div>
 						<div
 							v-else-if="row.selectedPreviewText"
-							class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-relaxed text-default"
+							class="mt-1"
 							@click.stop
 							@keydown.enter.stop
 							@keydown.space.stop
 						>
-							<template
+							<VariantSentenceInlinePreview
 								v-for="variant in selectedVariants(row)"
 								:key="variant.id"
-							>
-								<template
-									v-for="(part, partIndex) in variant.sentences"
-									:key="`${variant.id}-${partIndex}`"
-								>
-									<label
-										v-if="part.type === 'optionalText'"
-										class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
-									>
-										<UCheckbox
-											:model-value="isOptionalTextSelected(part, row)"
-											:aria-label="`${part.value} ein- oder ausblenden`"
-											size="xs"
-											@update:model-value="toggleOptionalTextPart(row, variant, part, Boolean($event))"
-										/>
-										<span
-											:class="
-												isOptionalTextSelected(part, row)
-													? 'text-default'
-													: 'text-muted line-through'
-											"
-										>
-											{{ part.value }}
-										</span>
-									</label>
-									<USelectMenu
-										v-else-if="part.type === 'name'"
-										:model-value="namePartSelectionValue(row, variant.id, partIndex)"
-										:items="namePartReplacementOptions(part, row, variant, partIndex)"
-										value-key="value"
-										size="xs"
-										class="w-auto min-w-20"
-										@update:model-value="
-											setNamePartReplacement(
-												row,
-												variant,
-												partIndex,
-												($event as NamePartSelectionValue) ?? 'name'
-											)
-										"
-									/>
-									<span v-else-if="resolveInlineTemplatePart(part, row, variant, partIndex).trim()">
-										{{ resolveInlineTemplatePart(part, row, variant, partIndex).trim() }}
-									</span>
-								</template>
-								<span v-if="inlinePreviewSuffix(variant, row)" class="-ml-1.5">{{ inlinePreviewSuffix(variant, row) }}</span>
-							</template>
+								:variant="variant"
+								:preview-text="row.variantPreviewById[variant.id] ?? ''"
+								:preview-name="studentName.trim()"
+								:preview-gender="studentGender"
+								:name-part-selections="namePartSelectionsForVariant(row, variant)"
+								:optional-part-enabled-map="row.optionalPartOverrides"
+								:text-class="'text-xs text-default'"
+								@toggle-optional-text="
+									(partId, enabled) => {
+										const part = findOptionalTextPart(variant, partId)
+										if (part) toggleOptionalTextPart(row, variant, part, enabled)
+									}
+								"
+								@set-name-part-selection="
+									(partIndex, value) =>
+										setNamePartReplacement(row, variant, partIndex, value)
+								"
+							/>
 						</div>
 						<p v-else class="mt-1 text-xs leading-relaxed text-default">
 							Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.
@@ -653,56 +527,30 @@ const activeSubjectAverageSummary = computed(() => {
 								</div>
 								<div
 									v-if="row.variantPreviewById[variant.id]"
-									class="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm leading-6 text-muted"
+									class="mt-3"
 									@click.stop
 									@keydown.enter.stop
 									@keydown.space.stop
 								>
-									<template
-										v-for="(part, partIndex) in variant.sentences"
-										:key="`${variant.id}-${partIndex}`"
-									>
-										<label
-											v-if="part.type === 'optionalText'"
-											class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
-										>
-											<UCheckbox
-												:model-value="isOptionalTextSelected(part, row)"
-												:aria-label="`${part.value} ein- oder ausblenden`"
-												size="xs"
-												@update:model-value="toggleOptionalTextPart(row, variant, part, Boolean($event))"
-											/>
-											<span
-												:class="
-													isOptionalTextSelected(part, row)
-														? 'text-default'
-														: 'text-muted line-through'
-												"
-											>
-												{{ part.value }}
-											</span>
-										</label>
-										<USelectMenu
-											v-else-if="part.type === 'name'"
-											:model-value="namePartSelectionValue(row, variant.id, partIndex)"
-											:items="namePartReplacementOptions(part, row, variant, partIndex)"
-											value-key="value"
-											size="xs"
-											class="w-auto min-w-20"
-											@update:model-value="
-												setNamePartReplacement(
-													row,
-													variant,
-													partIndex,
-													($event as NamePartSelectionValue) ?? 'name'
-												)
-											"
-										/>
-										<span v-else-if="resolveInlineTemplatePart(part, row, variant, partIndex).trim()">
-											{{ resolveInlineTemplatePart(part, row, variant, partIndex).trim() }}
-										</span>
-									</template>
-									<span v-if="inlinePreviewSuffix(variant, row)" class="-ml-1.5">{{ inlinePreviewSuffix(variant, row) }}</span>
+									<VariantSentenceInlinePreview
+										:variant="variant"
+										:preview-text="row.variantPreviewById[variant.id] ?? ''"
+										:preview-name="studentName.trim()"
+										:preview-gender="studentGender"
+										:name-part-selections="namePartSelectionsForVariant(row, variant)"
+										:optional-part-enabled-map="row.optionalPartOverrides"
+										:text-class="'text-sm text-muted'"
+										@toggle-optional-text="
+											(partId, enabled) => {
+												const part = findOptionalTextPart(variant, partId)
+												if (part) toggleOptionalTextPart(row, variant, part, enabled)
+											}
+										"
+										@set-name-part-selection="
+											(partIndex, value) =>
+												setNamePartReplacement(row, variant, partIndex, value)
+										"
+									/>
 								</div>
 								<p v-else class="mt-3 text-sm leading-6 text-muted">
 									Kein Vorschautext verfügbar.
