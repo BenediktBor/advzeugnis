@@ -11,6 +11,7 @@ export const ReportSelectionSchema = z.object({
 		})
 	),
 	selectedSubjectId: z.string().optional(),
+	collapsedCategoryIds: z.array(z.string()).optional(),
 })
 
 export const StudentSchema = z.object({

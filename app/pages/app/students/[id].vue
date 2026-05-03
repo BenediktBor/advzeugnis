@@ -82,6 +82,10 @@ const gradeAverageSummary = computed(() => {
 
 const focusedCategoryId = ref<string | null>(null)
 const lastChangedVariantId = ref<string | null>(null)
+const emptyCollapsedCategoryIds: string[] = []
+const sentenceSelectorCollapsedCategoryIds = computed(
+	() => student.value?.reportSelection?.collapsedCategoryIds ?? emptyCollapsedCategoryIds
+)
 const hasSelectionWorkspace = computed(
 	() => Boolean(effectiveTemplateSetId.value) && subjectGroups.value.length > 0
 )
@@ -120,6 +124,26 @@ function setSelectedSubjectId(subjectId: string) {
 			...student.value.reportSelection,
 			categories: student.value.reportSelection?.categories ?? {},
 			selectedSubjectId: subjectId,
+		},
+	})
+}
+
+function sameCollapsedCategoryIds(a: string[], b: string[]): boolean {
+	if (a.length !== b.length) return false
+	const sortedA = [...a].sort()
+	const sortedB = [...b].sort()
+	return sortedA.every((v, i) => v === sortedB[i])
+}
+
+function setCollapsedCategoryIds(collapsedIds: string[]) {
+	if (!id.value || !student.value) return
+	const current = student.value.reportSelection?.collapsedCategoryIds ?? []
+	if (sameCollapsedCategoryIds(current, collapsedIds)) return
+	updateStudent(id.value, {
+		reportSelection: {
+			...student.value.reportSelection,
+			categories: student.value.reportSelection?.categories ?? {},
+			collapsedCategoryIds: collapsedIds,
 		},
 	})
 }
@@ -524,6 +548,7 @@ watch(
 					:subject-groups="subjectGroups"
 					:focused-category-id="focusedCategoryId"
 					:selected-subject-id="student.reportSelection?.selectedSubjectId ?? null"
+					:collapsed-category-ids="sentenceSelectorCollapsedCategoryIds"
 					:student-name="student.name"
 					:student-gender="student.gender"
 					@focus-category="focusCategory"
@@ -535,6 +560,7 @@ watch(
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
 					@update:selected-subject-id="setSelectedSubjectId"
+					@update:collapsed-category-ids="setCollapsedCategoryIds"
 				/>
 
 				<div

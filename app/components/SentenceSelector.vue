@@ -35,6 +35,7 @@ const props = defineProps<{
 	subjectGroups: SubjectGroup[]
 	focusedCategoryId: string | null
 	selectedSubjectId?: string | null
+	collapsedCategoryIds?: string[]
 	studentName: string
 	studentGender: 'male' | 'female'
 }>()
@@ -61,6 +62,7 @@ const emit = defineEmits<{
 	selectAllVariants: [categoryId: string, category: Category]
 	clearAllVariants: [categoryId: string, category: Category]
 	'update:selectedSubjectId': [subjectId: string]
+	'update:collapsedCategoryIds': [categoryIds: string[]]
 }>()
 
 function isVariantSelected(variantId: string, row: CategoryRow): boolean {
@@ -291,24 +293,44 @@ const activeSubjectAverageSummary = computed(() => {
 
 	const average = values.reduce((sum, value) => sum + value, 0) / values.length
 	const rangeSize = range.maxGrade - range.minGrade
-	const progress = rangeSize === 0
-		? 1
-		: Math.min(1, Math.max(0, (range.maxGrade - average) / rangeSize))
+	const progress =
+		rangeSize === 0
+			? 1
+			: Math.min(1, Math.max(0, (range.maxGrade - average) / rangeSize))
 	return { average, count: values.length, progress }
 })
 
 const categoryBodyExpanded = ref<Record<string, boolean>>({})
+
+function collapsedCategoryIdsFromExpandedMap(map: Record<string, boolean>): string[] {
+	return Object.entries(map)
+		.filter(([, expanded]) => expanded === false)
+		.map(([categoryId]) => categoryId)
+}
+
+watch(
+	() => props.collapsedCategoryIds ?? [],
+	(ids) => {
+		const next: Record<string, boolean> = {}
+		for (const categoryId of ids) {
+			next[categoryId] = false
+		}
+		categoryBodyExpanded.value = next
+	},
+	{ deep: true, immediate: true }
+)
 
 function isCategoryBodyExpanded(categoryId: string): boolean {
 	return categoryBodyExpanded.value[categoryId] !== false
 }
 
 function toggleCategoryBody(categoryId: string) {
-	const next = !isCategoryBodyExpanded(categoryId)
+	const nextExpanded = !isCategoryBodyExpanded(categoryId)
 	categoryBodyExpanded.value = {
 		...categoryBodyExpanded.value,
-		[categoryId]: next,
+		[categoryId]: nextExpanded,
 	}
+	emit('update:collapsedCategoryIds', collapsedCategoryIdsFromExpandedMap(categoryBodyExpanded.value))
 }
 </script>
 
