@@ -24,9 +24,11 @@ const {
 	updateCategoryLabel,
 	updateGradeLabel,
 	updateGradeValue,
+	reorderGrades,
 	addVariant,
 	deleteVariant,
 	updateVariantLabel,
+	reorderVariants,
 	addSentencePart,
 	updateSentencePart,
 	deleteSentencePart,
@@ -289,6 +291,27 @@ function handleReorderSentenceParts(oldIndex: number, newIndex: number) {
 		selectedCategory.value.categoryId,
 		selectedGradeId.value,
 		selectedVariantId.value,
+		oldIndex,
+		newIndex,
+	)
+}
+
+function handleReorderGrades(oldIndex: number, newIndex: number) {
+	if (!selectedCategory.value) return
+	reorderGrades(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		oldIndex,
+		newIndex,
+	)
+}
+
+function handleReorderVariants(oldIndex: number, newIndex: number) {
+	if (!selectedCategory.value || !selectedGradeId.value) return
+	reorderVariants(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
 		oldIndex,
 		newIndex,
 	)
@@ -581,6 +604,8 @@ function createFirstCategory() {
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@reorder-grades="handleReorderGrades"
+					@reorder-variants="handleReorderVariants"
 					@toggle-optional-text-default="handleToggleOptionalTextDefault"
 				/>
 			</div>
@@ -613,6 +638,8 @@ function createFirstCategory() {
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@reorder-grades="handleReorderGrades"
+					@reorder-variants="handleReorderVariants"
 					@toggle-optional-text-default="handleToggleOptionalTextDefault"
 				/>
 			</div>

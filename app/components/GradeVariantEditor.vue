@@ -13,6 +13,8 @@ const emit = defineEmits<{
 	selectVariant: [variantId: string]
 	addGrade: []
 	addVariant: []
+	reorderGrades: [oldIndex: number, newIndex: number]
+	reorderVariants: [oldIndex: number, newIndex: number]
 	editGradeLabel: [gradeId: string, currentLabel: string, currentValue: number | undefined]
 	deleteGrade: [gradeId: string, label: string]
 	editVariantLabel: [variantId: string, currentLabel: string]
@@ -77,36 +79,43 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 					@click="emit('addGrade')"
 				/>
 			</div>
-			<div class="mt-2 flex flex-wrap items-center gap-2">
-				<TemplatePill
-					v-for="grade in category.grades"
-					:key="grade.id"
-					:label="grade.label"
-					:active="selectedGradeId === grade.id"
-					:can-edit="canEdit"
-					selectable
-					@click="emit('selectGrade', grade.id)"
-				>
-					<template v-if="canEdit" #actions>
-						<UButton
-							icon="i-lucide-pencil"
-							color="neutral"
-							variant="ghost"
-							size="xs"
-							aria-label="Notenstufe umbenennen"
-							@click.stop="emit('editGradeLabel', grade.id, grade.label, grade.value)"
-						/>
-						<UButton
-							icon="i-lucide-trash-2"
-							color="neutral"
-							variant="ghost"
-							size="xs"
-							aria-label="Notenstufe löschen"
-							@click.stop="emit('deleteGrade', grade.id, grade.label)"
-						/>
-					</template>
-				</TemplatePill>
-			</div>
+			<SortableSelectablePills
+				class="mt-2"
+				:items="category.grades"
+				:active-id="selectedGradeId"
+				:can-edit="canEdit"
+				@select="emit('selectGrade', $event)"
+				@reorder="
+					(oldIndex, newIndex) =>
+						emit('reorderGrades', oldIndex, newIndex)
+				"
+			>
+				<template #actions="{ item }">
+					<UButton
+						icon="i-lucide-pencil"
+						color="neutral"
+						variant="ghost"
+						size="xs"
+						aria-label="Notenstufe umbenennen"
+						@click.stop="
+							emit(
+								'editGradeLabel',
+								item.id,
+								item.label,
+								category.grades.find((g) => g.id === item.id)?.value
+							)
+						"
+					/>
+					<UButton
+						icon="i-lucide-trash-2"
+						color="neutral"
+						variant="ghost"
+						size="xs"
+						aria-label="Notenstufe löschen"
+						@click.stop="emit('deleteGrade', item.id, item.label)"
+					/>
+				</template>
+			</SortableSelectablePills>
 			<p v-if="category.grades.length === 0" class="mt-2 text-sm text-muted">
 				Noch keine Notenstufen vorhanden. Lege eine erste Notenstufe an.
 			</p>
@@ -125,36 +134,44 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 					@click="emit('addVariant')"
 				/>
 			</div>
-			<div class="mt-2 flex flex-wrap items-center gap-2">
-				<TemplatePill
-					v-for="variant in selectedGradeVariants"
-					:key="variant.id"
-					:label="variant.label"
-					:active="selectedVariantId === variant.id"
-					:can-edit="canEdit"
-					selectable
-					@click="emit('selectVariant', variant.id)"
-				>
-					<template v-if="canEdit" #actions>
-						<UButton
-							icon="i-lucide-pencil"
-							color="neutral"
-							variant="ghost"
-							size="xs"
-							aria-label="Variante umbenennen"
-							@click.stop="emit('editVariantLabel', variant.id, variant.label)"
-						/>
-						<UButton
-							icon="i-lucide-trash-2"
-							color="neutral"
-							variant="ghost"
-							size="xs"
-							aria-label="Variante löschen"
-							@click.stop="emit('deleteVariant', variant.id, variant.label)"
-						/>
-					</template>
-				</TemplatePill>
-			</div>
+			<SortableSelectablePills
+				class="mt-2"
+				:items="selectedGradeVariants"
+				:active-id="selectedVariantId"
+				:can-edit="canEdit"
+				@select="emit('selectVariant', $event)"
+				@reorder="
+					(oldIndex, newIndex) =>
+						emit('reorderVariants', oldIndex, newIndex)
+				"
+			>
+				<template #actions="{ item }">
+					<UButton
+						icon="i-lucide-pencil"
+						color="neutral"
+						variant="ghost"
+						size="xs"
+						aria-label="Variante umbenennen"
+						@click.stop="
+							emit(
+								'editVariantLabel',
+								item.id,
+								item.label
+							)
+						"
+					/>
+					<UButton
+						icon="i-lucide-trash-2"
+						color="neutral"
+						variant="ghost"
+						size="xs"
+						aria-label="Variante löschen"
+						@click.stop="
+							emit('deleteVariant', item.id, item.label)
+						"
+					/>
+				</template>
+			</SortableSelectablePills>
 			<p v-if="selectedGradeVariants.length === 0" class="mt-2 text-sm text-muted">
 				Diese Notenstufe enthält noch keine Varianten.
 			</p>

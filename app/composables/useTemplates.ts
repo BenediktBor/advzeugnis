@@ -258,6 +258,15 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function reorderGrades(subjectId: string, categoryId: string, fromIndex: number, toIndex: number) {
+		updateSet((draft) => {
+			const c = draft.subjects.find((s) => s.id === subjectId)?.categories.find((cat) => cat.id === categoryId)
+			if (!c) return
+			const removed = c.grades.splice(fromIndex, 1)[0]
+			if (removed) c.grades.splice(toIndex, 0, removed)
+		})
+	}
+
 	// --- Variants ---
 
 	function addVariant(subjectId: string, categoryId: string, gradeId: string): string {
@@ -289,6 +298,17 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 			const g = c?.grades.find((g) => g.id === gradeId)
 			const v = g?.variants.find((v) => v.id === variantId)
 			if (v) v.label = label
+		})
+	}
+
+	function reorderVariants(subjectId: string, categoryId: string, gradeId: string, fromIndex: number, toIndex: number) {
+		updateSet((draft) => {
+			const g = draft.subjects.find((s) => s.id === subjectId)
+				?.categories.find((c) => c.id === categoryId)
+				?.grades.find((grade) => grade.id === gradeId)
+			if (!g) return
+			const removed = g.variants.splice(fromIndex, 1)[0]
+			if (removed) g.variants.splice(toIndex, 0, removed)
 		})
 	}
 
@@ -351,9 +371,11 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		deleteGrade,
 		updateGradeLabel,
 		updateGradeValue,
+		reorderGrades,
 		addVariant,
 		deleteVariant,
 		updateVariantLabel,
+		reorderVariants,
 		addSentencePart,
 		updateSentencePart,
 		deleteSentencePart,
