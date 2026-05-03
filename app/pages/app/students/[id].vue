@@ -82,10 +82,6 @@ const gradeAverageSummary = computed(() => {
 
 const focusedCategoryId = ref<string | null>(null)
 const lastChangedVariantId = ref<string | null>(null)
-const emptyCollapsedCategoryIds: string[] = []
-const sentenceSelectorCollapsedCategoryIds = computed(
-	() => student.value?.reportSelection?.collapsedCategoryIds ?? emptyCollapsedCategoryIds
-)
 const hasSelectionWorkspace = computed(
 	() => Boolean(effectiveTemplateSetId.value) && subjectGroups.value.length > 0
 )
@@ -128,22 +124,25 @@ function setSelectedSubjectId(subjectId: string) {
 	})
 }
 
-function sameCollapsedCategoryIds(a: string[], b: string[]): boolean {
+function sameExpandedCategoryIds(a: string[], b: string[]): boolean {
 	if (a.length !== b.length) return false
 	const sortedA = [...a].sort()
 	const sortedB = [...b].sort()
 	return sortedA.every((v, i) => v === sortedB[i])
 }
 
-function setCollapsedCategoryIds(collapsedIds: string[]) {
+function setExpandedCategoryIds(expandedIds: string[]) {
 	if (!id.value || !student.value) return
-	const current = student.value.reportSelection?.collapsedCategoryIds ?? []
-	if (sameCollapsedCategoryIds(current, collapsedIds)) return
+	const rs = student.value.reportSelection
+	if (!rs) return
+	const current = rs.expandedCategoryIds ?? []
+	if (sameExpandedCategoryIds(current, expandedIds)) return
+	const { collapsedCategoryIds: _legacyCollapsed, ...rest } = rs
 	updateStudent(id.value, {
 		reportSelection: {
-			...student.value.reportSelection,
-			categories: student.value.reportSelection?.categories ?? {},
-			collapsedCategoryIds: collapsedIds,
+			...rest,
+			categories: rs.categories ?? {},
+			expandedCategoryIds: expandedIds,
 		},
 	})
 }
@@ -394,6 +393,66 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 	})
 })
 
+const emptyExpandedCategoryIds: string[] = []
+const sentenceSelectorExpandedCategoryIds = computed(() => {
+	const expanded = student.value?.reportSelection?.expandedCategoryIds
+	if (expanded === undefined) return emptyExpandedCategoryIds
+	return expanded
+})
+
+const sentenceSelectorLegacyExpandPending = computed(() => {
+	const st = student.value
+	const rs = st?.reportSelection
+	if (!st || !rs || rs.expandedCategoryIds !== undefined) return false
+	return subjectGroups.value.length > 0
+})
+
+watch(
+	[student, subjectGroups],
+	([st, groups]) => {
+		if (!st?.id || !st.reportSelection) return
+		const rs = st.reportSelection
+		if (rs.expandedCategoryIds !== undefined) return
+
+		const allIds = groups.flatMap((group) =>
+			group.categories.map((category) => category.categoryId)
+		)
+		const { collapsedCategoryIds: legacyCollapsed, ...restRs } = rs
+
+		if (allIds.length === 0) {
+			updateStudent(st.id, {
+				reportSelection: {
+					...restRs,
+					categories: rs.categories ?? {},
+					expandedCategoryIds: [],
+				},
+			})
+			return
+		}
+
+		let expanded: string[]
+		if (legacyCollapsed !== undefined) {
+			if (legacyCollapsed.length === 0) {
+				expanded = [...allIds]
+			} else {
+				const collapsedSet = new Set(legacyCollapsed)
+				expanded = allIds.filter((categoryId) => !collapsedSet.has(categoryId))
+			}
+		} else {
+			expanded = [...allIds]
+		}
+
+		updateStudent(st.id, {
+			reportSelection: {
+				...restRs,
+				categories: rs.categories ?? {},
+				expandedCategoryIds: expanded,
+			},
+		})
+	},
+	{ immediate: true }
+)
+
 const selectedCategoryCount = computed(() =>
 	subjectGroups.value.reduce(
 		(total, group) =>
@@ -548,7 +607,8 @@ watch(
 					:subject-groups="subjectGroups"
 					:focused-category-id="focusedCategoryId"
 					:selected-subject-id="student.reportSelection?.selectedSubjectId ?? null"
-					:collapsed-category-ids="sentenceSelectorCollapsedCategoryIds"
+					:expanded-category-ids="sentenceSelectorExpandedCategoryIds"
+					:legacy-expand-all-panels="sentenceSelectorLegacyExpandPending"
 					:student-name="student.name"
 					:student-gender="student.gender"
 					@focus-category="focusCategory"
@@ -560,7 +620,7 @@ watch(
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
 					@update:selected-subject-id="setSelectedSubjectId"
-					@update:collapsed-category-ids="setCollapsedCategoryIds"
+					@update:expanded-category-ids="setExpandedCategoryIds"
 				/>
 
 				<div

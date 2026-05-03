@@ -9,6 +9,7 @@ export interface ReportSelection {
 		namePartOverrides?: NamePartOverrides
 	}>
 	selectedSubjectId?: string
+	expandedCategoryIds?: string[]
 	collapsedCategoryIds?: string[]
 }
 

@@ -1045,6 +1045,7 @@ describe('deactivated report selection', () => {
 				c1: { gradeId: null, variantIds: [] },
 				c2: { gradeId: null, variantIds: [] },
 			},
+			expandedCategoryIds: [],
 		})
 	})
 })

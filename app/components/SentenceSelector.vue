@@ -35,7 +35,8 @@ const props = defineProps<{
 	subjectGroups: SubjectGroup[]
 	focusedCategoryId: string | null
 	selectedSubjectId?: string | null
-	collapsedCategoryIds?: string[]
+	expandedCategoryIds: readonly string[]
+	legacyExpandAllPanels?: boolean
 	studentName: string
 	studentGender: 'male' | 'female'
 }>()
@@ -62,7 +63,7 @@ const emit = defineEmits<{
 	selectAllVariants: [categoryId: string, category: Category]
 	clearAllVariants: [categoryId: string, category: Category]
 	'update:selectedSubjectId': [subjectId: string]
-	'update:collapsedCategoryIds': [categoryIds: string[]]
+	'update:expandedCategoryIds': [categoryIds: string[]]
 }>()
 
 function isVariantSelected(variantId: string, row: CategoryRow): boolean {
@@ -302,18 +303,27 @@ const activeSubjectAverageSummary = computed(() => {
 
 const categoryBodyExpanded = ref<Record<string, boolean>>({})
 
-function collapsedCategoryIdsFromExpandedMap(map: Record<string, boolean>): string[] {
+function allCategoryIdsInSubjectGroups(): string[] {
+	const ids: string[] = []
+	for (const group of props.subjectGroups) {
+		for (const row of group.categories) ids.push(row.categoryId)
+	}
+	return ids
+}
+
+function expandedCategoryIdsFromMap(map: Record<string, boolean>): string[] {
 	return Object.entries(map)
-		.filter(([, expanded]) => expanded === false)
+		.filter(([, expanded]) => expanded === true)
 		.map(([categoryId]) => categoryId)
 }
 
 watch(
-	() => props.collapsedCategoryIds ?? [],
-	(ids) => {
+	[() => props.expandedCategoryIds, () => props.legacyExpandAllPanels ?? false],
+	([ids, legacy]) => {
+		if (legacy) return
 		const next: Record<string, boolean> = {}
 		for (const categoryId of ids) {
-			next[categoryId] = false
+			next[categoryId] = true
 		}
 		categoryBodyExpanded.value = next
 	},
@@ -321,16 +331,24 @@ watch(
 )
 
 function isCategoryBodyExpanded(categoryId: string): boolean {
-	return categoryBodyExpanded.value[categoryId] !== false
+	if (props.legacyExpandAllPanels) return true
+	return categoryBodyExpanded.value[categoryId] === true
 }
 
 function toggleCategoryBody(categoryId: string) {
-	const nextExpanded = !isCategoryBodyExpanded(categoryId)
+	if (props.legacyExpandAllPanels) {
+		emit(
+			'update:expandedCategoryIds',
+			allCategoryIdsInSubjectGroups().filter((id) => id !== categoryId)
+		)
+		return
+	}
+	const nextExpanded = categoryBodyExpanded.value[categoryId] !== true
 	categoryBodyExpanded.value = {
 		...categoryBodyExpanded.value,
 		[categoryId]: nextExpanded,
 	}
-	emit('update:collapsedCategoryIds', collapsedCategoryIdsFromExpandedMap(categoryBodyExpanded.value))
+	emit('update:expandedCategoryIds', expandedCategoryIdsFromMap(categoryBodyExpanded.value))
 }
 </script>
 
@@ -390,25 +408,46 @@ function toggleCategoryBody(categoryId: string) {
 					:class="focusedCategoryId === row.categoryId ? 'bg-primary/5 border-primary/30 shadow-none' : ''"
 				>
 					<div class="flex items-start justify-between gap-3">
-						<div
-							class="min-w-0 flex-1 cursor-pointer rounded-md outline-none hover:bg-elevated/30 focus-visible:ring-2 focus-visible:ring-primary"
-							role="button"
-							tabindex="0"
-							:aria-pressed="focusedCategoryId === row.categoryId"
-							@click="emit('focusCategory', row.categoryId)"
-							@keydown.enter="emit('focusCategory', row.categoryId)"
-							@keydown.space.prevent="emit('focusCategory', row.categoryId)"
-						>
-							<div class="text-sm font-medium text-default">
-								{{ row.categoryLabel }}
+						<div class="flex min-w-0 flex-1 items-start gap-2">
+							<UButton
+								:icon="
+									isCategoryBodyExpanded(row.categoryId)
+										? 'i-lucide-chevron-up'
+										: 'i-lucide-chevron-down'
+								"
+								color="neutral"
+								variant="ghost"
+								size="xs"
+								class="mt-0.5 shrink-0"
+								:aria-expanded="isCategoryBodyExpanded(row.categoryId)"
+								:aria-label="
+									isCategoryBodyExpanded(row.categoryId)
+										? 'Kategorie einklappen'
+										: 'Kategorie ausklappen'
+								"
+								@click.stop="toggleCategoryBody(row.categoryId)"
+							/>
+							<div
+								class="min-w-0 flex-1 cursor-pointer select-none rounded-md outline-none hover:bg-elevated/30 focus-visible:ring-2 focus-visible:ring-primary"
+								role="button"
+								tabindex="0"
+								:aria-pressed="focusedCategoryId === row.categoryId"
+								@click="emit('focusCategory', row.categoryId)"
+								@dblclick.stop="toggleCategoryBody(row.categoryId)"
+								@keydown.enter="emit('focusCategory', row.categoryId)"
+								@keydown.space.prevent="emit('focusCategory', row.categoryId)"
+							>
+								<div class="text-sm font-medium text-default">
+									{{ row.categoryLabel }}
+								</div>
+								<p class="mt-1 text-xs text-muted">
+									{{
+										row.selectedGradeId
+											? variantSummary(row)
+											: 'Noch deaktiviert. Wähle eine Stufe, um diese Kategorie in den Text aufzunehmen.'
+									}}
+								</p>
 							</div>
-							<p class="mt-1 text-xs text-muted">
-								{{
-									row.selectedGradeId
-										? variantSummary(row)
-										: 'Noch deaktiviert. Wähle eine Stufe, um diese Kategorie in den Text aufzunehmen.'
-								}}
-							</p>
 						</div>
 						<div class="flex shrink-0 items-center gap-2">
 							<UBadge
@@ -424,23 +463,6 @@ function toggleCategoryBody(categoryId: string) {
 								color="neutral"
 								variant="ghost"
 								@click.stop="emit('disableCategory', row.categoryId)"
-							/>
-							<UButton
-								:icon="
-									isCategoryBodyExpanded(row.categoryId)
-										? 'i-lucide-chevron-up'
-										: 'i-lucide-chevron-down'
-								"
-								color="neutral"
-								variant="ghost"
-								size="xs"
-								:aria-expanded="isCategoryBodyExpanded(row.categoryId)"
-								:aria-label="
-									isCategoryBodyExpanded(row.categoryId)
-										? 'Kategorie einklappen'
-										: 'Kategorie ausklappen'
-								"
-								@click.stop="toggleCategoryBody(row.categoryId)"
 							/>
 						</div>
 					</div>

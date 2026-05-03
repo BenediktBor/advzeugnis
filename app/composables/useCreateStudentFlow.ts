@@ -26,7 +26,7 @@ const { orderedIds, getSetData, defaultAlphabeticalTemplateSetId } = useTemplate
 			templateSetId,
 			reportSelection: templateSet
 				? buildDeactivatedReportSelection(templateSet)
-				: { categories: {} },
+				: { categories: {}, expandedCategoryIds: [] },
 		})
 
 		void router.push(`/app/students/${newId}`)

@@ -416,7 +416,10 @@ export function buildDeactivatedReportSelection(templateSet: TemplateSet): Repor
 			categories[category.id] = { gradeId: null, variantIds: [] }
 		}
 	}
-	return { categories }
+	return {
+		categories,
+		expandedCategoryIds: [],
+	}
 }
 
 export function buildReportTextCoverageSummary(
