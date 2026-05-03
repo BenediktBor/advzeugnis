@@ -61,8 +61,8 @@ function formatAverage(value: number): string {
 
 		<section class="space-y-3">
 			<div>
-				<h3 class="text-sm font-medium text-default">Stammdaten</h3>
-				<p class="text-xs text-muted">Diese Angaben erscheinen in der Schülerliste.</p>
+				<h3 class="text-sm font-medium text-default">Schülerdaten</h3>
+				<p class="text-xs text-muted">Diese Angaben erscheinen in der Schülerliste und im Zeugnis.</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<UFormField label="Vorname" :name="nameFieldName ?? 'student-stam-name'" required>

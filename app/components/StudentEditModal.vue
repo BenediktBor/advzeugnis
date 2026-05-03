@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { Student } from '~/types/student'
-import type { GradeAverageSummary } from '~/utils/reportText'
+import { buildGradeAverageSummary } from '~/utils/reportText'
 
 const props = defineProps<{
 	open: boolean
 	student: Student | null
-	gradeAverageSummary: GradeAverageSummary | null
 }>()
 
 const emit = defineEmits<{
@@ -13,7 +12,7 @@ const emit = defineEmits<{
 }>()
 
 const { updateStudent } = useStudents()
-const { orderedIds, defaultAlphabeticalTemplateSetId } = useTemplateSets()
+const { orderedIds, defaultAlphabeticalTemplateSetId, getSetData } = useTemplateSets()
 
 const name = ref('')
 const surname = ref('')
@@ -28,6 +27,14 @@ const isOpen = computed({
 const canSubmit = computed(
 	() => name.value.trim() !== '' && templateSetId.value.trim() !== '' && props.student !== null
 )
+
+const previewGradeAverageSummary = computed(() => {
+	const s = props.student
+	if (!s || !templateSetId.value.trim()) return null
+	const set = getSetData(templateSetId.value)
+	if (!set) return null
+	return buildGradeAverageSummary(s, set)
+})
 
 function resolvedTemplateIdForStudent(s: Student): string {
 	if (orderedIds.value.includes(s.templateSetId)) return s.templateSetId
@@ -93,7 +100,7 @@ watch(orderedIds, () => {
 				hero-title="Schülerdatensatz bearbeiten"
 				hero-description="Änderungen wirken sich auf die Zeugnistexte aus, sobald du sie speicherst."
 				show-grade-summary
-				:grade-average-summary="gradeAverageSummary"
+				:grade-average-summary="previewGradeAverageSummary"
 				name-field-name="edit-student-name"
 				surname-field-name="edit-student-surname"
 				gender-field-name="edit-student-gender"

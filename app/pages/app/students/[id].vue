@@ -672,7 +672,6 @@ watch(
 		v-if="student"
 		v-model:open="studentEditModalOpen"
 		:student="student"
-		:grade-average-summary="gradeAverageSummary"
 	/>
 
 	<AiEnhanceModal
