@@ -85,7 +85,7 @@ watch(orderedIds, () => {
 <template>
 	<UModal
 		v-model:open="isOpen"
-		title="Stammdaten bearbeiten"
+		title="Schüler bearbeiten"
 		description="Passe Name, Geschlecht und Vorlagensatz für diesen Schüler an."
 		:ui="{ footer: 'justify-end' }"
 	>

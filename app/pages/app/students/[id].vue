@@ -460,7 +460,7 @@ watch(
 							color="neutral"
 							variant="ghost"
 							size="xs"
-							aria-label="Stammdaten bearbeiten"
+							aria-label="Schüler bearbeiten"
 							@click.stop="studentEditModalOpen = true"
 						/>
 					</span>
