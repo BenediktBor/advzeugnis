@@ -96,14 +96,14 @@ const previewSuffix = computed(() => {
 </script>
 
 <template>
-	<div :class="['flex flex-wrap items-center gap-x-1.5 gap-y-1 leading-relaxed', textClass]">
+	<div :class="['leading-relaxed break-words', textClass]">
 		<template
 			v-for="(part, partIndex) in variant.sentences"
 			:key="`${variant.id}-${partIndex}`"
 		>
 			<label
 				v-if="part.type === 'optionalText'"
-				class="inline-flex items-center gap-1.5 rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
+				class="mr-1.5 inline-flex items-center gap-1.5 align-middle rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
 			>
 				<UCheckbox
 					:model-value="isOptionalEnabled(part)"
@@ -127,10 +127,13 @@ const previewSuffix = computed(() => {
 				]"
 				value-key="value"
 				size="xs"
-				class="w-auto min-w-20"
+				class="mr-1.5 inline-block w-auto min-w-20 align-middle"
 				@update:model-value="emit('setNamePartSelection', partIndex, (($event as NameSelectionValue) ?? 'name'))"
 			/>
-			<span v-else-if="resolveInlinePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim()">
+			<span
+				v-else-if="resolveInlinePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim()"
+				class="mr-1.5 align-middle"
+			>
 				{{ resolveInlinePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim() }}
 			</span>
 		</template>
