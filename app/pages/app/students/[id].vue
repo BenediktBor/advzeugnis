@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NamePartReplacementKey, Student } from '~/types/student'
+import type { NamePartReplacementKey } from '~/types/student'
 import type { Category, Grade } from '~/types/template'
 import {
 	buildVariantPreviewText,
@@ -394,15 +394,7 @@ const mobileOutputStatus = computed(() => {
 const deleteModalOpen = ref(false)
 const enhanceModalOpen = ref(false)
 const mobileTextOutputOpen = ref(false)
-
-const yearTabItems = computed(() =>
-	setsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id }))
-)
-
-function onFieldUpdate(field: keyof Omit<Student, 'id'>, value: string) {
-	if (!id.value) return
-	updateStudent(id.value, { [field]: value })
-}
+const studentEditModalOpen = ref(false)
 
 function onEnhanceWithAI() {
 	enhanceModalOpen.value = true
@@ -453,9 +445,26 @@ watch(
 <template>
 	<UDashboardPanel id="students-list" resizable class="min-h-0">
 		<template #header>
-			<UDashboardNavbar :title="student ? studentFullName(student) : 'Schüler bearbeiten'">
+			<UDashboardNavbar>
 				<template #leading>
 					<UDashboardSidebarCollapse />
+				</template>
+				<template #title>
+					<span
+						v-if="student"
+						class="flex min-w-0 items-center gap-2 text-highlighted"
+					>
+						<span class="truncate">{{ studentFullName(student) }}</span>
+						<UButton
+							icon="i-lucide-user-pen"
+							color="neutral"
+							variant="ghost"
+							size="xs"
+							aria-label="Stammdaten bearbeiten"
+							@click.stop="studentEditModalOpen = true"
+						/>
+					</span>
+					<span v-else>Schüler bearbeiten</span>
 				</template>
 				<template #right>
 					<UButton
@@ -493,29 +502,20 @@ watch(
 				/>
 			</AppStateNotice>
 			<div v-else class="flex h-full min-h-0 flex-col gap-4">
-				<div class="flex shrink-0 flex-col gap-4">
-					<StudentForm
-						:student="student"
-						:year-tab-items="yearTabItems"
-						:effective-template-set-id="effectiveTemplateSetId"
-						:grade-average-summary="gradeAverageSummary"
-						@update="onFieldUpdate"
-					/>
-
-					<AppStateNotice
-						v-if="!effectiveTemplateSetId"
-						title="Keine passende Vorlage gefunden"
-						description="Wähle oben einen vorhandenen Vorlagensatz aus oder lege zuerst neue Vorlagen an."
+				<AppStateNotice
+					v-if="!effectiveTemplateSetId"
+					class="shrink-0"
+					title="Keine passende Vorlage gefunden"
+					description="Öffne Stammdaten über das Stiftsymbol neben dem Namen oder lege zuerst neue Vorlagen an."
+					icon="i-lucide-file-text"
+					tone="primary"
+				>
+					<UButton
+						label="Zu Vorlagen"
+						to="/app/templates"
 						icon="i-lucide-file-text"
-						tone="primary"
-					>
-						<UButton
-							label="Zu Vorlagen"
-							to="/app/templates"
-							icon="i-lucide-file-text"
-						/>
-					</AppStateNotice>
-				</div>
+					/>
+				</AppStateNotice>
 
 				<SentenceSelector
 					v-if="hasSelectionWorkspace"
@@ -547,6 +547,7 @@ watch(
 						<div>{{ mobileOutputStatus }}</div>
 					</div>
 					<UButton
+						v-if="selectedCategoryCount > 0"
 						label="Vorschau"
 						icon="i-lucide-file-text"
 						class="col-span-2"
@@ -576,7 +577,11 @@ watch(
 		</template>
 	</UDashboardPanel>
 
-	<UDashboardPanel id="students-detail" class="hidden min-h-0 lg:flex">
+	<UDashboardPanel
+		v-if="selectedCategoryCount > 0"
+		id="students-detail"
+		class="hidden min-h-0 lg:flex"
+	>
 		<template #header>
 			<UDashboardNavbar title="Textausgabe">
 				<template #right>
@@ -661,6 +666,13 @@ watch(
 			</div>
 		</template>
 	</USlideover>
+
+	<StudentEditModal
+		v-if="student"
+		v-model:open="studentEditModalOpen"
+		:student="student"
+		:grade-average-summary="gradeAverageSummary"
+	/>
 
 	<AiEnhanceModal
 		:open="enhanceModalOpen"

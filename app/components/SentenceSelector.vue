@@ -296,6 +296,20 @@ const activeSubjectAverageSummary = computed(() => {
 		: Math.min(1, Math.max(0, (range.maxGrade - average) / rangeSize))
 	return { average, count: values.length, progress }
 })
+
+const categoryBodyExpanded = ref<Record<string, boolean>>({})
+
+function isCategoryBodyExpanded(categoryId: string): boolean {
+	return categoryBodyExpanded.value[categoryId] !== false
+}
+
+function toggleCategoryBody(categoryId: string) {
+	const next = !isCategoryBodyExpanded(categoryId)
+	categoryBodyExpanded.value = {
+		...categoryBodyExpanded.value,
+		[categoryId]: next,
+	}
+}
 </script>
 
 <template>
@@ -350,17 +364,19 @@ const activeSubjectAverageSummary = computed(() => {
 				<div
 					v-for="row in activeSubjectGroup.categories"
 					:key="row.categoryId"
-					class="rounded-lg border border-default bg-default p-4 space-y-3 cursor-pointer shadow-sm transition-colors hover:bg-elevated/40"
+					class="rounded-lg border border-default bg-default p-4 shadow-sm transition-colors"
 					:class="focusedCategoryId === row.categoryId ? 'bg-primary/5 border-primary/30 shadow-none' : ''"
-					role="button"
-					tabindex="0"
-					:aria-pressed="focusedCategoryId === row.categoryId"
-					@click="emit('focusCategory', row.categoryId)"
-					@keydown.enter.self="emit('focusCategory', row.categoryId)"
-					@keydown.space.self.prevent="emit('focusCategory', row.categoryId)"
 				>
 					<div class="flex items-start justify-between gap-3">
-						<div class="min-w-0">
+						<div
+							class="min-w-0 flex-1 cursor-pointer rounded-md outline-none hover:bg-elevated/30 focus-visible:ring-2 focus-visible:ring-primary"
+							role="button"
+							tabindex="0"
+							:aria-pressed="focusedCategoryId === row.categoryId"
+							@click="emit('focusCategory', row.categoryId)"
+							@keydown.enter="emit('focusCategory', row.categoryId)"
+							@keydown.space.prevent="emit('focusCategory', row.categoryId)"
+						>
 							<div class="text-sm font-medium text-default">
 								{{ row.categoryLabel }}
 							</div>
@@ -372,7 +388,7 @@ const activeSubjectAverageSummary = computed(() => {
 								}}
 							</p>
 						</div>
-						<div class="flex items-center gap-2" @click.stop>
+						<div class="flex shrink-0 items-center gap-2">
 							<UBadge
 								color="neutral"
 								variant="soft"
@@ -387,159 +403,87 @@ const activeSubjectAverageSummary = computed(() => {
 								variant="ghost"
 								@click.stop="emit('disableCategory', row.categoryId)"
 							/>
-						</div>
-					</div>
-					<div
-						v-if="!row.selectedGradeId && row.grades.length"
-						class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-elevated/40 px-3 py-2"
-						@click.stop
-					>
-						<p class="text-xs font-medium text-default">
-							Kategorie aktivieren
-						</p>
-						<UButton
-							:label="`Stufe ${row.grades[0]?.label ?? ''} wählen`"
-							size="xs"
-							color="neutral"
-							variant="outline"
-							@click.stop="
-								row.grades[0] &&
-								emit('setGrade', row.categoryId, row.category, row.grades[0])
-							"
-						/>
-					</div>
-					<span class="text-xs font-medium text-muted">
-						{{ row.selectedGradeId ? 'Stufe' : 'Stufe wählen' }}
-					</span>
-					<div class="flex flex-wrap gap-1.5" @click.stop>
-						<TemplatePill
-							v-for="grade in row.grades"
-							:key="grade.id"
-							:label="grade.label"
-							:active="row.selectedGradeId === grade.id"
-							:selectable="true"
-							@click.stop="emit('setGrade', row.categoryId, row.category, grade)"
-						/>
-					</div>
-					<div
-						v-if="row.selectedGradeId"
-						class="rounded-md border border-default bg-elevated/40 px-3 py-2"
-					>
-						<div class="text-xs font-medium text-muted">Vorschau</div>
-						<div
-							v-if="row.selectedPreviewText && row.variants.length > 1"
-							class="mt-1 text-xs leading-relaxed text-default"
-						>
-							{{ row.selectedPreviewText }}
-						</div>
-						<div
-							v-else-if="row.selectedPreviewText"
-							class="mt-1"
-							@click.stop
-							@keydown.enter.stop
-							@keydown.space.stop
-						>
-							<VariantSentenceInlinePreview
-								v-for="variant in selectedVariants(row)"
-								:key="variant.id"
-								:variant="variant"
-								:preview-text="row.variantPreviewById[variant.id] ?? ''"
-								:preview-name="studentName.trim()"
-								:preview-gender="studentGender"
-								:name-part-selections="namePartSelectionsForVariant(row, variant)"
-								:optional-part-enabled-map="row.optionalPartOverrides"
-								:text-class="'text-xs text-default'"
-								@toggle-optional-text="
-									(partId, enabled) => {
-										const part = findOptionalTextPart(variant, partId)
-										if (part) toggleOptionalTextPart(row, variant, part, enabled)
-									}
+							<UButton
+								:icon="
+									isCategoryBodyExpanded(row.categoryId)
+										? 'i-lucide-chevron-up'
+										: 'i-lucide-chevron-down'
 								"
-								@set-name-part-selection="
-									(partIndex, value) =>
-										setNamePartReplacement(row, variant, partIndex, value)
+								color="neutral"
+								variant="ghost"
+								size="xs"
+								:aria-expanded="isCategoryBodyExpanded(row.categoryId)"
+								:aria-label="
+									isCategoryBodyExpanded(row.categoryId)
+										? 'Kategorie einklappen'
+										: 'Kategorie ausklappen'
+								"
+								@click.stop="toggleCategoryBody(row.categoryId)"
+							/>
+						</div>
+					</div>
+					<div
+						v-show="isCategoryBodyExpanded(row.categoryId)"
+						class="mt-3 space-y-3 border-t border-default pt-3"
+					>
+						<div
+							v-if="!row.selectedGradeId && row.grades.length"
+							class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-elevated/40 px-3 py-2"
+							@click.stop
+						>
+							<p class="text-xs font-medium text-default">
+								Kategorie aktivieren
+							</p>
+							<UButton
+								:label="`Stufe ${row.grades[0]?.label ?? ''} wählen`"
+								size="xs"
+								color="neutral"
+								variant="outline"
+								@click.stop="
+									row.grades[0] &&
+									emit('setGrade', row.categoryId, row.category, row.grades[0])
 								"
 							/>
 						</div>
-						<p v-else class="mt-1 text-xs leading-relaxed text-default">
-							Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.
-						</p>
-					</div>
-					<template v-if="row.selectedGradeId && row.variants.length > 1">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-muted">Varianten</span>
-							<div class="flex items-center gap-1" @click.stop>
-								<UButton
-									label="Alle"
-									size="xs"
-									color="neutral"
-									variant="ghost"
-									:disabled="allVariantsSelected(row)"
-									@click="emit('selectAllVariants', row.categoryId, row.category)"
-								/>
-								<UButton
-									label="Standard"
-									size="xs"
-									color="neutral"
-									variant="ghost"
-									:disabled="isDefaultSelection(row)"
-									@click="emit('clearAllVariants', row.categoryId, row.category)"
-								/>
-							</div>
+						<span class="text-xs font-medium text-muted">
+							{{ row.selectedGradeId ? 'Stufe' : 'Stufe wählen' }}
+						</span>
+						<div class="flex flex-wrap gap-1.5" @click.stop>
+							<TemplatePill
+								v-for="grade in row.grades"
+								:key="grade.id"
+								:label="grade.label"
+								:active="row.selectedGradeId === grade.id"
+								:selectable="true"
+								@click.stop="emit('setGrade', row.categoryId, row.category, grade)"
+							/>
 						</div>
-						<div class="grid gap-3 xl:grid-cols-2" @click.stop>
-							<div
-								v-for="variant in row.variants"
-								:key="variant.id"
-								class="rounded-lg border border-default p-3 transition-colors"
-								:class="
-									canToggleVariant(variant.id, row)
-										? [
-												'cursor-pointer',
-												isVariantSelected(variant.id, row)
-													? 'bg-primary/5 border-primary/30'
-													: 'hover:bg-elevated/40',
-											]
-										: 'bg-primary/5 border-primary/30'
-								"
-								:tabindex="canToggleVariant(variant.id, row) ? 0 : undefined"
-								:aria-pressed="isVariantSelected(variant.id, row)"
-								:aria-disabled="!canToggleVariant(variant.id, row)"
-								role="button"
-								@click.stop="
-									canToggleVariant(variant.id, row) &&
-									emit('toggleVariant', row.categoryId, row.category, variant.id)
-								"
-								@keydown.enter.self="
-									canToggleVariant(variant.id, row) &&
-									emit('toggleVariant', row.categoryId, row.category, variant.id)
-								"
-								@keydown.space.self.prevent="
-									canToggleVariant(variant.id, row) &&
-									emit('toggleVariant', row.categoryId, row.category, variant.id)
-								"
-							>
+						<template v-if="row.selectedGradeId">
+							<div class="rounded-md border border-default bg-elevated/40 px-3 py-2">
+								<div class="text-xs font-medium text-muted">Vorschau</div>
 								<div
-									class="text-sm font-medium"
-									:class="isVariantSelected(variant.id, row) ? 'text-primary' : 'text-default'"
+									v-if="row.selectedPreviewText && row.variants.length > 1"
+									class="mt-1 text-xs leading-relaxed text-default"
 								>
-									{{ variant.label }}
+									{{ row.selectedPreviewText }}
 								</div>
 								<div
-									v-if="row.variantPreviewById[variant.id]"
-									class="mt-3"
+									v-else-if="row.selectedPreviewText"
+									class="mt-1"
 									@click.stop
 									@keydown.enter.stop
 									@keydown.space.stop
 								>
 									<VariantSentenceInlinePreview
+										v-for="variant in selectedVariants(row)"
+										:key="variant.id"
 										:variant="variant"
 										:preview-text="row.variantPreviewById[variant.id] ?? ''"
 										:preview-name="studentName.trim()"
 										:preview-gender="studentGender"
 										:name-part-selections="namePartSelectionsForVariant(row, variant)"
 										:optional-part-enabled-map="row.optionalPartOverrides"
-										:text-class="'text-sm text-muted'"
+										:text-class="'text-xs text-default'"
 										@toggle-optional-text="
 											(partId, enabled) => {
 												const part = findOptionalTextPart(variant, partId)
@@ -552,24 +496,117 @@ const activeSubjectAverageSummary = computed(() => {
 										"
 									/>
 								</div>
-								<p v-else class="mt-3 text-sm leading-6 text-muted">
-									Kein Vorschautext verfügbar.
-								</p>
-								<p
-									v-if="isLastSelectedVariant(variant.id, row)"
-									class="mt-2 text-xs font-medium text-primary"
-								>
-									Mindestens eine Variante muss aktiv bleiben.
+								<p v-else class="mt-1 text-xs leading-relaxed text-default">
+									Keine Variante ausgewählt. Wähle unten eine oder mehrere Varianten aus.
 								</p>
 							</div>
-						</div>
-						<div class="flex items-center justify-between gap-3 text-xs text-muted">
-							<span>
-								{{ variantSummary(row) }}
-							</span>
-							<span>Standard setzt auf die erste Variante zurück.</span>
-						</div>
-					</template>
+							<template v-if="row.variants.length > 1">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-muted">Varianten</span>
+									<div class="flex items-center gap-1" @click.stop>
+										<UButton
+											label="Alle"
+											size="xs"
+											color="neutral"
+											variant="ghost"
+											:disabled="allVariantsSelected(row)"
+											@click="emit('selectAllVariants', row.categoryId, row.category)"
+										/>
+										<UButton
+											label="Standard"
+											size="xs"
+											color="neutral"
+											variant="ghost"
+											:disabled="isDefaultSelection(row)"
+											@click="emit('clearAllVariants', row.categoryId, row.category)"
+										/>
+									</div>
+								</div>
+								<div class="grid gap-3 xl:grid-cols-2" @click.stop>
+									<div
+										v-for="variant in row.variants"
+										:key="variant.id"
+										class="rounded-lg border border-default p-3 transition-colors"
+										:class="
+											canToggleVariant(variant.id, row)
+												? [
+														'cursor-pointer',
+														isVariantSelected(variant.id, row)
+															? 'bg-primary/5 border-primary/30'
+															: 'hover:bg-elevated/40',
+													]
+												: 'bg-primary/5 border-primary/30'
+										"
+										:tabindex="canToggleVariant(variant.id, row) ? 0 : undefined"
+										:aria-pressed="isVariantSelected(variant.id, row)"
+										:aria-disabled="!canToggleVariant(variant.id, row)"
+										role="button"
+										@click.stop="
+											canToggleVariant(variant.id, row) &&
+											emit('toggleVariant', row.categoryId, row.category, variant.id)
+										"
+										@keydown.enter.self="
+											canToggleVariant(variant.id, row) &&
+											emit('toggleVariant', row.categoryId, row.category, variant.id)
+										"
+										@keydown.space.self.prevent="
+											canToggleVariant(variant.id, row) &&
+											emit('toggleVariant', row.categoryId, row.category, variant.id)
+										"
+									>
+										<div
+											class="text-sm font-medium"
+											:class="isVariantSelected(variant.id, row) ? 'text-primary' : 'text-default'"
+										>
+											{{ variant.label }}
+										</div>
+										<div
+											v-if="row.variantPreviewById[variant.id]"
+											class="mt-3"
+											@click.stop
+											@keydown.enter.stop
+											@keydown.space.stop
+										>
+											<VariantSentenceInlinePreview
+												:variant="variant"
+												:preview-text="row.variantPreviewById[variant.id] ?? ''"
+												:preview-name="studentName.trim()"
+												:preview-gender="studentGender"
+												:name-part-selections="namePartSelectionsForVariant(row, variant)"
+												:optional-part-enabled-map="row.optionalPartOverrides"
+												:text-class="'text-sm text-muted'"
+												@toggle-optional-text="
+													(partId, enabled) => {
+														const part = findOptionalTextPart(variant, partId)
+														if (part) toggleOptionalTextPart(row, variant, part, enabled)
+													}
+												"
+												@set-name-part-selection="
+													(partIndex, value) =>
+														setNamePartReplacement(row, variant, partIndex, value)
+												"
+											/>
+										</div>
+										<p v-else class="mt-3 text-sm leading-6 text-muted">
+											Kein Vorschautext verfügbar.
+										</p>
+										<p
+											v-if="isLastSelectedVariant(variant.id, row)"
+											class="mt-2 text-xs font-medium text-primary"
+										>
+											Mindestens eine Variante muss aktiv bleiben.
+										</p>
+									</div>
+								</div>
+								<div class="flex items-center justify-between gap-3 text-xs text-muted">
+									<span>
+										{{ variantSummary(row) }}
+									</span>
+									<span>Standard setzt auf die erste Variante zurück.</span>
+								</div>
+							</template>
+						</template>
+					</div>
 				</div>
 			</div>
 			<div
