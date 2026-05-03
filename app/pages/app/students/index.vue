@@ -8,7 +8,7 @@ import { studentFullName } from '~/utils/student'
 
 const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
 const {
-	setsWithData,
+	sortedSetsWithData,
 	getSetLabel,
 	getSetData,
 	hasAnyTemplateSets,
@@ -24,7 +24,7 @@ const filterStatus = ref<'finished' | 'unfinished' | null>(null)
 
 const templateSetItems = computed(() => [
 	{ label: 'Alle Vorlagen', value: null as string | null },
-	...setsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id })),
+	...sortedSetsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id })),
 ])
 
 const genderItems = [

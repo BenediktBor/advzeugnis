@@ -7,20 +7,13 @@ const emit = defineEmits<{
 	'update:open': [value: boolean]
 }>()
 
-const { setsWithData, orderedIds } = useTemplateSets()
+const { orderedIds, defaultAlphabeticalTemplateSetId } = useTemplateSets()
 const { createStudentAndOpen } = useCreateStudentFlow()
 
 const name = ref('')
 const surname = ref('')
 const gender = ref<'male' | 'female'>('male')
 const templateSetId = ref('')
-
-const templateSetItems = computed(() =>
-	setsWithData.value.map((setItem) => ({
-		label: setItem.label,
-		value: setItem.id,
-	}))
-)
 
 const canSubmit = computed(
 	() => name.value.trim() !== '' && templateSetId.value.trim() !== ''
@@ -35,7 +28,7 @@ function resetForm() {
 	name.value = ''
 	surname.value = ''
 	gender.value = 'male'
-	templateSetId.value = orderedIds.value[0] ?? ''
+	templateSetId.value = defaultAlphabeticalTemplateSetId.value
 }
 
 function confirmCreateStudent() {
@@ -58,7 +51,7 @@ watch(
 
 watch(orderedIds, () => {
 	if (!templateSetId.value || !orderedIds.value.includes(templateSetId.value)) {
-		templateSetId.value = orderedIds.value[0] ?? ''
+		templateSetId.value = defaultAlphabeticalTemplateSetId.value
 	}
 })
 </script>
@@ -76,7 +69,6 @@ watch(orderedIds, () => {
 				:surname="surname"
 				:gender="gender"
 				:template-set-id="templateSetId"
-				:template-set-items="templateSetItems"
 				hero-icon="i-lucide-user-plus"
 				hero-title="Neuer Schülerdatensatz"
 				hero-description="Der Datensatz wird erst angelegt, wenn ein Vorname und eine Vorlage gewählt sind."

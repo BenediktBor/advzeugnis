@@ -8,7 +8,7 @@ const router = useRouter()
 const { students } = useStudents()
 const { canEditTemplates } = useCurrentUser()
 // const { currentUser, canEditTemplates } = useCurrentUser()
-const { setsWithData, hasAnyTemplateSets } = useTemplateSets()
+const { sortedSetsWithData, hasAnyTemplateSets } = useTemplateSets()
 const createStudentModalOpen = ref(false)
 
 function onAddStudent() {
@@ -68,7 +68,7 @@ const links = computed<NavigationMenuItem[]>(() => {
 			icon: 'i-lucide-file-text',
 			to: '/app/templates',
 			defaultOpen: true,
-			children: setsWithData.value.map((setItem) => ({
+			children: sortedSetsWithData.value.map((setItem) => ({
 				label: setItem.label,
 				to: `/app/templates/${setItem.id}`,
 				onSelect: () => {
@@ -150,7 +150,7 @@ const links = computed<NavigationMenuItem[]>(() => {
 						<div class="flex items-center gap-1">
 							<TemplateImportExportActions
 								:can-edit="canEditTemplates"
-								:disabled="setsWithData.length === 0"
+								:disabled="!hasAnyTemplateSets"
 								compact
 							/>
 							<UTooltip v-if="canEditTemplates" text="Neuen Vorlagensatz anlegen">
@@ -164,7 +164,7 @@ const links = computed<NavigationMenuItem[]>(() => {
 								/>
 							</UTooltip>
 							<UIcon
-								v-if="setsWithData.length > 0"
+								v-if="hasAnyTemplateSets"
 								name="i-lucide-chevron-down"
 								class="size-5 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180"
 							/>

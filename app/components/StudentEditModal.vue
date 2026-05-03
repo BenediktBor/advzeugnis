@@ -13,19 +13,12 @@ const emit = defineEmits<{
 }>()
 
 const { updateStudent } = useStudents()
-const { setsWithData, orderedIds } = useTemplateSets()
+const { orderedIds, defaultAlphabeticalTemplateSetId } = useTemplateSets()
 
 const name = ref('')
 const surname = ref('')
 const gender = ref<'male' | 'female'>('male')
 const templateSetId = ref('')
-
-const templateSetItems = computed(() =>
-	setsWithData.value.map((setItem) => ({
-		label: setItem.label,
-		value: setItem.id,
-	}))
-)
 
 const isOpen = computed({
 	get: () => props.open,
@@ -38,7 +31,7 @@ const canSubmit = computed(
 
 function resolvedTemplateIdForStudent(s: Student): string {
 	if (orderedIds.value.includes(s.templateSetId)) return s.templateSetId
-	return orderedIds.value[0] ?? s.templateSetId
+	return defaultAlphabeticalTemplateSetId.value || s.templateSetId
 }
 
 function syncFromStudent() {
@@ -77,7 +70,7 @@ watch(
 
 watch(orderedIds, () => {
 	if (!templateSetId.value || !orderedIds.value.includes(templateSetId.value)) {
-		templateSetId.value = orderedIds.value[0] ?? ''
+		templateSetId.value = defaultAlphabeticalTemplateSetId.value
 	}
 })
 </script>
@@ -96,7 +89,6 @@ watch(orderedIds, () => {
 				:surname="surname"
 				:gender="gender"
 				:template-set-id="templateSetId"
-				:template-set-items="templateSetItems"
 				hero-icon="i-lucide-user-pen"
 				hero-title="Schülerdatensatz bearbeiten"
 				hero-description="Änderungen wirken sich auf die Zeugnistexte aus, sobald du sie speicherst."

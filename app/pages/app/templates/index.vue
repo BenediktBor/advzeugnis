@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const { setsWithData, addSet, isLoaded, loadError } = useTemplateSets()
+const { sortedSetsWithData, addSet, isLoaded, loadError } = useTemplateSets()
 const { canEditTemplates: canEdit } = useCurrentUser()
-const hasTemplateSets = computed(() => setsWithData.value.length > 0)
+const hasTemplateSets = computed(() => sortedSetsWithData.value.length > 0)
 
 const addModalOpen = ref(false)
 const addModalLabel = ref('')
@@ -102,7 +102,7 @@ watch(
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
 				>
 					<ULink
-						v-for="item in setsWithData"
+						v-for="item in sortedSetsWithData"
 						:key="item.id"
 						:to="`/app/templates/${item.id}`"
 						class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"

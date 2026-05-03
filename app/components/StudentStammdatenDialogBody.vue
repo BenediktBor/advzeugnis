@@ -6,7 +6,6 @@ defineProps<{
 	surname: string
 	gender: 'male' | 'female'
 	templateSetId: string
-	templateSetItems: { label: string; value: string }[]
 	heroIcon: string
 	heroTitle: string
 	heroDescription: string
@@ -107,20 +106,11 @@ function formatAverage(value: number): string {
 						/>
 					</div>
 				</UFormField>
-				<UFormField
-					label="Vorlagensatz"
-					:name="templateFieldName ?? 'student-stam-template'"
-					required
-				>
-					<USelectMenu
-						:model-value="templateSetId"
-						:items="templateSetItems"
-						value-key="value"
-						placeholder="Vorlage wählen"
-						class="w-full"
-						@update:model-value="emit('update:templateSetId', ($event as string) ?? '')"
-					/>
-				</UFormField>
+				<TemplateSetSelectField
+					:model-value="templateSetId"
+					:name="templateFieldName"
+					@update:model-value="emit('update:templateSetId', $event)"
+				/>
 			</div>
 		</section>
 

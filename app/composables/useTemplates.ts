@@ -78,6 +78,16 @@ export function useTemplateSets() {
 		})
 	)
 
+	const sortedSetsWithData = computed<SetWithData[]>(() =>
+		[...setsWithData.value].sort((a, b) =>
+			a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }),
+		),
+	)
+
+	const defaultAlphabeticalTemplateSetId = computed(
+		() => sortedSetsWithData.value[0]?.id ?? '',
+	)
+
 	const hasAnyTemplateSets = computed(() => store.orderedIds.length > 0)
 
 	function getSetLabel(setId: string): string {
@@ -91,6 +101,8 @@ export function useTemplateSets() {
 	return {
 		orderedIds,
 		setsWithData,
+		sortedSetsWithData,
+		defaultAlphabeticalTemplateSetId,
 		hasAnyTemplateSets,
 		isLoaded: computed(() => store.isLoaded),
 		loadError: computed(() => store.loadError),

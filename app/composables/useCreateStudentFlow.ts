@@ -9,13 +9,13 @@ export interface CreateStudentInput {
 
 export function useCreateStudentFlow() {
 	const router = useRouter()
-	const { orderedIds, getSetData } = useTemplateSets()
+const { orderedIds, getSetData, defaultAlphabeticalTemplateSetId } = useTemplateSets()
 	const { addStudent } = useStudents()
 
 	const canCreateStudent = computed(() => orderedIds.value.length > 0)
 
 	function createStudentAndOpen(input: CreateStudentInput) {
-		const templateSetId = input.templateSetId || orderedIds.value[0]
+		const templateSetId = input.templateSetId || defaultAlphabeticalTemplateSetId.value
 		if (!templateSetId) return null
 		const templateSet = getSetData(templateSetId)
 

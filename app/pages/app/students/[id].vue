@@ -22,7 +22,8 @@ const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoadError } = useStudents()
-const { orderedIds, setsWithData, loadError: templatesLoadError } = useTemplateSets()
+const { orderedIds, defaultAlphabeticalTemplateSetId, loadError: templatesLoadError } =
+	useTemplateSets()
 const { copyToClipboard } = useClipboardCopy()
 const rewriter = useAiRewriter()
 
@@ -31,7 +32,7 @@ const effectiveTemplateSetId = computed(() => {
 	if (!s) return null
 	return orderedIds.value.includes(s.templateSetId)
 		? s.templateSetId
-		: orderedIds.value[0] ?? null
+		: defaultAlphabeticalTemplateSetId.value || null
 })
 
 const { getSet } = useTemplates(
