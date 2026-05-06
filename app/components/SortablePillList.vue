@@ -2,17 +2,25 @@
 import { useSortable } from '@vueuse/integrations/useSortable'
 import type { SentencePart } from '~/types/template'
 
+type PillContextMenuAction = 'copy' | 'cut' | 'paste'
+
 const props = withDefaults(
 	defineProps<{
 		parts: SentencePart[]
 		canEdit?: boolean
+		selectedIndexes?: number[]
+		canPaste?: boolean
 	}>(),
-	{ canEdit: false },
+	{ canEdit: false, selectedIndexes: () => [], canPaste: false },
 )
 
 const emit = defineEmits<{
 	reorder: [oldIndex: number, newIndex: number]
 	add: []
+	pasteFromClipboard: []
+	select: [partIndex: number, event: MouseEvent | KeyboardEvent]
+	contextOpen: [partIndex: number]
+	contextAction: [action: PillContextMenuAction, partIndex: number]
 }>()
 
 const listRef = ref<HTMLElement | null>(null)
@@ -64,31 +72,62 @@ useSortable(listRef, localList, {
 		emit('reorder', oldIndex, newIndex)
 	},
 })
+
+function contextMenuItems(partIndex: number) {
+	return [
+		[
+			{
+				label: 'Kopieren',
+				icon: 'i-lucide-copy',
+				onSelect: () => emit('contextAction', 'copy', partIndex),
+			},
+			{
+				label: 'Ausschneiden',
+				icon: 'i-lucide-scissors',
+				disabled: !props.canEdit,
+				onSelect: () => emit('contextAction', 'cut', partIndex),
+			},
+			{
+				label: 'Einfügen',
+				icon: 'i-lucide-clipboard-paste',
+				disabled: !props.canEdit || !props.canPaste,
+				onSelect: () => emit('contextAction', 'paste', partIndex),
+			},
+		],
+	]
+}
 </script>
 
 <template>
 	<div class="flex flex-wrap items-center gap-2">
 		<div ref="listRef" class="flex flex-wrap items-center gap-2">
 			<template v-for="(part, partIndex) in localList" :key="partKey(part)">
-				<TemplatePill
-					:label="defaultPartLabel(part)"
-					:show-drag-handle="canEdit"
-					:can-edit="canEdit"
-					:selectable="false"
+				<UContextMenu
+					:items="contextMenuItems(partIndex)"
 				>
-					<slot name="label" :part="part" :part-index="partIndex">
-						{{
-							defaultPartLabel(part)
-						}}
-					</slot>
-					<template v-if="canEdit" #actions>
-						<slot
-							name="actions"
-							:part="part"
-							:part-index="partIndex"
-						/>
-					</template>
-				</TemplatePill>
+					<TemplatePill
+						:label="defaultPartLabel(part)"
+						:show-drag-handle="canEdit"
+						:can-edit="canEdit"
+						:selected="selectedIndexes.includes(partIndex)"
+						selectable
+						@click="emit('select', partIndex, $event)"
+						@contextmenu="emit('contextOpen', partIndex)"
+					>
+						<slot name="label" :part="part" :part-index="partIndex">
+							{{
+								defaultPartLabel(part)
+							}}
+						</slot>
+						<template v-if="canEdit" #actions>
+							<slot
+								name="actions"
+								:part="part"
+								:part-index="partIndex"
+							/>
+						</template>
+					</TemplatePill>
+				</UContextMenu>
 			</template>
 		</div>
 		<UButton
@@ -98,6 +137,15 @@ useSortable(listRef, localList, {
 			variant="soft"
 			aria-label="Baustein hinzufügen"
 			@click="emit('add')"
+		/>
+		<UButton
+			v-if="canEdit"
+			label="Aus Zwischenablage"
+			icon="i-lucide-clipboard-paste"
+			size="sm"
+			variant="soft"
+			:disabled="!canPaste"
+			@click="emit('pasteFromClipboard')"
 		/>
 	</div>
 </template>

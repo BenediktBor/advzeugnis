@@ -3,12 +3,14 @@ const props = withDefaults(
 	defineProps<{
 		label: string
 		active?: boolean
+		selected?: boolean
 		showDragHandle?: boolean
 		canEdit?: boolean
 		selectable?: boolean
 	}>(),
 	{
 		active: false,
+		selected: false,
 		showDragHandle: false,
 		canEdit: false,
 		selectable: true,
@@ -16,15 +18,18 @@ const props = withDefaults(
 )
 const emit = defineEmits<{
 	(e: 'click', event: MouseEvent | KeyboardEvent): void
+	(e: 'contextmenu', event: MouseEvent): void
 }>()
 const slots = useSlots()
 
 const pillClasses = computed(() => [
 	'flex items-center gap-3 rounded-full border px-3 py-1.5 text-sm transition-colors',
-	props.active
+	props.selected
+		? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/40'
+		: props.active
 		? 'border-primary bg-primary/10 text-primary font-medium'
 		: 'border-default bg-elevated text-default',
-	props.selectable && 'cursor-pointer hover:bg-elevated/80',
+	props.selectable && (props.selected ? 'cursor-pointer hover:bg-primary/15' : 'cursor-pointer hover:bg-elevated/80'),
 ])
 </script>
 
@@ -35,8 +40,10 @@ const pillClasses = computed(() => [
 		:title="label || undefined"
 		:role="selectable ? 'button' : undefined"
 		:tabindex="selectable ? 0 : undefined"
-		:aria-pressed="selectable ? active : undefined"
+		:aria-pressed="selectable ? active || selected : undefined"
+		:aria-selected="selected || undefined"
 		@click="selectable ? emit('click', $event) : undefined"
+		@contextmenu="emit('contextmenu', $event)"
 		@keydown.enter="selectable ? emit('click', $event) : undefined"
 		@keydown.space.prevent="selectable ? emit('click', $event) : undefined"
 	>

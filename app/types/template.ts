@@ -35,6 +35,28 @@ export interface TemplateSet {
 	subjects: Subject[]
 }
 
+export type TemplateClipboardKind = 'grade' | 'variant' | 'sentencePart'
+
+export type TemplateClipboardPayload =
+	| {
+		kind: 'grade'
+		items: Grade[]
+		copiedAt: number
+		sourceLabel?: string
+	}
+	| {
+		kind: 'variant'
+		items: Variant[]
+		copiedAt: number
+		sourceLabel?: string
+	}
+	| {
+		kind: 'sentencePart'
+		items: SentencePart[]
+		copiedAt: number
+		sourceLabel?: string
+	}
+
 /** URL-safe slug for a template set (e.g. "Klasse 1" -> "Klasse-1"). */
 export const TEMPLATE_SET_SLUGS = [
 	'Klasse-1',

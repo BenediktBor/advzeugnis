@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import type { Category, SentencePart, TemplateSet } from '~/types/template'
+import type { Category, Grade, SentencePart, TemplateSet, Variant } from '~/types/template'
 import { useTemplatesStore } from '~/stores/templates'
+import { useTemplateClipboardStore } from '~/stores/templateClipboard'
+import {
+	cloneClipboardItemsForPaste,
+	createTemplateClipboardPayload,
+} from '~/utils/templateClipboard'
 
 const props = defineProps<{
 	setId: string
@@ -25,21 +30,142 @@ const {
 	updateGradeLabel,
 	updateGradeValue,
 	reorderGrades,
+	insertGrades,
+	deleteGrades,
 	addVariant,
 	deleteVariant,
 	updateVariantLabel,
 	reorderVariants,
+	insertVariants,
+	deleteVariants,
 	addSentencePart,
 	updateSentencePart,
 	deleteSentencePart,
 	reorderSentenceParts,
+	insertSentenceParts,
+	deleteSentenceParts,
 } = useTemplates(computed(() => props.setId))
 const { canEditTemplates } = useCurrentUser()
+const templateClipboard = useTemplateClipboardStore()
+templateClipboard.load()
 
 const selectedCategory = ref<{ subjectId: string; categoryId: string } | null>(null)
 type CategorySelection = {
 	gradeId: string | null
 	variantId: string | null
+}
+type ChipSelectionKind = 'grade' | 'variant' | 'sentencePart'
+type ChipSelection = {
+	kind: ChipSelectionKind
+	scopeKey: string
+	ids: string[]
+	anchorId: string | null
+}
+type ClipboardAction = 'copy' | 'cut' | 'paste'
+
+const chipSelection = ref<ChipSelection | null>(null)
+
+function gradeScopeKey() {
+	const category = selectedCategory.value
+	if (!category) return ''
+	return `${props.setId}:${category.subjectId}:${category.categoryId}:grades`
+}
+
+function variantScopeKey() {
+	const category = selectedCategory.value
+	if (!category || !selectedGradeId.value) return ''
+	return `${props.setId}:${category.subjectId}:${category.categoryId}:${selectedGradeId.value}:variants`
+}
+
+function sentencePartScopeKey() {
+	const category = selectedCategory.value
+	if (!category || !selectedGradeId.value || !selectedVariantId.value) return ''
+	return `${props.setId}:${category.subjectId}:${category.categoryId}:${selectedGradeId.value}:${selectedVariantId.value}:sentenceParts`
+}
+
+function selectionScopeKey(kind: ChipSelectionKind): string {
+	if (kind === 'grade') return gradeScopeKey()
+	if (kind === 'variant') return variantScopeKey()
+	return sentencePartScopeKey()
+}
+
+function clearChipSelection() {
+	chipSelection.value = null
+}
+
+function selectedChipIds(kind: ChipSelectionKind, scopeKey = selectionScopeKey(kind)): string[] {
+	const selection = chipSelection.value
+	if (!selection || selection.kind !== kind || selection.scopeKey !== scopeKey) return []
+	return selection.ids
+}
+
+function selectedChipIndexes(kind: ChipSelectionKind, scopeKey = selectionScopeKey(kind)): number[] {
+	return selectedChipIds(kind, scopeKey)
+		.map((id) => Number(id))
+		.filter((index) => Number.isInteger(index) && index >= 0)
+}
+
+function hasSelectionModifier(event: MouseEvent | KeyboardEvent): boolean {
+	return event.metaKey || event.ctrlKey || event.shiftKey
+}
+
+function setSingleChipSelection(kind: ChipSelectionKind, id: string) {
+	const scopeKey = selectionScopeKey(kind)
+	if (!scopeKey) return
+	chipSelection.value = { kind, scopeKey, ids: [id], anchorId: id }
+}
+
+function updateChipSelection(
+	kind: ChipSelectionKind,
+	id: string,
+	orderedIds: string[],
+	event: MouseEvent | KeyboardEvent,
+	options: { allowPlainToggle: boolean },
+) {
+	const scopeKey = selectionScopeKey(kind)
+	if (!scopeKey) return
+	const current = chipSelection.value
+	const sameSelection = current?.kind === kind && current.scopeKey === scopeKey
+
+	if (event.shiftKey && sameSelection && current?.anchorId) {
+		const anchorIndex = orderedIds.indexOf(current.anchorId)
+		const targetIndex = orderedIds.indexOf(id)
+		if (anchorIndex !== -1 && targetIndex !== -1) {
+			const start = Math.min(anchorIndex, targetIndex)
+			const end = Math.max(anchorIndex, targetIndex)
+			chipSelection.value = {
+				kind,
+				scopeKey,
+				ids: orderedIds.slice(start, end + 1),
+				anchorId: current.anchorId,
+			}
+			return
+		}
+	}
+
+	if (event.metaKey || event.ctrlKey) {
+		const ids = sameSelection ? [...(current?.ids ?? [])] : []
+		const index = ids.indexOf(id)
+		if (index >= 0) {
+			ids.splice(index, 1)
+		} else {
+			ids.push(id)
+		}
+		chipSelection.value = ids.length
+			? { kind, scopeKey, ids, anchorId: id }
+			: null
+		return
+	}
+
+	if (options.allowPlainToggle) {
+		const alreadyOnlySelected = sameSelection && current?.ids.length === 1 && current.ids[0] === id
+		chipSelection.value = alreadyOnlySelected
+			? null
+			: { kind, scopeKey, ids: [id], anchorId: id }
+		return
+	}
+
+	clearChipSelection()
 }
 
 function categorySelectionKey(category: { subjectId: string; categoryId: string }) {
@@ -105,6 +231,7 @@ const selectedCategoryData = computed<Category | null>(() => {
 })
 
 function selectCategory(category: { subjectId: string; categoryId: string } | null) {
+	clearChipSelection()
 	selectedCategory.value = category
 	const selected = selectedCategoryData.value
 	if (!category || !selected) {
@@ -139,6 +266,7 @@ function selectCategory(category: { subjectId: string; categoryId: string } | nu
 watch(
 	() => props.setId,
 	() => {
+		clearChipSelection()
 		selectedCategory.value = null
 	}
 )
@@ -334,6 +462,230 @@ function selectedVariantData() {
 	if (!category || !selectedGradeId.value || !selectedVariantId.value) return null
 	const grade = category.grades.find((item) => item.id === selectedGradeId.value)
 	return grade?.variants.find((item) => item.id === selectedVariantId.value) ?? null
+}
+
+function selectedGradeData() {
+	const category = selectedCategoryData.value
+	if (!category || !selectedGradeId.value) return null
+	return category.grades.find((item) => item.id === selectedGradeId.value) ?? null
+}
+
+const canPasteGrades = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'grade')
+const canPasteVariants = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'variant')
+const canPasteSentenceParts = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'sentencePart')
+
+const selectedGradeIdsForEditor = computed(() => selectedChipIds('grade', gradeScopeKey()))
+const selectedVariantIdsForEditor = computed(() => selectedChipIds('variant', variantScopeKey()))
+const selectedSentencePartIndexesForEditor = computed(() => selectedChipIndexes('sentencePart', sentencePartScopeKey()))
+
+function handleSelectGrade(gradeId: string, event: MouseEvent | KeyboardEvent) {
+	selectedGradeId.value = gradeId
+	const grade = selectedCategoryData.value?.grades.find((item) => item.id === gradeId)
+	selectedVariantId.value = grade?.variants[0]?.id ?? null
+	updateChipSelection(
+		'grade',
+		gradeId,
+		selectedCategoryData.value?.grades.map((item) => item.id) ?? [],
+		event,
+		{ allowPlainToggle: false },
+	)
+}
+
+function handleSelectVariant(variantId: string, event: MouseEvent | KeyboardEvent) {
+	selectedVariantId.value = variantId
+	updateChipSelection(
+		'variant',
+		variantId,
+		selectedGradeData()?.variants.map((item) => item.id) ?? [],
+		event,
+		{ allowPlainToggle: false },
+	)
+}
+
+function handleSelectSentencePart(partIndex: number, event: MouseEvent | KeyboardEvent) {
+	const orderedIndexes = selectedVariantData()?.sentences.map((_, index) => String(index)) ?? []
+	updateChipSelection('sentencePart', String(partIndex), orderedIndexes, event, {
+		allowPlainToggle: !hasSelectionModifier(event),
+	})
+}
+
+function handleContextOpen(kind: ChipSelectionKind, id: string) {
+	const current = chipSelection.value
+	const scopeKey = selectionScopeKey(kind)
+	if (!scopeKey) return
+	if (current?.kind === kind && current.scopeKey === scopeKey && current.ids.includes(id)) return
+	setSingleChipSelection(kind, id)
+}
+
+function selectedGrades(): Grade[] {
+	const category = selectedCategoryData.value
+	if (!category) return []
+	const ids = selectedChipIds('grade')
+	return category.grades.filter((grade) => ids.includes(grade.id))
+}
+
+function selectedVariants(): Variant[] {
+	const grade = selectedGradeData()
+	if (!grade) return []
+	const ids = selectedChipIds('variant')
+	return grade.variants.filter((variant) => ids.includes(variant.id))
+}
+
+function selectedSentenceParts(): SentencePart[] {
+	const variant = selectedVariantData()
+	if (!variant) return []
+	return selectedChipIndexes('sentencePart')
+		.map((index) => variant.sentences[index])
+		.filter((part): part is SentencePart => Boolean(part))
+}
+
+async function copySelection(kind = chipSelection.value?.kind) {
+	if (!kind) return
+	const sourceLabel = selectedCategoryData.value?.label
+	if (kind === 'grade') {
+		const items = selectedGrades()
+		if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('grade', items, sourceLabel))
+		return
+	}
+	if (kind === 'variant') {
+		const items = selectedVariants()
+		if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('variant', items, sourceLabel))
+		return
+	}
+	const items = selectedSentenceParts()
+	if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('sentencePart', items, sourceLabel))
+}
+
+async function cutSelection(kind = chipSelection.value?.kind) {
+	if (!canEditTemplates.value || !kind) return
+	await copySelection(kind)
+	const category = selectedCategory.value
+	if (!category) return
+	if (kind === 'grade') {
+		const ids = selectedChipIds('grade')
+		deleteGrades(category.subjectId, category.categoryId, ids)
+	} else if (kind === 'variant') {
+		if (!selectedGradeId.value) return
+		deleteVariants(category.subjectId, category.categoryId, selectedGradeId.value, selectedChipIds('variant'))
+	} else {
+		if (!selectedGradeId.value || !selectedVariantId.value) return
+		deleteSentenceParts(
+			category.subjectId,
+			category.categoryId,
+			selectedGradeId.value,
+			selectedVariantId.value,
+			selectedChipIndexes('sentencePart'),
+		)
+	}
+	clearChipSelection()
+}
+
+function pasteGradesFromClipboard(afterGradeId?: string) {
+	if (!canPasteGrades.value || templateClipboard.payload?.kind !== 'grade' || !selectedCategory.value) return
+	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as Grade[]
+	const atIndex = afterGradeId
+		? (selectedCategoryData.value?.grades.findIndex((grade) => grade.id === afterGradeId) ?? -1) + 1
+		: undefined
+	insertGrades(selectedCategory.value.subjectId, selectedCategory.value.categoryId, items, atIndex && atIndex > 0 ? atIndex : undefined)
+}
+
+function pasteVariantsFromClipboard(afterVariantId?: string) {
+	if (!canPasteVariants.value || templateClipboard.payload?.kind !== 'variant' || !selectedCategory.value || !selectedGradeId.value) return
+	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as Variant[]
+	const atIndex = afterVariantId
+		? (selectedGradeData()?.variants.findIndex((variant) => variant.id === afterVariantId) ?? -1) + 1
+		: undefined
+	insertVariants(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		items,
+		atIndex && atIndex > 0 ? atIndex : undefined,
+	)
+}
+
+function pasteSentencePartsFromClipboard(afterPartIndex?: number) {
+	if (!canPasteSentenceParts.value || templateClipboard.payload?.kind !== 'sentencePart' || !selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as SentencePart[]
+	insertSentenceParts(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		selectedVariantId.value,
+		items,
+		afterPartIndex === undefined ? undefined : afterPartIndex + 1,
+	)
+}
+
+async function handleGradeContextAction(action: ClipboardAction, gradeId: string) {
+	handleContextOpen('grade', gradeId)
+	if (action === 'copy') await copySelection('grade')
+	else if (action === 'cut') await cutSelection('grade')
+	else pasteGradesFromClipboard(gradeId)
+}
+
+async function handleVariantContextAction(action: ClipboardAction, variantId: string) {
+	handleContextOpen('variant', variantId)
+	if (action === 'copy') await copySelection('variant')
+	else if (action === 'cut') await cutSelection('variant')
+	else pasteVariantsFromClipboard(variantId)
+}
+
+async function handleSentencePartContextAction(action: ClipboardAction, partIndex: number) {
+	handleContextOpen('sentencePart', String(partIndex))
+	if (action === 'copy') await copySelection('sentencePart')
+	else if (action === 'cut') await cutSelection('sentencePart')
+	else pasteSentencePartsFromClipboard(partIndex)
+}
+
+function isNativeEditingTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) return false
+	const tagName = target.tagName.toLowerCase()
+	return tagName === 'input' ||
+		tagName === 'textarea' ||
+		tagName === 'select' ||
+		target.isContentEditable
+}
+
+function isModalOpen(): boolean {
+	return addPartModalOpen.value ||
+		editPartModalOpen.value ||
+		editLabelModalOpen.value ||
+		deleteDialog.open.value
+}
+
+function pasteIntoActiveList() {
+	const kind = chipSelection.value?.kind ?? templateClipboard.payload?.kind
+	if (kind === 'grade') pasteGradesFromClipboard()
+	else if (kind === 'variant') pasteVariantsFromClipboard()
+	else if (kind === 'sentencePart') pasteSentencePartsFromClipboard()
+}
+
+function handleTemplateClipboardKeydown(event: KeyboardEvent) {
+	if (isNativeEditingTarget(event.target) || isModalOpen()) return
+	if (event.key === 'Escape') {
+		if (chipSelection.value) {
+			event.preventDefault()
+			clearChipSelection()
+		}
+		return
+	}
+
+	const shortcutKey = event.key.toLowerCase()
+	if (!(event.metaKey || event.ctrlKey) || event.altKey) return
+	if (shortcutKey === 'c') {
+		if (!chipSelection.value) return
+		event.preventDefault()
+		void copySelection()
+	} else if (shortcutKey === 'x') {
+		if (!chipSelection.value || !canEditTemplates.value) return
+		event.preventDefault()
+		void cutSelection()
+	} else if (shortcutKey === 'v') {
+		if (!canEditTemplates.value || !templateClipboard.payload) return
+		event.preventDefault()
+		pasteIntoActiveList()
+	}
 }
 
 const addPartModalOpen = ref(false)
@@ -560,6 +912,14 @@ function createFirstCategory() {
 		selectCategory({ subjectId, categoryId })
 	})
 }
+
+onMounted(() => {
+	window.addEventListener('keydown', handleTemplateClipboardKeydown)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('keydown', handleTemplateClipboardKeydown)
+})
 </script>
 
 <template>
@@ -592,10 +952,26 @@ function createFirstCategory() {
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
 					:can-edit="canEditTemplates"
-					@select-grade="selectedGradeId = $event"
-					@select-variant="selectedVariantId = $event"
+					:selected-grade-ids="selectedGradeIdsForEditor"
+					:selected-variant-ids="selectedVariantIdsForEditor"
+					:selected-sentence-part-indexes="selectedSentencePartIndexesForEditor"
+					:can-paste-grades="canPasteGrades"
+					:can-paste-variants="canPasteVariants"
+					:can-paste-sentence-parts="canPasteSentenceParts"
+					@select-grade="handleSelectGrade"
+					@select-variant="handleSelectVariant"
+					@select-sentence-part="handleSelectSentencePart"
+					@context-open-grade="handleContextOpen('grade', $event)"
+					@context-open-variant="handleContextOpen('variant', $event)"
+					@context-open-sentence-part="handleContextOpen('sentencePart', String($event))"
+					@context-action-grade="handleGradeContextAction"
+					@context-action-variant="handleVariantContextAction"
+					@context-action-sentence-part="handleSentencePartContextAction"
 					@add-grade="addGradeAndSelect"
 					@add-variant="addVariantAndSelect"
+					@paste-grades="pasteGradesFromClipboard"
+					@paste-variants="pasteVariantsFromClipboard"
+					@paste-sentence-parts="pasteSentencePartsFromClipboard"
 					@edit-grade-label="handleEditGradeLabel"
 					@delete-grade="handleDeleteGrade"
 					@edit-variant-label="handleEditVariantLabel"
@@ -626,10 +1002,26 @@ function createFirstCategory() {
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
 					:can-edit="canEditTemplates"
-					@select-grade="selectedGradeId = $event"
-					@select-variant="selectedVariantId = $event"
+					:selected-grade-ids="selectedGradeIdsForEditor"
+					:selected-variant-ids="selectedVariantIdsForEditor"
+					:selected-sentence-part-indexes="selectedSentencePartIndexesForEditor"
+					:can-paste-grades="canPasteGrades"
+					:can-paste-variants="canPasteVariants"
+					:can-paste-sentence-parts="canPasteSentenceParts"
+					@select-grade="handleSelectGrade"
+					@select-variant="handleSelectVariant"
+					@select-sentence-part="handleSelectSentencePart"
+					@context-open-grade="handleContextOpen('grade', $event)"
+					@context-open-variant="handleContextOpen('variant', $event)"
+					@context-open-sentence-part="handleContextOpen('sentencePart', String($event))"
+					@context-action-grade="handleGradeContextAction"
+					@context-action-variant="handleVariantContextAction"
+					@context-action-sentence-part="handleSentencePartContextAction"
 					@add-grade="addGradeAndSelect"
 					@add-variant="addVariantAndSelect"
+					@paste-grades="pasteGradesFromClipboard"
+					@paste-variants="pasteVariantsFromClipboard"
+					@paste-sentence-parts="pasteSentencePartsFromClipboard"
 					@edit-grade-label="handleEditGradeLabel"
 					@delete-grade="handleDeleteGrade"
 					@edit-variant-label="handleEditVariantLabel"

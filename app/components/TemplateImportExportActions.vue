@@ -62,13 +62,15 @@ const {
 		</div>
 	</template>
 
-	<input
-		ref="importFileInput"
-		type="file"
-		class="hidden"
-		accept=".azset,application/json"
-		@change="onImportAzsetFileChange"
-	/>
+	<Teleport to="body">
+		<input
+			ref="importFileInput"
+			type="file"
+			class="sr-only"
+			accept=".azset,application/json"
+			@change="onImportAzsetFileChange"
+		/>
+	</Teleport>
 
 	<UModal
 		v-model:open="importDialog.open.value"

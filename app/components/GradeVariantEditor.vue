@@ -6,13 +6,29 @@ const props = defineProps<{
 	selectedGradeId: string | null
 	selectedVariantId: string | null
 	canEdit: boolean
+	selectedGradeIds: string[]
+	selectedVariantIds: string[]
+	selectedSentencePartIndexes: number[]
+	canPasteGrades: boolean
+	canPasteVariants: boolean
+	canPasteSentenceParts: boolean
 }>()
 
 const emit = defineEmits<{
-	selectGrade: [gradeId: string]
-	selectVariant: [variantId: string]
+	selectGrade: [gradeId: string, event: MouseEvent | KeyboardEvent]
+	selectVariant: [variantId: string, event: MouseEvent | KeyboardEvent]
+	selectSentencePart: [partIndex: number, event: MouseEvent | KeyboardEvent]
+	contextOpenGrade: [gradeId: string]
+	contextOpenVariant: [variantId: string]
+	contextOpenSentencePart: [partIndex: number]
+	contextActionGrade: [action: 'copy' | 'cut' | 'paste', gradeId: string]
+	contextActionVariant: [action: 'copy' | 'cut' | 'paste', variantId: string]
+	contextActionSentencePart: [action: 'copy' | 'cut' | 'paste', partIndex: number]
 	addGrade: []
 	addVariant: []
+	pasteGrades: []
+	pasteVariants: []
+	pasteSentenceParts: []
 	reorderGrades: [oldIndex: number, newIndex: number]
 	reorderVariants: [oldIndex: number, newIndex: number]
 	editGradeLabel: [gradeId: string, currentLabel: string, currentValue: number | undefined]
@@ -71,20 +87,39 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 		<section>
 			<div class="flex items-center justify-between gap-2">
 				<h3 class="text-sm font-medium text-default">Notenstufen</h3>
-				<UButton
-					v-if="canEdit"
-					label="Notenstufe hinzufügen"
-					icon="i-lucide-plus"
-					size="sm"
-					@click="emit('addGrade')"
-				/>
+				<div v-if="canEdit" class="flex flex-wrap justify-end gap-2">
+					<UButton
+						label="Aus Zwischenablage"
+						icon="i-lucide-clipboard-paste"
+						size="sm"
+						variant="soft"
+						:disabled="!canPasteGrades"
+						@click="emit('pasteGrades')"
+					/>
+					<UButton
+						label="Notenstufe hinzufügen"
+						icon="i-lucide-plus"
+						size="sm"
+						@click="emit('addGrade')"
+					/>
+				</div>
 			</div>
 			<SortableSelectablePills
 				class="mt-2"
 				:items="category.grades"
 				:active-id="selectedGradeId"
 				:can-edit="canEdit"
-				@select="emit('selectGrade', $event)"
+				:selected-ids="selectedGradeIds"
+				:can-paste="canPasteGrades"
+				@select="
+					(gradeId, event) =>
+						emit('selectGrade', gradeId, event)
+				"
+				@context-open="emit('contextOpenGrade', $event)"
+				@context-action="
+					(action, gradeId) =>
+						emit('contextActionGrade', action, gradeId)
+				"
 				@reorder="
 					(oldIndex, newIndex) =>
 						emit('reorderGrades', oldIndex, newIndex)
@@ -126,20 +161,39 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 				<h3 class="text-sm font-medium text-default">
 					Varianten (Notenstufe {{ selectedGradeData.label }})
 				</h3>
-				<UButton
-					v-if="canEdit"
-					label="Variante hinzufügen"
-					icon="i-lucide-plus"
-					size="sm"
-					@click="emit('addVariant')"
-				/>
+				<div v-if="canEdit" class="flex flex-wrap justify-end gap-2">
+					<UButton
+						label="Aus Zwischenablage"
+						icon="i-lucide-clipboard-paste"
+						size="sm"
+						variant="soft"
+						:disabled="!canPasteVariants"
+						@click="emit('pasteVariants')"
+					/>
+					<UButton
+						label="Variante hinzufügen"
+						icon="i-lucide-plus"
+						size="sm"
+						@click="emit('addVariant')"
+					/>
+				</div>
 			</div>
 			<SortableSelectablePills
 				class="mt-2"
 				:items="selectedGradeVariants"
 				:active-id="selectedVariantId"
 				:can-edit="canEdit"
-				@select="emit('selectVariant', $event)"
+				:selected-ids="selectedVariantIds"
+				:can-paste="canPasteVariants"
+				@select="
+					(variantId, event) =>
+						emit('selectVariant', variantId, event)
+				"
+				@context-open="emit('contextOpenVariant', $event)"
+				@context-action="
+					(action, variantId) =>
+						emit('contextActionVariant', action, variantId)
+				"
 				@reorder="
 					(oldIndex, newIndex) =>
 						emit('reorderVariants', oldIndex, newIndex)
@@ -184,8 +238,20 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 			<SortablePillList
 				:parts="sentencePartsList"
 				:can-edit="canEdit"
+				:selected-indexes="selectedSentencePartIndexes"
+				:can-paste="canPasteSentenceParts"
 				@reorder="onSentencePartsReorder"
 				@add="emit('addSentencePart')"
+				@paste-from-clipboard="emit('pasteSentenceParts')"
+				@select="
+					(partIndex, event) =>
+						emit('selectSentencePart', partIndex, event)
+				"
+				@context-open="emit('contextOpenSentencePart', $event)"
+				@context-action="
+					(action, partIndex) =>
+						emit('contextActionSentencePart', action, partIndex)
+				"
 			>
 				<template #label="{ part }">
 					{{ sentencePartLabel(part) }}

@@ -6,18 +6,24 @@ export interface SortablePillItem {
 	label: string
 }
 
+type PillContextMenuAction = 'copy' | 'cut' | 'paste'
+
 const props = withDefaults(
 	defineProps<{
 		items: SortablePillItem[]
 		activeId: string | null
+		selectedIds?: string[]
 		canEdit?: boolean
+		canPaste?: boolean
 	}>(),
-	{ canEdit: false },
+	{ selectedIds: () => [], canEdit: false, canPaste: false },
 )
 
 const emit = defineEmits<{
-	select: [id: string]
+	select: [id: string, event: MouseEvent | KeyboardEvent]
 	reorder: [oldIndex: number, newIndex: number]
+	contextOpen: [id: string]
+	contextAction: [action: PillContextMenuAction, id: string]
 }>()
 
 const listRef = ref<HTMLElement | null>(null)
@@ -41,23 +47,53 @@ useSortable(listRef, localList, {
 		emit('reorder', oldIndex, newIndex)
 	},
 })
+
+function contextMenuItems(item: SortablePillItem) {
+	return [
+		[
+			{
+				label: 'Kopieren',
+				icon: 'i-lucide-copy',
+				onSelect: () => emit('contextAction', 'copy', item.id),
+			},
+			{
+				label: 'Ausschneiden',
+				icon: 'i-lucide-scissors',
+				disabled: !props.canEdit,
+				onSelect: () => emit('contextAction', 'cut', item.id),
+			},
+			{
+				label: 'Einfügen',
+				icon: 'i-lucide-clipboard-paste',
+				disabled: !props.canEdit || !props.canPaste,
+				onSelect: () => emit('contextAction', 'paste', item.id),
+			},
+		],
+	]
+}
 </script>
 
 <template>
 	<div ref="listRef" class="flex flex-wrap items-center gap-2">
-		<TemplatePill
+		<UContextMenu
 			v-for="item in localList"
 			:key="item.id"
-			:label="item.label"
-			:show-drag-handle="canEdit"
-			:can-edit="canEdit"
-			:active="activeId === item.id"
-			selectable
-			@click="emit('select', item.id)"
+			:items="contextMenuItems(item)"
 		>
-			<template v-if="canEdit" #actions>
-				<slot name="actions" :item="item" />
-			</template>
-		</TemplatePill>
+			<TemplatePill
+				:label="item.label"
+				:show-drag-handle="canEdit"
+				:can-edit="canEdit"
+				:active="activeId === item.id"
+				:selected="selectedIds.includes(item.id)"
+				selectable
+				@click="emit('select', item.id, $event)"
+				@contextmenu="emit('contextOpen', item.id)"
+			>
+				<template v-if="canEdit" #actions>
+					<slot name="actions" :item="item" />
+				</template>
+			</TemplatePill>
+		</UContextMenu>
 	</div>
 </template>

@@ -4,6 +4,7 @@ import { toRaw, toValue } from 'vue'
 import { useTemplatesStore } from '~/stores/templates'
 import { randomId } from '~/utils/randomId'
 import type {
+	Grade,
 	SentencePart,
 	Subject,
 	TemplateSet,
@@ -279,6 +280,28 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function insertGrades(subjectId: string, categoryId: string, grades: Grade[], atIndex?: number) {
+		if (!grades.length) return
+		updateSet((draft) => {
+			const c = draft.subjects.find((s) => s.id === subjectId)?.categories.find((cat) => cat.id === categoryId)
+			if (!c) return
+			const index = atIndex === undefined
+				? c.grades.length
+				: Math.max(0, Math.min(atIndex, c.grades.length))
+			c.grades.splice(index, 0, ...grades)
+		})
+	}
+
+	function deleteGrades(subjectId: string, categoryId: string, gradeIds: string[]) {
+		if (!gradeIds.length) return
+		const ids = new Set(gradeIds)
+		updateSet((draft) => {
+			const c = draft.subjects.find((s) => s.id === subjectId)?.categories.find((cat) => cat.id === categoryId)
+			if (!c) return
+			c.grades = c.grades.filter((grade) => !ids.has(grade.id))
+		})
+	}
+
 	// --- Variants ---
 
 	function addVariant(subjectId: string, categoryId: string, gradeId: string): string {
@@ -324,6 +347,32 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function insertVariants(subjectId: string, categoryId: string, gradeId: string, variants: Variant[], atIndex?: number) {
+		if (!variants.length) return
+		updateSet((draft) => {
+			const g = draft.subjects.find((s) => s.id === subjectId)
+				?.categories.find((c) => c.id === categoryId)
+				?.grades.find((grade) => grade.id === gradeId)
+			if (!g) return
+			const index = atIndex === undefined
+				? g.variants.length
+				: Math.max(0, Math.min(atIndex, g.variants.length))
+			g.variants.splice(index, 0, ...variants)
+		})
+	}
+
+	function deleteVariants(subjectId: string, categoryId: string, gradeId: string, variantIds: string[]) {
+		if (!variantIds.length) return
+		const ids = new Set(variantIds)
+		updateSet((draft) => {
+			const g = draft.subjects.find((s) => s.id === subjectId)
+				?.categories.find((c) => c.id === categoryId)
+				?.grades.find((grade) => grade.id === gradeId)
+			if (!g) return
+			g.variants = g.variants.filter((variant) => !ids.has(variant.id))
+		})
+	}
+
 	// --- Sentence Parts ---
 
 	function findVariant(draft: TemplateSet, sId: string, cId: string, gId: string, vId: string): Variant | undefined {
@@ -365,6 +414,33 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function insertSentenceParts(subjectId: string, categoryId: string, gradeId: string, variantId: string, parts: SentencePart[], atIndex?: number) {
+		if (!parts.length) return
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			const index = atIndex === undefined
+				? v.sentences.length
+				: Math.max(0, Math.min(atIndex, v.sentences.length))
+			v.sentences.splice(index, 0, ...parts)
+		})
+	}
+
+	function deleteSentenceParts(subjectId: string, categoryId: string, gradeId: string, variantId: string, partIndexes: number[]) {
+		if (!partIndexes.length) return
+		const sortedIndexes = [...new Set(partIndexes)]
+			.filter((index) => Number.isInteger(index) && index >= 0)
+			.sort((a, b) => b - a)
+		if (!sortedIndexes.length) return
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			for (const index of sortedIndexes) {
+				if (index < v.sentences.length) v.sentences.splice(index, 1)
+			}
+		})
+	}
+
 	return {
 		setRef,
 		getSet,
@@ -384,13 +460,19 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		updateGradeLabel,
 		updateGradeValue,
 		reorderGrades,
+		insertGrades,
+		deleteGrades,
 		addVariant,
 		deleteVariant,
 		updateVariantLabel,
 		reorderVariants,
+		insertVariants,
+		deleteVariants,
 		addSentencePart,
 		updateSentencePart,
 		deleteSentencePart,
 		reorderSentenceParts,
+		insertSentenceParts,
+		deleteSentenceParts,
 	}
 }

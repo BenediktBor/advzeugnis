@@ -46,6 +46,27 @@ export const TemplateSetSchema = z.object({
 
 export const TemplateSetsRecordSchema = z.record(z.string().uuid(), TemplateSetSchema)
 
+export const TemplateClipboardPayloadSchema = z.discriminatedUnion('kind', [
+	z.object({
+		kind: z.literal('grade'),
+		items: z.array(GradeSchema),
+		copiedAt: z.number().finite(),
+		sourceLabel: z.string().optional(),
+	}),
+	z.object({
+		kind: z.literal('variant'),
+		items: z.array(VariantSchema),
+		copiedAt: z.number().finite(),
+		sourceLabel: z.string().optional(),
+	}),
+	z.object({
+		kind: z.literal('sentencePart'),
+		items: z.array(SentencePartSchema),
+		copiedAt: z.number().finite(),
+		sourceLabel: z.string().optional(),
+	}),
+])
+
 // Payload for exporting/importing all template sets as a single `.azset` file.
 // Includes ordering metadata (`orderedIds`) so template UI stays stable.
 export const AzSetExportPayloadSchema = z.object({
@@ -66,3 +87,4 @@ export const AzSubjectExportPayloadSchema = z.object({
 export type AzSetExportPayload = z.infer<typeof AzSetExportPayloadSchema>
 export type AdvZeUExportPayload = AzSetExportPayload
 export type AzSubjectExportPayload = z.infer<typeof AzSubjectExportPayloadSchema>
+export type TemplateClipboardPayloadInput = z.infer<typeof TemplateClipboardPayloadSchema>
