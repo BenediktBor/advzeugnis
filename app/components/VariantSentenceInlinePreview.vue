@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { NamePartReplacementKey } from '~/types/student'
-import type { SentencePart, Variant } from '~/types/template'
+import type { OptionalGroupChildPart, SentencePart, Variant } from '~/types/template'
 import { resolveGenderVariantValue, resolveNamePartReplacement } from '~/utils/reportText'
 
 type NameSelectionValue = NamePartReplacementKey | 'name'
+type InlinePart = SentencePart | OptionalGroupChildPart
 
 const props = withDefaults(
 	defineProps<{
@@ -11,7 +12,7 @@ const props = withDefaults(
 		previewText: string
 		previewName: string
 		previewGender: 'male' | 'female'
-		namePartSelections?: Record<number, NameSelectionValue>
+		namePartSelections?: Record<string, NameSelectionValue>
 		optionalPartEnabledMap?: Record<string, boolean>
 		showNameReplacementSelect?: boolean
 		canEditOptional?: boolean
@@ -27,16 +28,32 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-	toggleOptionalText: [partId: string, enabled: boolean]
-	setNamePartSelection: [partIndex: number, value: NameSelectionValue]
+	toggleOptionalGroup: [partId: string, enabled: boolean]
+	setNamePartSelection: [partPath: string, value: NameSelectionValue]
 }>()
 
-function isOptionalEnabled(part: Extract<SentencePart, { type: 'optionalText' }>): boolean {
+function isOptionalEnabled(part: Extract<SentencePart, { type: 'optionalGroup' }>): boolean {
 	return props.optionalPartEnabledMap[part.id] ?? part.enabledByDefault
 }
 
-function partSelection(partIndex: number): NameSelectionValue {
-	return props.namePartSelections[partIndex] ?? 'name'
+function isOptionalGroup(part: SentencePart): part is Extract<SentencePart, { type: 'optionalGroup' }> {
+	return part.type === 'optionalGroup'
+}
+
+function optionalGroupId(part: SentencePart): string {
+	return isOptionalGroup(part) ? part.id : ''
+}
+
+function optionalGroupParts(part: SentencePart): OptionalGroupChildPart[] {
+	return isOptionalGroup(part) ? part.parts : []
+}
+
+function optionalGroupEnabled(part: SentencePart): boolean {
+	return isOptionalGroup(part) && isOptionalEnabled(part)
+}
+
+function partSelection(partPath: string): NameSelectionValue {
+	return props.namePartSelections[partPath] ?? 'name'
 }
 
 function isSentenceStart(partsBefore: string[]): boolean {
@@ -52,22 +69,44 @@ function resolvedInlinePartsBefore(partIndex: number): string[] {
 	const resolvedParts: string[] = []
 	for (const [index, part] of props.variant.sentences.entries()) {
 		if (index >= partIndex) break
-		const text = resolveInlinePart(part, index, resolvedParts).trim()
+		const text = resolveInlinePart(part, String(index), resolvedParts).trim()
 		if (text) resolvedParts.push(text)
 	}
 	return resolvedParts
 }
 
-function resolveInlinePart(part: SentencePart, partIndex: number, partsBefore: string[] = []): string {
+function groupChildResolvedPartsBefore(groupIndex: number, childIndex: number): string[] {
+	const group = props.variant.sentences[groupIndex]
+	const resolvedParts = resolvedInlinePartsBefore(groupIndex)
+	if (group?.type !== 'optionalGroup') return resolvedParts
+	for (const [index, part] of group.parts.entries()) {
+		if (index >= childIndex) break
+		const text = resolveInlinePart(part, `${groupIndex}.${index}`, resolvedParts).trim()
+		if (text) resolvedParts.push(text)
+	}
+	return resolvedParts
+}
+
+function resolveInlinePart(part: InlinePart, partPath: string, partsBefore: string[] = []): string {
 	switch (part.type) {
 		case 'text':
 			return part.value
 		case 'genderVariant':
 			return resolveGenderVariantValue(part.value, props.previewGender)
-		case 'optionalText':
-			return isOptionalEnabled(part) ? part.value : ''
+		case 'optionalGroup': {
+			if (!isOptionalEnabled(part)) return ''
+			const resolvedParts = [...partsBefore]
+			const groupParts: string[] = []
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				const text = resolveInlinePart(childPart, `${partPath}.${childIndex}`, resolvedParts).trim()
+				if (!text) continue
+				groupParts.push(text)
+				resolvedParts.push(text)
+			}
+			return groupParts.join(' ')
+		}
 		case 'name': {
-			const selection = partSelection(partIndex)
+			const selection = partSelection(partPath)
 			if (selection !== 'name') {
 				return resolveNamePartReplacement(selection, props.previewGender, isSentenceStart(partsBefore))
 			}
@@ -81,7 +120,7 @@ function resolveInlinePart(part: SentencePart, partIndex: number, partsBefore: s
 const inlineResolvedText = computed(() => {
 	const resolvedParts: string[] = []
 	for (const [partIndex, part] of props.variant.sentences.entries()) {
-		const text = resolveInlinePart(part, partIndex, resolvedParts).trim()
+		const text = resolveInlinePart(part, String(partIndex), resolvedParts).trim()
 		if (text) resolvedParts.push(text)
 	}
 	return resolvedParts.join(' ')
@@ -101,26 +140,9 @@ const previewSuffix = computed(() => {
 			v-for="(part, partIndex) in variant.sentences"
 			:key="`${variant.id}-${partIndex}`"
 		>
-			<label
-				v-if="part.type === 'optionalText'"
-				class="mr-1.5 inline-flex items-center gap-1.5 align-middle rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
-			>
-				<UCheckbox
-					:model-value="isOptionalEnabled(part)"
-					:disabled="!canEditOptional"
-					:aria-label="`${part.value} ein- oder ausblenden`"
-					size="xs"
-					@update:model-value="emit('toggleOptionalText', part.id, Boolean($event))"
-				/>
-				<span
-					:class="isOptionalEnabled(part) ? 'text-default' : 'text-muted line-through'"
-				>
-					{{ part.value }}
-				</span>
-			</label>
 			<USelectMenu
-				v-else-if="part.type === 'name' && showNameReplacementSelect"
-				:model-value="partSelection(partIndex)"
+				v-if="part.type === 'name' && showNameReplacementSelect"
+				:model-value="partSelection(String(partIndex))"
 				:items="[
 					{ label: previewName || 'Name', value: 'name' },
 					{ label: 'Er/Sie', value: 'erSie' },
@@ -128,13 +150,53 @@ const previewSuffix = computed(() => {
 				value-key="value"
 				size="xs"
 				class="mr-1.5 inline-block w-auto min-w-20 align-middle"
-				@update:model-value="emit('setNamePartSelection', partIndex, (($event as NameSelectionValue) ?? 'name'))"
+				@update:model-value="emit('setNamePartSelection', String(partIndex), (($event as NameSelectionValue) ?? 'name'))"
 			/>
+			<label
+				v-else-if="isOptionalGroup(part)"
+				class="mr-1.5 inline-flex items-center gap-1.5 align-middle rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
+			>
+				<UCheckbox
+					:model-value="optionalGroupEnabled(part)"
+					:disabled="!canEditOptional"
+					aria-label="Optionale Gruppe ein- oder ausblenden"
+					size="xs"
+					@update:model-value="emit('toggleOptionalGroup', optionalGroupId(part), Boolean($event))"
+				/>
+				<span
+					:class="optionalGroupEnabled(part) ? 'text-default' : 'text-muted line-through'"
+				>
+					<template
+						v-for="(childPart, childIndex) in optionalGroupParts(part)"
+						:key="`${variant.id}-${partIndex}-${childIndex}`"
+					>
+						<USelectMenu
+							v-if="childPart.type === 'name' && showNameReplacementSelect && optionalGroupEnabled(part)"
+							:model-value="partSelection(`${partIndex}.${childIndex}`)"
+							:items="[
+								{ label: previewName || 'Name', value: 'name' },
+								{ label: 'Er/Sie', value: 'erSie' },
+							]"
+							value-key="value"
+							size="xs"
+							class="mr-1.5 inline-block w-auto min-w-20 align-middle"
+							@update:model-value="emit('setNamePartSelection', `${partIndex}.${childIndex}`, (($event as NameSelectionValue) ?? 'name'))"
+						/>
+						<span
+							v-else-if="resolveInlinePart(childPart, `${partIndex}.${childIndex}`, groupChildResolvedPartsBefore(partIndex, childIndex)).trim()"
+							class="mr-1.5 align-middle"
+						>
+							{{ resolveInlinePart(childPart, `${partIndex}.${childIndex}`, groupChildResolvedPartsBefore(partIndex, childIndex)).trim() }}
+						</span>
+					</template>
+					<span v-if="optionalGroupParts(part).length === 0" class="text-muted">(leer)</span>
+				</span>
+			</label>
 			<span
-				v-else-if="resolveInlinePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim()"
+				v-else-if="resolveInlinePart(part, String(partIndex), resolvedInlinePartsBefore(partIndex)).trim()"
 				class="mr-1.5 align-middle"
 			>
-				{{ resolveInlinePart(part, partIndex, resolvedInlinePartsBefore(partIndex)).trim() }}
+				{{ resolveInlinePart(part, String(partIndex), resolvedInlinePartsBefore(partIndex)).trim() }}
 			</span>
 		</template>
 		<span v-if="previewSuffix" class="-ml-1.5">{{ previewSuffix }}</span>

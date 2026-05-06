@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod'
+import type { ZodType, ZodTypeDef } from 'zod'
 
 export type JsonParseResult<T> =
 	| { ok: true; data: T }
@@ -27,7 +27,7 @@ export function downloadJsonFile(payload: unknown, filename: string) {
 	URL.revokeObjectURL(url)
 }
 
-export function parseJsonText<T>(rawText: string, schema: ZodType<T>): JsonParseResult<T> {
+export function parseJsonText<T>(rawText: string, schema: ZodType<T, ZodTypeDef, unknown>): JsonParseResult<T> {
 	let payload: unknown
 
 	try {
@@ -43,7 +43,7 @@ export function parseJsonText<T>(rawText: string, schema: ZodType<T>): JsonParse
 
 export async function readJsonFile<T>(
 	file: Pick<File, 'text'>,
-	schema: ZodType<T>,
+	schema: ZodType<T, ZodTypeDef, unknown>,
 ): Promise<JsonParseResult<T>> {
 	return parseJsonText(await file.text(), schema)
 }

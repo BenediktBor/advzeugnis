@@ -93,4 +93,50 @@ describe('useTemplates bulk mutations', () => {
 
 		expect(store.record[setId]).toEqual(makeTemplateSet())
 	})
+
+	it('mutates optional group sentence parts', () => {
+		const store = useTemplatesStore()
+		const templateSet = makeTemplateSet()
+		templateSet.subjects[0]!.categories[0]!.grades[0]!.variants[0]!.sentences = [
+			{
+				type: 'optionalGroup',
+				id: '66666666-6666-6666-6666-666666666666',
+				enabledByDefault: true,
+				parts: [{ type: 'text', value: 'A' }],
+			},
+			{ type: 'text', value: 'Root' },
+			{
+				type: 'optionalGroup',
+				id: '77777777-7777-7777-7777-777777777777',
+				enabledByDefault: false,
+				parts: [],
+			},
+		]
+		store.saveSetData(setId, templateSet)
+		const templates = useTemplates(ref(setId))
+
+		templates.addOptionalGroupPart(subjectId, categoryId, gradeId, variantId, 0, { type: 'name' })
+		templates.reorderOptionalGroupParts(subjectId, categoryId, gradeId, variantId, 0, 1, 0)
+		templates.updateSentencePartAtPath(subjectId, categoryId, gradeId, variantId, { partIndex: 0, childIndex: 1 }, { type: 'text', value: 'B' })
+		templates.moveSentencePartToOptionalGroup(subjectId, categoryId, gradeId, variantId, 1, 0, 1)
+		templates.moveOptionalGroupPartToOptionalGroup(subjectId, categoryId, gradeId, variantId, 0, 1, 1, 0)
+		templates.moveOptionalGroupPartToRoot(subjectId, categoryId, gradeId, variantId, 1, 0, 1)
+		templates.deleteSentencePartAtPath(subjectId, categoryId, gradeId, variantId, { partIndex: 0, childIndex: 1 })
+
+		expect(store.record[setId]?.subjects[0]?.categories[0]?.grades[0]?.variants[0]?.sentences).toEqual([
+			{
+				type: 'optionalGroup',
+				id: '66666666-6666-6666-6666-666666666666',
+				enabledByDefault: true,
+				parts: [{ type: 'name' }],
+			},
+			{ type: 'text', value: 'Root' },
+			{
+				type: 'optionalGroup',
+				id: '77777777-7777-7777-7777-777777777777',
+				enabledByDefault: false,
+				parts: [],
+			},
+		])
+	})
 })

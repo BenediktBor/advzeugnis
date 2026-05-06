@@ -3,6 +3,7 @@ import {
 	AzSetExportPayloadSchema,
 	AzSubjectExportPayloadSchema,
 	SentencePartSchema,
+	TemplateSetSchema,
 } from '~/schemas/template'
 import { StudentSchema } from '~/schemas/student'
 
@@ -275,7 +276,7 @@ describe('AzSetExportPayloadSchema', () => {
 })
 
 describe('SentencePartSchema', () => {
-	it('accepts optional text sentence parts', () => {
+	it('rejects legacy optional text sentence parts', () => {
 		const result = SentencePartSchema.safeParse({
 			type: 'optionalText',
 			id: '66666666-6666-6666-6666-666666666666',
@@ -283,18 +284,87 @@ describe('SentencePartSchema', () => {
 			enabledByDefault: true,
 		})
 
+		expect(result.success).toBe(false)
+	})
+
+	it('accepts optional group sentence parts', () => {
+		const result = SentencePartSchema.safeParse({
+			type: 'optionalGroup',
+			id: '77777777-7777-7777-7777-777777777777',
+			enabledByDefault: true,
+			parts: [
+				{ type: 'text', value: 'arbeitet' },
+				{ type: 'genderVariant', value: ['konzentriert', 'konzentriert'] },
+				{ type: 'name' },
+			],
+		})
+
 		expect(result.success).toBe(true)
 	})
 
-	it('rejects optional text sentence parts with invalid fields', () => {
+	it('rejects nested optional group sentence parts', () => {
 		const result = SentencePartSchema.safeParse({
-			type: 'optionalText',
-			id: 'not-a-uuid',
-			value: 'arbeitet besonders sorgfältig',
-			enabledByDefault: 'yes',
+			type: 'optionalGroup',
+			id: '77777777-7777-7777-7777-777777777777',
+			enabledByDefault: true,
+			parts: [
+				{
+					type: 'optionalGroup',
+					id: '88888888-8888-8888-8888-888888888888',
+					enabledByDefault: true,
+					parts: [],
+				},
+			],
 		})
 
 		expect(result.success).toBe(false)
+	})
+
+	it('migrates legacy optional text before validating template sets', () => {
+		const result = TemplateSetSchema.safeParse({
+			id: '11111111-1111-1111-1111-111111111111',
+			label: 'Klasse 1',
+			subjects: [
+				{
+					id: '22222222-2222-2222-2222-222222222222',
+					label: 'Mathe',
+					categories: [
+						{
+							id: '33333333-3333-3333-3333-333333333333',
+							label: 'Rechnen',
+							grades: [
+								{
+									id: '44444444-4444-4444-4444-444444444444',
+									label: '1',
+									variants: [
+										{
+											id: '55555555-5555-5555-5555-555555555555',
+											label: '1',
+											sentences: [
+												{
+													type: 'optionalText',
+													id: '66666666-6666-6666-6666-666666666666',
+													value: 'arbeitet besonders sorgfältig',
+													enabledByDefault: false,
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		})
+
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.subjects[0]?.categories[0]?.grades[0]?.variants[0]?.sentences[0]).toEqual({
+			type: 'optionalGroup',
+			id: '66666666-6666-6666-6666-666666666666',
+			enabledByDefault: false,
+			parts: [{ type: 'text', value: 'arbeitet besonders sorgfältig' }],
+		})
 	})
 })
 

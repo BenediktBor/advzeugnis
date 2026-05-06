@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Category, SentencePart, Variant } from '~/types/template'
+import type { Category, OptionalGroupChildPart, SentencePart, SentencePartPath, Variant } from '~/types/template'
 
 const props = defineProps<{
 	category: Category
@@ -8,7 +8,7 @@ const props = defineProps<{
 	canEdit: boolean
 	selectedGradeIds: string[]
 	selectedVariantIds: string[]
-	selectedSentencePartIndexes: number[]
+	selectedSentencePartIds: string[]
 	canPasteGrades: boolean
 	canPasteVariants: boolean
 	canPasteSentenceParts: boolean
@@ -17,13 +17,13 @@ const props = defineProps<{
 const emit = defineEmits<{
 	selectGrade: [gradeId: string, event: MouseEvent | KeyboardEvent]
 	selectVariant: [variantId: string, event: MouseEvent | KeyboardEvent]
-	selectSentencePart: [partIndex: number, event: MouseEvent | KeyboardEvent]
+	selectSentencePart: [path: SentencePartPath, event: MouseEvent | KeyboardEvent]
 	contextOpenGrade: [gradeId: string]
 	contextOpenVariant: [variantId: string]
-	contextOpenSentencePart: [partIndex: number]
+	contextOpenSentencePart: [path: SentencePartPath]
 	contextActionGrade: [action: 'copy' | 'cut' | 'paste', gradeId: string]
 	contextActionVariant: [action: 'copy' | 'cut' | 'paste', variantId: string]
-	contextActionSentencePart: [action: 'copy' | 'cut' | 'paste', partIndex: number]
+	contextActionSentencePart: [action: 'copy' | 'cut' | 'paste', path: SentencePartPath]
 	addGrade: []
 	addVariant: []
 	pasteGrades: []
@@ -36,10 +36,15 @@ const emit = defineEmits<{
 	editVariantLabel: [variantId: string, currentLabel: string]
 	deleteVariant: [variantId: string, label: string]
 	addSentencePart: []
-	editSentencePart: [part: SentencePart, partIndex: number]
-	deleteSentencePart: [partIndex: number]
+	addSentencePartToGroup: [groupIndex: number]
+	editSentencePart: [part: SentencePart | OptionalGroupChildPart, path: SentencePartPath]
+	deleteSentencePart: [path: SentencePartPath]
 	reorderSentenceParts: [oldIndex: number, newIndex: number]
-	toggleOptionalTextDefault: [partIndex: number, enabledByDefault: boolean]
+	reorderOptionalGroupParts: [groupIndex: number, oldIndex: number, newIndex: number]
+	moveSentencePartToGroup: [fromIndex: number, groupIndex: number, childIndex?: number]
+	moveSentencePartFromGroup: [groupIndex: number, childIndex: number, toIndex?: number]
+	moveSentencePartBetweenGroups: [fromGroupIndex: number, childIndex: number, toGroupIndex: number, toChildIndex?: number]
+	toggleOptionalGroupDefault: [partIndex: number, enabledByDefault: boolean]
 }>()
 
 const selectedGradeData = computed(() => {
@@ -61,13 +66,13 @@ watch(
 	{ immediate: true }
 )
 
-function sentencePartLabel(part: SentencePart): string {
+function sentencePartLabel(part: SentencePart | OptionalGroupChildPart): string {
 	switch (part.type) {
 		case 'text': return part.value || '(leer)'
 		case 'genderVariant': return `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
 		case 'name': return 'Name'
-		case 'optionalText':
-			return `Optional (${part.enabledByDefault ? 'aktiv' : 'inaktiv'}): ${part.value || '(leer)'}`
+		case 'optionalGroup':
+			return `Optionale Gruppe (${part.enabledByDefault ? 'aktiv' : 'inaktiv'})`
 		default: return ''
 	}
 }
@@ -79,6 +84,14 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 			sentencePartsList.value = [...selectedVariantData.value.sentences]
 		}
 	})
+}
+
+function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGroupChildPart | null {
+	const part = selectedVariantData.value?.sentences[path.partIndex]
+	if (!part) return null
+	if (path.childIndex === undefined) return part
+	if (part.type !== 'optionalGroup') return null
+	return part.parts[path.childIndex] ?? null
 }
 </script>
 
@@ -238,33 +251,61 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 			<SortablePillList
 				:parts="sentencePartsList"
 				:can-edit="canEdit"
-				:selected-indexes="selectedSentencePartIndexes"
+				:selected-ids="selectedSentencePartIds"
 				:can-paste="canPasteSentenceParts"
 				@reorder="onSentencePartsReorder"
+				@reorder-group="
+					(groupIndex, oldIndex, newIndex) =>
+						emit('reorderOptionalGroupParts', groupIndex, oldIndex, newIndex)
+				"
+				@move-to-group="
+					(fromIndex, groupIndex, childIndex) =>
+						emit('moveSentencePartToGroup', fromIndex, groupIndex, childIndex)
+				"
+				@move-from-group="
+					(groupIndex, childIndex, toIndex) =>
+						emit('moveSentencePartFromGroup', groupIndex, childIndex, toIndex)
+				"
+				@move-between-groups="
+					(fromGroupIndex, childIndex, toGroupIndex, toChildIndex) =>
+						emit('moveSentencePartBetweenGroups', fromGroupIndex, childIndex, toGroupIndex, toChildIndex)
+				"
 				@add="emit('addSentencePart')"
+				@add-to-group="emit('addSentencePartToGroup', $event)"
 				@paste-from-clipboard="emit('pasteSentenceParts')"
+				@toggle-group-default="
+					(partIndex, enabledByDefault) =>
+						emit('toggleOptionalGroupDefault', partIndex, enabledByDefault)
+				"
 				@select="
-					(partIndex, event) =>
-						emit('selectSentencePart', partIndex, event)
+					(path, event) =>
+						emit('selectSentencePart', path, event)
 				"
 				@context-open="emit('contextOpenSentencePart', $event)"
 				@context-action="
-					(action, partIndex) =>
-						emit('contextActionSentencePart', action, partIndex)
+					(action, path) =>
+						emit('contextActionSentencePart', action, path)
 				"
+				@edit="
+					(path) => {
+						const part = sentencePartAtPath(path)
+						if (part) emit('editSentencePart', part, path)
+					}
+				"
+				@delete="emit('deleteSentencePart', $event)"
 			>
 				<template #label="{ part }">
 					{{ sentencePartLabel(part) }}
 				</template>
 				<template #actions="{ part, partIndex }">
 					<UButton
-						v-if="part.type === 'text' || part.type === 'genderVariant' || part.type === 'optionalText'"
+						v-if="part.type === 'text' || part.type === 'genderVariant'"
 						icon="i-lucide-pencil"
 						color="neutral"
 						variant="ghost"
 						size="xs"
 						aria-label="Baustein bearbeiten"
-						@click="emit('editSentencePart', part, partIndex)"
+						@click="emit('editSentencePart', part, { partIndex })"
 					/>
 					<UButton
 						icon="i-lucide-trash-2"
@@ -272,7 +313,7 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 						variant="ghost"
 						size="xs"
 						aria-label="Baustein löschen"
-						@click="emit('deleteSentencePart', partIndex)"
+						@click="emit('deleteSentencePart', { partIndex })"
 					/>
 				</template>
 			</SortablePillList>
@@ -283,9 +324,9 @@ function onSentencePartsReorder(oldIndex: number, newIndex: number) {
 				class="mt-3"
 				:variant="selectedVariantData"
 				:can-edit="canEdit"
-				@toggle-optional-text-default="
+				@toggle-optional-group-default="
 					(partIndex, enabledByDefault) =>
-						emit('toggleOptionalTextDefault', partIndex, enabledByDefault)
+						emit('toggleOptionalGroupDefault', partIndex, enabledByDefault)
 				"
 			/>
 		</section>

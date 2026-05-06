@@ -1076,25 +1076,29 @@ describe('preview helpers', () => {
 		expect(text).toBe('A. B.')
 	})
 
-	it('renders optional text when enabled by default', () => {
-		const student = makeStudent()
+	it('renders optional groups when enabled by default', () => {
+		const student = makeStudent({ name: 'Max', gender: 'male' })
 		const text = buildVariantPreviewText(student, {
 			id: 'v1',
 			label: '1',
 			sentences: [
+				{ type: 'name' },
 				{
-					type: 'optionalText',
-					id: 'optional-1',
-					value: 'arbeitet besonders sorgfältig',
+					type: 'optionalGroup',
+					id: 'optional-group-1',
 					enabledByDefault: true,
+					parts: [
+						{ type: 'text', value: 'arbeitet' },
+						{ type: 'genderVariant', value: ['konzentriert', 'konzentriert'] },
+					],
 				},
 			],
 		})
 
-		expect(text).toBe('arbeitet besonders sorgfältig.')
+		expect(text).toBe('Max arbeitet konzentriert.')
 	})
 
-	it('omits optional text when a student override disables it', () => {
+	it('omits optional groups when a student override disables them', () => {
 		const student = makeStudent()
 		const text = buildVariantPreviewText(
 			student,
@@ -1102,42 +1106,46 @@ describe('preview helpers', () => {
 				id: 'v1',
 				label: '1',
 				sentences: [
-					{ type: 'name' },
+					{ type: 'text', value: 'Start' },
 					{
-						type: 'optionalText',
-						id: 'optional-1',
-						value: 'arbeitet besonders sorgfältig',
+						type: 'optionalGroup',
+						id: 'optional-group-1',
 						enabledByDefault: true,
+						parts: [{ type: 'text', value: 'optional' }],
 					},
-					{ type: 'text', value: 'lernt weiter' },
+					{ type: 'text', value: 'Ende' },
 				],
 			},
-			{ 'optional-1': false }
+			{ 'optional-group-1': false }
 		)
 
-		expect(text).toBe('Max lernt weiter.')
+		expect(text).toBe('Start Ende.')
 	})
 
-	it('renders optional text when a student override enables it', () => {
-		const student = makeStudent()
-		const text = buildVariantPreviewText(
-			student,
-			{
-				id: 'v1',
-				label: '1',
-				sentences: [
-					{
-						type: 'optionalText',
-						id: 'optional-1',
-						value: 'arbeitet besonders sorgfältig',
-						enabledByDefault: false,
-					},
-				],
-			},
-			{ 'optional-1': true }
-		)
+	it('applies name replacement overrides inside optional groups', () => {
+		const student = makeStudent({ name: 'Lisa', gender: 'female' })
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'text' as const, value: 'Heute zeigt' },
+				{
+					type: 'optionalGroup' as const,
+					id: 'optional-group-1',
+					enabledByDefault: true,
+					parts: [
+						{ type: 'name' as const },
+						{ type: 'text' as const, value: 'Ausdauer' },
+					],
+				},
+			],
+		}
 
-		expect(text).toBe('arbeitet besonders sorgfältig.')
+		const text = buildVariantPreviewText(student, variant, {}, {
+			[namePartOverrideKey('v1', '1.0')]: 'erSie',
+		})
+
+		expect(text).toBe('Heute zeigt sie Ausdauer.')
 	})
 
 	it('preserves existing final punctuation', () => {

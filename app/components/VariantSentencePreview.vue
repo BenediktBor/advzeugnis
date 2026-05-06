@@ -20,7 +20,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-	toggleOptionalTextDefault: [partIndex: number, enabledByDefault: boolean]
+	toggleOptionalGroupDefault: [partIndex: number, enabledByDefault: boolean]
 }>()
 
 const defaultNameByGender: Record<'male' | 'female', string> = {
@@ -37,7 +37,7 @@ const previewGenderItems = [
 ]
 const previewSettingsOpen = ref(false)
 
-const previewNameSelection = ref<Record<number, NamePreviewMode>>({})
+const previewNameSelection = ref<Record<string, NamePreviewMode>>({})
 
 watch(
 	() => props.variant.id,
@@ -61,22 +61,22 @@ function onToggleCustomName(value: boolean) {
 	}
 }
 
-function nameSelectionValue(partIndex: number): NamePreviewMode {
-	return previewNameSelection.value[partIndex] ?? 'name'
+function nameSelectionValue(partPath: string): NamePreviewMode {
+	return previewNameSelection.value[partPath] ?? 'name'
 }
 
-function setNameSelection(partIndex: number, value: NamePreviewMode) {
+function setNameSelection(partPath: string, value: NamePreviewMode) {
 	previewNameSelection.value = {
 		...previewNameSelection.value,
-		[partIndex]: value,
+		[partPath]: value,
 	}
 }
 
 const namePartOverrides = computed<NamePartOverrides>(() => {
 	const overrides: NamePartOverrides = {}
-	for (const [partIndex, selection] of Object.entries(previewNameSelection.value)) {
+	for (const [partPath, selection] of Object.entries(previewNameSelection.value)) {
 		if (selection === 'name') continue
-		overrides[namePartOverrideKey(props.variant.id, Number(partIndex))] = selection
+		overrides[namePartOverrideKey(props.variant.id, partPath)] = selection
 	}
 	return overrides
 })
@@ -93,29 +93,38 @@ const previewText = computed(() =>
 	)
 )
 
-const namePartSelections = computed<Record<number, NamePreviewMode>>(() =>
-	Object.fromEntries(
-		props.variant.sentences
-			.map((part, partIndex) => [part, partIndex] as const)
-			.filter(([part]) => part.type === 'name')
-			.map(([, partIndex]) => [partIndex, nameSelectionValue(partIndex)])
-	)
-)
+const namePartSelections = computed<Record<string, NamePreviewMode>>(() => {
+	const selections: Record<string, NamePreviewMode> = {}
+	for (const [partIndex, part] of props.variant.sentences.entries()) {
+		if (part.type === 'name') {
+			selections[String(partIndex)] = nameSelectionValue(String(partIndex))
+		}
+		if (part.type === 'optionalGroup') {
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				if (childPart.type === 'name') {
+					const partPath = `${partIndex}.${childIndex}`
+					selections[partPath] = nameSelectionValue(partPath)
+				}
+			}
+		}
+	}
+	return selections
+})
 
 const optionalPartEnabledMap = computed<Record<string, boolean>>(() =>
 	Object.fromEntries(
 		props.variant.sentences
-			.filter((part): part is Extract<(typeof props.variant.sentences)[number], { type: 'optionalText' }> => part.type === 'optionalText')
+			.filter((part): part is Extract<(typeof props.variant.sentences)[number], { type: 'optionalGroup' }> => part.type === 'optionalGroup')
 			.map((part) => [part.id, part.enabledByDefault])
 	)
 )
 
-function toggleOptionalTextById(partId: string, enabled: boolean) {
+function toggleOptionalGroupById(partId: string, enabled: boolean) {
 	const partIndex = props.variant.sentences.findIndex(
-		(part) => part.type === 'optionalText' && part.id === partId
+		(part) => part.type === 'optionalGroup' && part.id === partId
 	)
 	if (partIndex === -1) return
-	emit('toggleOptionalTextDefault', partIndex, enabled)
+	emit('toggleOptionalGroupDefault', partIndex, enabled)
 }
 </script>
 
@@ -143,7 +152,7 @@ function toggleOptionalTextById(partId: string, enabled: boolean) {
 				:name-part-selections="namePartSelections"
 				:optional-part-enabled-map="optionalPartEnabledMap"
 				:can-edit-optional="canEdit"
-				@toggle-optional-text="toggleOptionalTextById"
+				@toggle-optional-group="toggleOptionalGroupById"
 				@set-name-part-selection="
 					(partIndex, value) => setNameSelection(partIndex, value)
 				"

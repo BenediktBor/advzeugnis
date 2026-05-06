@@ -12,8 +12,11 @@ function clonePlain<T>(value: T): T {
 
 export function cloneSentencePartWithFreshIds(part: SentencePart): SentencePart {
 	const cloned = clonePlain(part)
-	if (cloned.type === 'optionalText') {
-		return { ...cloned, id: randomId() }
+	if (cloned.type === 'optionalGroup') {
+		return {
+			...cloned,
+			id: randomId(),
+		}
 	}
 	return cloned
 }

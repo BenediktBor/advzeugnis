@@ -1,8 +1,16 @@
-export type SentencePart =
+export type OptionalGroupChildPart =
 	| { type: 'text'; value: string }
 	| { type: 'genderVariant'; value: [string, string] }
 	| { type: 'name'; value?: string }
-	| { type: 'optionalText'; id: string; value: string; enabledByDefault: boolean }
+
+export type SentencePart =
+	| OptionalGroupChildPart
+	| { type: 'optionalGroup'; id: string; enabledByDefault: boolean; parts: OptionalGroupChildPart[] }
+
+export type SentencePartPath = {
+	partIndex: number
+	childIndex?: number
+}
 
 export interface Variant {
 	id: string

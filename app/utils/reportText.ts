@@ -7,6 +7,7 @@ import type {
 import type {
 	Category,
 	Grade,
+	OptionalGroupChildPart,
 	SentencePart,
 	TemplateSet,
 	Variant,
@@ -57,8 +58,8 @@ export const NAME_PART_REPLACEMENTS = {
 	{ label: string; sentenceStart: GenderVariantValue; inline: GenderVariantValue }
 >
 
-export function namePartOverrideKey(variantId: string, partIndex: number): string {
-	return `${variantId}:${partIndex}`
+export function namePartOverrideKey(variantId: string, partPath: number | string): string {
+	return `${variantId}:${partPath}`
 }
 
 export function resolveGenderVariantValue(
@@ -182,14 +183,15 @@ export function buildGradeAverageSummary(
 }
 
 function resolveSentencePart(
-	part: SentencePart,
+	part: SentencePart | OptionalGroupChildPart,
 	variantId: string,
-	partIndex: number,
+	partPath: number | string,
 	firstName: string,
 	gender: Gender,
 	optionalPartOverrides: OptionalPartOverrides = {},
 	namePartOverrides: NamePartOverrides = {},
-	isSentenceStart = false
+	isSentenceStart = false,
+	resolvedPartsBefore: string[] = []
 ): string {
 	switch (part.type) {
 		case 'text':
@@ -197,7 +199,7 @@ function resolveSentencePart(
 		case 'genderVariant':
 			return resolveGenderVariantValue(part.value, gender)
 		case 'name': {
-			const replacementKey = namePartOverrides[namePartOverrideKey(variantId, partIndex)]
+			const replacementKey = namePartOverrides[namePartOverrideKey(variantId, partPath)]
 			if (replacementKey) {
 				return resolveNamePartReplacement(replacementKey, gender, isSentenceStart)
 			}
@@ -205,15 +207,35 @@ function resolveSentencePart(
 			// When `value` is missing, fall back to the student's first name.
 			return part.value?.trim() ?? firstName
 		}
-		case 'optionalText':
-			return isOptionalPartEnabled(part, optionalPartOverrides) ? part.value : ''
+		case 'optionalGroup': {
+			if (!isOptionalPartEnabled(part, optionalPartOverrides)) return ''
+			const groupResolvedParts: string[] = []
+			const resolvedParts = [...resolvedPartsBefore]
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				const text = resolveSentencePart(
+					childPart,
+					variantId,
+					`${partPath}.${childIndex}`,
+					firstName,
+					gender,
+					optionalPartOverrides,
+					namePartOverrides,
+					isNextResolvedPartSentenceStart(resolvedParts),
+					resolvedParts
+				).trim()
+				if (!text) continue
+				groupResolvedParts.push(text)
+				resolvedParts.push(text)
+			}
+			return groupResolvedParts.join(' ')
+		}
 		default:
 			return ''
 	}
 }
 
 export function isOptionalPartEnabled(
-	part: Extract<SentencePart, { type: 'optionalText' }>,
+	part: Extract<SentencePart, { type: 'optionalGroup' }>,
 	optionalPartOverrides: OptionalPartOverrides = {}
 ): boolean {
 	return optionalPartOverrides[part.id] ?? part.enabledByDefault
@@ -242,7 +264,8 @@ function resolveVariantToText(
 			gender,
 			optionalPartOverrides,
 			namePartOverrides,
-			isNextResolvedPartSentenceStart(resolvedParts)
+			isNextResolvedPartSentenceStart(resolvedParts),
+			resolvedParts
 		).trim()
 		if (text) resolvedParts.push(text)
 	}

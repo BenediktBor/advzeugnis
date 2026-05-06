@@ -7,6 +7,7 @@ import {
 	type AzSubjectExportPayload,
 } from '~/schemas/template'
 import { randomId } from '~/utils/randomId'
+import { migrateLegacyOptionalTextInput } from '~/utils/templateMigration'
 import type { Subject, TemplateSet } from '~/types/template'
 
 const STORAGE_KEY = 'template-sets'
@@ -42,10 +43,12 @@ export function createTemplateSet(
 }
 
 function migrateTemplateSet(set: TemplateSet): TemplateSet {
+	const migratedSet = migrateLegacyOptionalTextInput(set)
 	let needsMigration = false
-	if (!set.id) needsMigration = true
+	if (JSON.stringify(migratedSet) !== JSON.stringify(set)) needsMigration = true
+	if (!migratedSet.id) needsMigration = true
 	if (!needsMigration) {
-		outer: for (const s of set.subjects) {
+		outer: for (const s of migratedSet.subjects) {
 			if (!s.id) { needsMigration = true; break }
 			for (const c of s.categories) {
 				if (!c.id) { needsMigration = true; break outer }
@@ -58,9 +61,9 @@ function migrateTemplateSet(set: TemplateSet): TemplateSet {
 			}
 		}
 	}
-	if (!needsMigration) return set
+	if (!needsMigration) return migratedSet
 
-	return produce(set, (draft) => {
+	return produce(migratedSet, (draft) => {
 		if (!draft.id) draft.id = randomId()
 		for (const s of draft.subjects) {
 			if (!s.id) s.id = randomId()

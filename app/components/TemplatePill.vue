@@ -5,6 +5,7 @@ const props = withDefaults(
 		active?: boolean
 		selected?: boolean
 		showDragHandle?: boolean
+		dragHandleClass?: string
 		canEdit?: boolean
 		selectable?: boolean
 	}>(),
@@ -12,6 +13,7 @@ const props = withDefaults(
 		active: false,
 		selected: false,
 		showDragHandle: false,
+		dragHandleClass: 'sentence-pill-drag-handle',
 		canEdit: false,
 		selectable: true,
 	}
@@ -49,7 +51,7 @@ const pillClasses = computed(() => [
 	>
 		<span
 			v-if="showDragHandle"
-			class="sentence-pill-drag-handle cursor-grab active:cursor-grabbing text-muted hover:text-default shrink-0 flex items-center"
+			:class="[dragHandleClass, 'cursor-grab active:cursor-grabbing text-muted hover:text-default shrink-0 flex items-center']"
 			aria-label="Verschieben"
 			@click.stop
 		>

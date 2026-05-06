@@ -5,7 +5,9 @@ import { useTemplatesStore } from '~/stores/templates'
 import { randomId } from '~/utils/randomId'
 import type {
 	Grade,
+	OptionalGroupChildPart,
 	SentencePart,
+	SentencePartPath,
 	Subject,
 	TemplateSet,
 	Variant,
@@ -389,11 +391,55 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function findOptionalGroup(variant: Variant, groupIndex: number) {
+		const group = variant.sentences[groupIndex]
+		return group?.type === 'optionalGroup' ? group : null
+	}
+
+	function addOptionalGroupPart(subjectId: string, categoryId: string, gradeId: string, variantId: string, groupIndex: number, part: OptionalGroupChildPart) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			const group = v ? findOptionalGroup(v, groupIndex) : null
+			group?.parts.push(part)
+		})
+	}
+
+	function insertOptionalGroupParts(subjectId: string, categoryId: string, gradeId: string, variantId: string, groupIndex: number, parts: OptionalGroupChildPart[], atIndex?: number) {
+		if (!parts.length) return
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			const group = v ? findOptionalGroup(v, groupIndex) : null
+			if (!group) return
+			const index = atIndex === undefined
+				? group.parts.length
+				: Math.max(0, Math.min(atIndex, group.parts.length))
+			group.parts.splice(index, 0, ...parts)
+		})
+	}
+
 	function updateSentencePart(subjectId: string, categoryId: string, gradeId: string, variantId: string, partIndex: number, part: SentencePart) {
 		updateSet((draft) => {
 			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
 			if (v && partIndex >= 0 && partIndex < v.sentences.length) {
 				v.sentences[partIndex] = part
+			}
+		})
+	}
+
+	function updateSentencePartAtPath(subjectId: string, categoryId: string, gradeId: string, variantId: string, path: SentencePartPath, part: SentencePart | OptionalGroupChildPart) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			if (path.childIndex === undefined) {
+				if (path.partIndex >= 0 && path.partIndex < v.sentences.length) {
+					v.sentences[path.partIndex] = part as SentencePart
+				}
+				return
+			}
+			if (part.type === 'optionalGroup') return
+			const group = findOptionalGroup(v, path.partIndex)
+			if (group && path.childIndex >= 0 && path.childIndex < group.parts.length) {
+				group.parts[path.childIndex] = part
 			}
 		})
 	}
@@ -405,12 +451,84 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function deleteSentencePartAtPath(subjectId: string, categoryId: string, gradeId: string, variantId: string, path: SentencePartPath) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			if (path.childIndex === undefined) {
+				v.sentences.splice(path.partIndex, 1)
+				return
+			}
+			const group = findOptionalGroup(v, path.partIndex)
+			if (group) group.parts.splice(path.childIndex, 1)
+		})
+	}
+
 	function reorderSentenceParts(subjectId: string, categoryId: string, gradeId: string, variantId: string, fromIndex: number, toIndex: number) {
 		updateSet((draft) => {
 			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
 			if (!v) return
 			const removed = v.sentences.splice(fromIndex, 1)[0]
 			if (removed) v.sentences.splice(toIndex, 0, removed)
+		})
+	}
+
+	function reorderOptionalGroupParts(subjectId: string, categoryId: string, gradeId: string, variantId: string, groupIndex: number, fromIndex: number, toIndex: number) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			const group = v ? findOptionalGroup(v, groupIndex) : null
+			if (!group) return
+			const removed = group.parts.splice(fromIndex, 1)[0]
+			if (removed) group.parts.splice(toIndex, 0, removed)
+		})
+	}
+
+	function moveSentencePartToOptionalGroup(subjectId: string, categoryId: string, gradeId: string, variantId: string, fromIndex: number, groupIndex: number, childIndex?: number) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v || fromIndex === groupIndex) return
+			const part = v.sentences[fromIndex]
+			if (!part || part.type === 'optionalGroup') return
+			const group = findOptionalGroup(v, groupIndex)
+			if (!group) return
+			const [removed] = v.sentences.splice(fromIndex, 1)
+			if (!removed || removed.type === 'optionalGroup') return
+			const index = childIndex === undefined
+				? group.parts.length
+				: Math.max(0, Math.min(childIndex, group.parts.length))
+			group.parts.splice(index, 0, removed)
+		})
+	}
+
+	function moveOptionalGroupPartToRoot(subjectId: string, categoryId: string, gradeId: string, variantId: string, groupIndex: number, childIndex: number, toIndex?: number) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			const group = findOptionalGroup(v, groupIndex)
+			if (!group) return
+			const [removed] = group.parts.splice(childIndex, 1)
+			if (!removed) return
+			const index = toIndex === undefined
+				? v.sentences.length
+				: Math.max(0, Math.min(toIndex, v.sentences.length))
+			v.sentences.splice(index, 0, removed)
+		})
+	}
+
+	function moveOptionalGroupPartToOptionalGroup(subjectId: string, categoryId: string, gradeId: string, variantId: string, fromGroupIndex: number, childIndex: number, toGroupIndex: number, toChildIndex?: number) {
+		updateSet((draft) => {
+			const v = findVariant(draft, subjectId, categoryId, gradeId, variantId)
+			if (!v) return
+			const fromGroup = findOptionalGroup(v, fromGroupIndex)
+			const toGroup = findOptionalGroup(v, toGroupIndex)
+			if (!fromGroup || !toGroup) return
+			const [removed] = fromGroup.parts.splice(childIndex, 1)
+			if (!removed) return
+			const insertionLimit = fromGroup === toGroup ? fromGroup.parts.length : toGroup.parts.length
+			const index = toChildIndex === undefined
+				? insertionLimit
+				: Math.max(0, Math.min(toChildIndex, insertionLimit))
+			toGroup.parts.splice(index, 0, removed)
 		})
 	}
 
@@ -469,9 +587,17 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		insertVariants,
 		deleteVariants,
 		addSentencePart,
+		addOptionalGroupPart,
+		insertOptionalGroupParts,
 		updateSentencePart,
+		updateSentencePartAtPath,
 		deleteSentencePart,
+		deleteSentencePartAtPath,
 		reorderSentenceParts,
+		reorderOptionalGroupParts,
+		moveSentencePartToOptionalGroup,
+		moveOptionalGroupPartToRoot,
+		moveOptionalGroupPartToOptionalGroup,
 		insertSentenceParts,
 		deleteSentenceParts,
 	}

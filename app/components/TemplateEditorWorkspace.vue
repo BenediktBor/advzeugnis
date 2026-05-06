@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import type { Category, Grade, SentencePart, TemplateSet, Variant } from '~/types/template'
+import type { Category, Grade, OptionalGroupChildPart, SentencePart, SentencePartPath, TemplateSet, Variant } from '~/types/template'
 import { useTemplatesStore } from '~/stores/templates'
 import { useTemplateClipboardStore } from '~/stores/templateClipboard'
 import {
@@ -39,9 +39,16 @@ const {
 	insertVariants,
 	deleteVariants,
 	addSentencePart,
+	addOptionalGroupPart,
+	insertOptionalGroupParts,
 	updateSentencePart,
-	deleteSentencePart,
+	updateSentencePartAtPath,
+	deleteSentencePartAtPath,
 	reorderSentenceParts,
+	reorderOptionalGroupParts,
+	moveSentencePartToOptionalGroup,
+	moveOptionalGroupPartToRoot,
+	moveOptionalGroupPartToOptionalGroup,
 	insertSentenceParts,
 	deleteSentenceParts,
 } = useTemplates(computed(() => props.setId))
@@ -387,27 +394,27 @@ function handleDeleteVariant(variantId: string, label: string) {
 	})
 }
 
-function handleEditSentencePart(part: SentencePart, partIndex: number) {
+function handleEditSentencePart(part: SentencePart | OptionalGroupChildPart, path: SentencePartPath) {
 	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
 	const { subjectId, categoryId } = selectedCategory.value
 	openEditPartModal(part, (_part) => {
-		updateSentencePart(subjectId, categoryId, selectedGradeId.value!, selectedVariantId.value!, partIndex, _part)
+		updateSentencePartAtPath(subjectId, categoryId, selectedGradeId.value!, selectedVariantId.value!, path, _part)
 	})
 }
 
-function handleDeleteSentencePart(partIndex: number) {
+function handleDeleteSentencePart(path: SentencePartPath) {
 	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
 	const { subjectId, categoryId } = selectedCategory.value
 	deleteDialog.show({
 		title: 'Satzbaustein löschen?',
 		description: 'Möchtest du diesen Baustein wirklich löschen?',
 		onConfirm: () =>
-			deleteSentencePart(
+			deleteSentencePartAtPath(
 				subjectId,
 				categoryId,
 				selectedGradeId.value!,
 				selectedVariantId.value!,
-				partIndex,
+				path,
 			),
 	})
 }
@@ -421,6 +428,59 @@ function handleReorderSentenceParts(oldIndex: number, newIndex: number) {
 		selectedVariantId.value,
 		oldIndex,
 		newIndex,
+	)
+}
+
+function handleReorderOptionalGroupParts(groupIndex: number, oldIndex: number, newIndex: number) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	reorderOptionalGroupParts(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		selectedVariantId.value,
+		groupIndex,
+		oldIndex,
+		newIndex,
+	)
+}
+
+function handleMoveSentencePartToGroup(fromIndex: number, groupIndex: number, childIndex?: number) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	moveSentencePartToOptionalGroup(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		selectedVariantId.value,
+		fromIndex,
+		groupIndex,
+		childIndex,
+	)
+}
+
+function handleMoveSentencePartFromGroup(groupIndex: number, childIndex: number, toIndex?: number) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	moveOptionalGroupPartToRoot(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		selectedVariantId.value,
+		groupIndex,
+		childIndex,
+		toIndex,
+	)
+}
+
+function handleMoveSentencePartBetweenGroups(fromGroupIndex: number, childIndex: number, toGroupIndex: number, toChildIndex?: number) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+	moveOptionalGroupPartToOptionalGroup(
+		selectedCategory.value.subjectId,
+		selectedCategory.value.categoryId,
+		selectedGradeId.value,
+		selectedVariantId.value,
+		fromGroupIndex,
+		childIndex,
+		toGroupIndex,
+		toChildIndex,
 	)
 }
 
@@ -445,11 +505,11 @@ function handleReorderVariants(oldIndex: number, newIndex: number) {
 	)
 }
 
-function handleToggleOptionalTextDefault(partIndex: number, enabledByDefault: boolean) {
+function handleToggleOptionalGroupDefault(partIndex: number, enabledByDefault: boolean) {
 	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
 	const variant = selectedVariantData()
 	const part = variant?.sentences[partIndex]
-	if (!part || part.type !== 'optionalText') return
+	if (!part || part.type !== 'optionalGroup') return
 	const { subjectId, categoryId } = selectedCategory.value
 	updateSentencePart(subjectId, categoryId, selectedGradeId.value, selectedVariantId.value, partIndex, {
 		...part,
@@ -476,7 +536,41 @@ const canPasteSentenceParts = computed(() => canEditTemplates.value && templateC
 
 const selectedGradeIdsForEditor = computed(() => selectedChipIds('grade', gradeScopeKey()))
 const selectedVariantIdsForEditor = computed(() => selectedChipIds('variant', variantScopeKey()))
-const selectedSentencePartIndexesForEditor = computed(() => selectedChipIndexes('sentencePart', sentencePartScopeKey()))
+const selectedSentencePartIdsForEditor = computed(() => selectedChipIds('sentencePart', sentencePartScopeKey()))
+
+function sentencePartPathId(path: SentencePartPath): string {
+	return path.childIndex === undefined ? String(path.partIndex) : `${path.partIndex}.${path.childIndex}`
+}
+
+function parseSentencePartPath(id: string): SentencePartPath | null {
+	const [partIndexRaw, childIndexRaw] = id.split('.')
+	const partIndex = Number(partIndexRaw)
+	if (!Number.isInteger(partIndex) || partIndex < 0) return null
+	if (childIndexRaw === undefined) return { partIndex }
+	const childIndex = Number(childIndexRaw)
+	if (!Number.isInteger(childIndex) || childIndex < 0) return null
+	return { partIndex, childIndex }
+}
+
+function sentencePartAtPath(variant: Variant, path: SentencePartPath): SentencePart | OptionalGroupChildPart | null {
+	const part = variant.sentences[path.partIndex]
+	if (!part) return null
+	if (path.childIndex === undefined) return part
+	if (part.type !== 'optionalGroup') return null
+	return part.parts[path.childIndex] ?? null
+}
+
+function orderedSentencePartPathIds(variant: Variant | null): string[] {
+	if (!variant) return []
+	const ids: string[] = []
+	for (const [partIndex, part] of variant.sentences.entries()) {
+		ids.push(String(partIndex))
+		if (part.type === 'optionalGroup') {
+			for (const childIndex of part.parts.keys()) ids.push(`${partIndex}.${childIndex}`)
+		}
+	}
+	return ids
+}
 
 function handleSelectGrade(gradeId: string, event: MouseEvent | KeyboardEvent) {
 	selectedGradeId.value = gradeId
@@ -502,9 +596,9 @@ function handleSelectVariant(variantId: string, event: MouseEvent | KeyboardEven
 	)
 }
 
-function handleSelectSentencePart(partIndex: number, event: MouseEvent | KeyboardEvent) {
-	const orderedIndexes = selectedVariantData()?.sentences.map((_, index) => String(index)) ?? []
-	updateChipSelection('sentencePart', String(partIndex), orderedIndexes, event, {
+function handleSelectSentencePart(path: SentencePartPath, event: MouseEvent | KeyboardEvent) {
+	const orderedIds = orderedSentencePartPathIds(selectedVariantData())
+	updateChipSelection('sentencePart', sentencePartPathId(path), orderedIds, event, {
 		allowPlainToggle: !hasSelectionModifier(event),
 	})
 }
@@ -534,9 +628,21 @@ function selectedVariants(): Variant[] {
 function selectedSentenceParts(): SentencePart[] {
 	const variant = selectedVariantData()
 	if (!variant) return []
-	return selectedChipIndexes('sentencePart')
-		.map((index) => variant.sentences[index])
+	return selectedChipIds('sentencePart')
+		.map(parseSentencePartPath)
+		.filter((path): path is SentencePartPath => Boolean(path))
+		.map((path) => sentencePartAtPath(variant, path))
 		.filter((part): part is SentencePart => Boolean(part))
+}
+
+function selectedSentencePartPaths(): SentencePartPath[] {
+	const paths = selectedChipIds('sentencePart')
+		.map(parseSentencePartPath)
+		.filter((path): path is SentencePartPath => Boolean(path))
+	const selectedRootIndexes = new Set(paths
+		.filter((path) => path.childIndex === undefined)
+		.map((path) => path.partIndex))
+	return paths.filter((path) => path.childIndex === undefined || !selectedRootIndexes.has(path.partIndex))
 }
 
 async function copySelection(kind = chipSelection.value?.kind) {
@@ -569,15 +675,24 @@ async function cutSelection(kind = chipSelection.value?.kind) {
 		deleteVariants(category.subjectId, category.categoryId, selectedGradeId.value, selectedChipIds('variant'))
 	} else {
 		if (!selectedGradeId.value || !selectedVariantId.value) return
-		deleteSentenceParts(
-			category.subjectId,
-			category.categoryId,
-			selectedGradeId.value,
-			selectedVariantId.value,
-			selectedChipIndexes('sentencePart'),
-		)
+		deleteSelectedSentencePartPaths(category.subjectId, category.categoryId, selectedGradeId.value, selectedVariantId.value)
 	}
 	clearChipSelection()
+}
+
+function deleteSelectedSentencePartPaths(subjectId: string, categoryId: string, gradeId: string, variantId: string) {
+	const paths = selectedSentencePartPaths()
+	const childPaths = paths
+		.filter((path) => path.childIndex !== undefined)
+		.sort((a, b) => b.partIndex - a.partIndex || (b.childIndex ?? 0) - (a.childIndex ?? 0))
+	const rootIndexes = paths
+		.filter((path) => path.childIndex === undefined)
+		.map((path) => path.partIndex)
+
+	for (const path of childPaths) {
+		deleteSentencePartAtPath(subjectId, categoryId, gradeId, variantId, path)
+	}
+	deleteSentenceParts(subjectId, categoryId, gradeId, variantId, rootIndexes)
 }
 
 function pasteGradesFromClipboard(afterGradeId?: string) {
@@ -604,16 +719,36 @@ function pasteVariantsFromClipboard(afterVariantId?: string) {
 	)
 }
 
-function pasteSentencePartsFromClipboard(afterPartIndex?: number) {
+function pasteSentencePartsFromClipboard(afterPath?: SentencePartPath) {
 	if (!canPasteSentenceParts.value || templateClipboard.payload?.kind !== 'sentencePart' || !selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
 	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as SentencePart[]
+	const variant = selectedVariantData()
+	const targetPart = afterPath && variant ? sentencePartAtPath(variant, { partIndex: afterPath.partIndex }) : null
+	const groupIndex = afterPath?.childIndex !== undefined
+		? afterPath.partIndex
+		: targetPart?.type === 'optionalGroup'
+			? afterPath?.partIndex
+			: undefined
+	if (groupIndex !== undefined) {
+		const childParts = items.filter((item): item is OptionalGroupChildPart => item.type !== 'optionalGroup')
+		insertOptionalGroupParts(
+			selectedCategory.value.subjectId,
+			selectedCategory.value.categoryId,
+			selectedGradeId.value,
+			selectedVariantId.value,
+			groupIndex,
+			childParts,
+			afterPath?.childIndex === undefined ? undefined : afterPath.childIndex + 1,
+		)
+		return
+	}
 	insertSentenceParts(
 		selectedCategory.value.subjectId,
 		selectedCategory.value.categoryId,
 		selectedGradeId.value,
 		selectedVariantId.value,
 		items,
-		afterPartIndex === undefined ? undefined : afterPartIndex + 1,
+		afterPath === undefined ? undefined : afterPath.partIndex + 1,
 	)
 }
 
@@ -631,11 +766,11 @@ async function handleVariantContextAction(action: ClipboardAction, variantId: st
 	else pasteVariantsFromClipboard(variantId)
 }
 
-async function handleSentencePartContextAction(action: ClipboardAction, partIndex: number) {
-	handleContextOpen('sentencePart', String(partIndex))
+async function handleSentencePartContextAction(action: ClipboardAction, path: SentencePartPath) {
+	handleContextOpen('sentencePart', sentencePartPathId(path))
 	if (action === 'copy') await copySelection('sentencePart')
 	else if (action === 'cut') await cutSelection('sentencePart')
-	else pasteSentencePartsFromClipboard(partIndex)
+	else pasteSentencePartsFromClipboard(path)
 }
 
 function isNativeEditingTarget(target: EventTarget | null): boolean {
@@ -689,18 +824,24 @@ function handleTemplateClipboardKeydown(event: KeyboardEvent) {
 }
 
 const addPartModalOpen = ref(false)
-const addPartType = ref<'text' | 'genderVariant' | 'name' | 'optionalText'>('text')
+type AddPartType = 'text' | 'genderVariant' | 'name' | 'optionalGroup'
+const addPartType = ref<AddPartType>('text')
+const addPartTargetGroupIndex = ref<number | null>(null)
 const addPartText = ref('')
 const addPartMale = ref('')
 const addPartFemale = ref('')
-const addPartOptionalText = ref('')
 const addPartOptionalEnabledByDefault = ref(true)
-const addPartTabItems = [
-	{ value: 'text' as const, label: 'Text' },
-	{ value: 'genderVariant' as const, label: 'Variabler Text' },
-	{ value: 'name' as const, label: 'Name' },
-	{ value: 'optionalText' as const, label: 'Optionaler Text' },
-]
+const addPartTabItems = computed(() => {
+	const items: Array<{ value: AddPartType; label: string }> = [
+		{ value: 'text' as const, label: 'Text' },
+		{ value: 'genderVariant' as const, label: 'Variabler Text' },
+		{ value: 'name' as const, label: 'Name' },
+	]
+	if (addPartTargetGroupIndex.value === null) {
+		items.push({ value: 'optionalGroup' as const, label: 'Optionale Gruppe' })
+	}
+	return items
+})
 const addPartHelp = computed(() => {
 	if (addPartType.value === 'text') {
 		return 'Fester Text erscheint immer genau so in der Textausgabe.'
@@ -711,7 +852,10 @@ const addPartHelp = computed(() => {
 	if (addPartType.value === 'name') {
 		return 'Name setzt den Schülernamen ein und kann später durch Pronomen ersetzt werden.'
 	}
-	return 'Optionaler Text kann in der Satzauswahl pro Schüler ein- oder ausgeblendet werden.'
+	if (addPartType.value === 'optionalGroup') {
+		return 'Optionale Gruppen bündeln mehrere Bausteine, die gemeinsam ein- oder ausgeblendet werden.'
+	}
+	return 'Optionale Gruppen können in der Satzauswahl pro Schüler ein- oder ausgeblendet werden.'
 })
 const genderVariantPresets = [
 	{ label: 'Er/Sie', male: 'Er', female: 'Sie' },
@@ -720,12 +864,12 @@ const genderVariantPresets = [
 	{ label: 'ihn/sie', male: 'ihn', female: 'sie' },
 ]
 
-function openAddPartModal() {
+function openAddPartModal(groupIndex: number | null = null) {
+	addPartTargetGroupIndex.value = groupIndex
 	addPartType.value = 'text'
 	addPartText.value = ''
 	addPartMale.value = ''
 	addPartFemale.value = ''
-	addPartOptionalText.value = ''
 	addPartOptionalEnabledByDefault.value = true
 	addPartModalOpen.value = true
 }
@@ -742,14 +886,13 @@ const canConfirmAddPart = computed(() => {
 	if (addPartType.value === 'genderVariant') {
 		return addPartMale.value.trim() !== '' && addPartFemale.value.trim() !== ''
 	}
-	if (addPartType.value === 'optionalText') return addPartOptionalText.value.trim() !== ''
 	return true
 })
 
 function confirmAddPart() {
 	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value || !canConfirmAddPart.value) return
 
-	let part: SentencePart
+	let part: SentencePart | OptionalGroupChildPart
 	switch (addPartType.value) {
 		case 'text':
 			part = { type: 'text', value: addPartText.value.trim() }
@@ -763,12 +906,12 @@ function confirmAddPart() {
 		case 'name':
 			part = { type: 'name' }
 			break
-		case 'optionalText':
+		case 'optionalGroup':
 			part = {
-				type: 'optionalText',
+				type: 'optionalGroup',
 				id: crypto.randomUUID(),
-				value: addPartOptionalText.value.trim(),
 				enabledByDefault: addPartOptionalEnabledByDefault.value,
+				parts: [],
 			}
 			break
 		default:
@@ -776,12 +919,24 @@ function confirmAddPart() {
 	}
 
 	addPartModalOpen.value = false
+	if (addPartTargetGroupIndex.value !== null) {
+		if (part.type === 'optionalGroup') return
+		addOptionalGroupPart(
+			selectedCategory.value.subjectId,
+			selectedCategory.value.categoryId,
+			selectedGradeId.value,
+			selectedVariantId.value,
+			addPartTargetGroupIndex.value,
+			part,
+		)
+		return
+	}
 	addSentencePart(
 		selectedCategory.value.subjectId,
 		selectedCategory.value.categoryId,
 		selectedGradeId.value,
 		selectedVariantId.value,
-		part,
+		part as SentencePart,
 	)
 }
 
@@ -838,16 +993,13 @@ function confirmEditLabel() {
 }
 
 const editPartModalOpen = ref(false)
-const editPartType = ref<'text' | 'genderVariant' | 'optionalText'>('text')
+const editPartType = ref<'text' | 'genderVariant'>('text')
 const editPartText = ref('')
 const editPartMale = ref('')
 const editPartFemale = ref('')
-const editPartOptionalId = ref('')
-const editPartOptionalText = ref('')
-const editPartOptionalEnabledByDefault = ref(true)
-const editPartSaveCallback = ref<((part: SentencePart) => void) | null>(null)
+const editPartSaveCallback = ref<((part: OptionalGroupChildPart) => void) | null>(null)
 
-function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => void) {
+function openEditPartModal(part: SentencePart | OptionalGroupChildPart, onSave: (part: OptionalGroupChildPart) => void) {
 	editPartSaveCallback.value = onSave
 	if (part.type === 'text') {
 		editPartType.value = 'text'
@@ -856,11 +1008,6 @@ function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => v
 		editPartType.value = 'genderVariant'
 		editPartMale.value = part.value[0] ?? ''
 		editPartFemale.value = part.value[1] ?? ''
-	} else if (part.type === 'optionalText') {
-		editPartType.value = 'optionalText'
-		editPartOptionalId.value = part.id
-		editPartOptionalText.value = part.value
-		editPartOptionalEnabledByDefault.value = part.enabledByDefault
 	} else {
 		return
 	}
@@ -869,18 +1016,11 @@ function openEditPartModal(part: SentencePart, onSave: (part: SentencePart) => v
 
 function confirmEditPart() {
 	if (!editPartSaveCallback.value) return
-	let part: SentencePart
+	let part: OptionalGroupChildPart
 	if (editPartType.value === 'text') {
 		part = { type: 'text', value: editPartText.value }
-	} else if (editPartType.value === 'genderVariant') {
-		part = { type: 'genderVariant', value: [editPartMale.value, editPartFemale.value] }
 	} else {
-		part = {
-			type: 'optionalText',
-			id: editPartOptionalId.value,
-			value: editPartOptionalText.value,
-			enabledByDefault: editPartOptionalEnabledByDefault.value,
-		}
+		part = { type: 'genderVariant', value: [editPartMale.value, editPartFemale.value] }
 	}
 
 	editPartSaveCallback.value(part)
@@ -954,7 +1094,7 @@ onBeforeUnmount(() => {
 					:can-edit="canEditTemplates"
 					:selected-grade-ids="selectedGradeIdsForEditor"
 					:selected-variant-ids="selectedVariantIdsForEditor"
-					:selected-sentence-part-indexes="selectedSentencePartIndexesForEditor"
+					:selected-sentence-part-ids="selectedSentencePartIdsForEditor"
 					:can-paste-grades="canPasteGrades"
 					:can-paste-variants="canPasteVariants"
 					:can-paste-sentence-parts="canPasteSentenceParts"
@@ -963,7 +1103,7 @@ onBeforeUnmount(() => {
 					@select-sentence-part="handleSelectSentencePart"
 					@context-open-grade="handleContextOpen('grade', $event)"
 					@context-open-variant="handleContextOpen('variant', $event)"
-					@context-open-sentence-part="handleContextOpen('sentencePart', String($event))"
+					@context-open-sentence-part="handleContextOpen('sentencePart', sentencePartPathId($event))"
 					@context-action-grade="handleGradeContextAction"
 					@context-action-variant="handleVariantContextAction"
 					@context-action-sentence-part="handleSentencePartContextAction"
@@ -977,12 +1117,17 @@ onBeforeUnmount(() => {
 					@edit-variant-label="handleEditVariantLabel"
 					@delete-variant="handleDeleteVariant"
 					@add-sentence-part="openAddPartModal"
+					@add-sentence-part-to-group="openAddPartModal"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@reorder-optional-group-parts="handleReorderOptionalGroupParts"
+					@move-sentence-part-to-group="handleMoveSentencePartToGroup"
+					@move-sentence-part-from-group="handleMoveSentencePartFromGroup"
+					@move-sentence-part-between-groups="handleMoveSentencePartBetweenGroups"
 					@reorder-grades="handleReorderGrades"
 					@reorder-variants="handleReorderVariants"
-					@toggle-optional-text-default="handleToggleOptionalTextDefault"
+					@toggle-optional-group-default="handleToggleOptionalGroupDefault"
 				/>
 			</div>
 		</template>
@@ -1004,7 +1149,7 @@ onBeforeUnmount(() => {
 					:can-edit="canEditTemplates"
 					:selected-grade-ids="selectedGradeIdsForEditor"
 					:selected-variant-ids="selectedVariantIdsForEditor"
-					:selected-sentence-part-indexes="selectedSentencePartIndexesForEditor"
+					:selected-sentence-part-ids="selectedSentencePartIdsForEditor"
 					:can-paste-grades="canPasteGrades"
 					:can-paste-variants="canPasteVariants"
 					:can-paste-sentence-parts="canPasteSentenceParts"
@@ -1013,7 +1158,7 @@ onBeforeUnmount(() => {
 					@select-sentence-part="handleSelectSentencePart"
 					@context-open-grade="handleContextOpen('grade', $event)"
 					@context-open-variant="handleContextOpen('variant', $event)"
-					@context-open-sentence-part="handleContextOpen('sentencePart', String($event))"
+					@context-open-sentence-part="handleContextOpen('sentencePart', sentencePartPathId($event))"
 					@context-action-grade="handleGradeContextAction"
 					@context-action-variant="handleVariantContextAction"
 					@context-action-sentence-part="handleSentencePartContextAction"
@@ -1027,12 +1172,17 @@ onBeforeUnmount(() => {
 					@edit-variant-label="handleEditVariantLabel"
 					@delete-variant="handleDeleteVariant"
 					@add-sentence-part="openAddPartModal"
+					@add-sentence-part-to-group="openAddPartModal"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
+					@reorder-optional-group-parts="handleReorderOptionalGroupParts"
+					@move-sentence-part-to-group="handleMoveSentencePartToGroup"
+					@move-sentence-part-from-group="handleMoveSentencePartFromGroup"
+					@move-sentence-part-between-groups="handleMoveSentencePartBetweenGroups"
 					@reorder-grades="handleReorderGrades"
 					@reorder-variants="handleReorderVariants"
-					@toggle-optional-text-default="handleToggleOptionalTextDefault"
+					@toggle-optional-group-default="handleToggleOptionalGroupDefault"
 				/>
 			</div>
 		</template>
@@ -1122,15 +1272,10 @@ onBeforeUnmount(() => {
 			<template v-else-if="addPartType === 'name'">
 				<p class="mt-3 text-sm text-muted">Keine weitere Eingabe nötig.</p>
 			</template>
-			<template v-else-if="addPartType === 'optionalText'">
-				<UFormField label="Optionaler Text" name="add-part-optional-text" class="mt-3">
-					<UInput
-						v-model="addPartOptionalText"
-						placeholder="Text eingeben"
-						autofocus
-						@keydown.enter="confirmAddPart"
-					/>
-				</UFormField>
+			<template v-else-if="addPartType === 'optionalGroup'">
+				<p class="mt-3 text-sm text-muted">
+					Die Gruppe startet leer. Füge anschließend Bausteine über das Plus in der Gruppe hinzu.
+				</p>
 				<UCheckbox
 					:model-value="addPartOptionalEnabledByDefault"
 					label="Standardmäßig aktiv"
@@ -1159,22 +1304,6 @@ onBeforeUnmount(() => {
 				<UFormField label="Weibliche Form" name="edit-part-female">
 					<UInput v-model="editPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmEditPart" />
 				</UFormField>
-			</template>
-			<template v-else-if="editPartType === 'optionalText'">
-				<UFormField label="Optionaler Text" name="edit-part-optional-text">
-					<UInput
-						v-model="editPartOptionalText"
-						placeholder="Text eingeben"
-						autofocus
-						@keydown.enter="confirmEditPart"
-					/>
-				</UFormField>
-				<UCheckbox
-					:model-value="editPartOptionalEnabledByDefault"
-					label="Standardmäßig aktiv"
-					class="mt-3"
-					@update:model-value="editPartOptionalEnabledByDefault = Boolean($event)"
-				/>
 			</template>
 		</template>
 		<template #footer="{ close }">

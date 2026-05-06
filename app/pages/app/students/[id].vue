@@ -307,14 +307,14 @@ function setNamePartReplacement(
 	categoryId: string,
 	category: Category,
 	variantId: string,
-	partIndex: number,
+	partPath: string,
 	replacementKey: NamePartReplacementKey | null
 ) {
 	if (!id.value || !student.value) return
 	const entry = getCategoryEntry(category)
 	if (!entry.gradeId) return
 	const nextNamePartOverrides = { ...getNamePartOverrides(categoryId) }
-	const key = namePartOverrideKey(variantId, partIndex)
+	const key = namePartOverrideKey(variantId, partPath)
 	if (replacementKey) {
 		nextNamePartOverrides[key] = replacementKey
 	} else {

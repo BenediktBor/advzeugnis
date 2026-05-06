@@ -7,7 +7,7 @@ import {
 import type { NamePartOverrides, NamePartReplacementKey } from '~/types/student'
 import type { Category, Grade, SentencePart, Variant } from '~/types/template'
 
-type OptionalTextPart = Extract<SentencePart, { type: 'optionalText' }>
+type OptionalPart = Extract<SentencePart, { type: 'optionalGroup' }>
 type NamePartSelectionValue = NamePartReplacementKey | 'name'
 
 export interface CategoryRow {
@@ -57,7 +57,7 @@ const emit = defineEmits<{
 		categoryId: string,
 		category: Category,
 		variantId: string,
-		partIndex: number,
+		partPath: string,
 		replacementKey: NamePartReplacementKey | null,
 	]
 	selectAllVariants: [categoryId: string, category: Category]
@@ -104,14 +104,10 @@ function selectedVariants(row: CategoryRow): Variant[] {
 	return row.variants.filter((variant) => isVariantSelected(variant.id, row))
 }
 
-function isOptionalTextSelected(part: OptionalTextPart, row: CategoryRow): boolean {
-	return isOptionalPartEnabled(part, row.optionalPartOverrides)
-}
-
-function toggleOptionalTextPart(
+function toggleOptionalPart(
 	row: CategoryRow,
 	variant: Variant,
-	part: OptionalTextPart,
+	part: OptionalPart,
 	enabled: boolean
 ) {
 	emit(
@@ -124,10 +120,10 @@ function toggleOptionalTextPart(
 	)
 }
 
-function findOptionalTextPart(variant: Variant, partId: string): OptionalTextPart | null {
+function findOptionalPart(variant: Variant, partId: string): OptionalPart | null {
 	return (
 		variant.sentences.find(
-			(part): part is OptionalTextPart => part.type === 'optionalText' && part.id === partId
+			(part): part is OptionalPart => part.type === 'optionalGroup' && part.id === partId
 		) ?? null
 	)
 }
@@ -135,15 +131,15 @@ function findOptionalTextPart(variant: Variant, partId: string): OptionalTextPar
 function namePartSelectionValue(
 	row: CategoryRow,
 	variantId: string,
-	partIndex: number
+	partPath: string
 ): NamePartSelectionValue {
-	return row.namePartOverrides[namePartOverrideKey(variantId, partIndex)] ?? 'name'
+	return row.namePartOverrides[namePartOverrideKey(variantId, partPath)] ?? 'name'
 }
 
 function setNamePartReplacement(
 	row: CategoryRow,
 	variant: Variant,
-	partIndex: number,
+	partPath: string,
 	value: NamePartSelectionValue
 ) {
 	emit(
@@ -151,16 +147,25 @@ function setNamePartReplacement(
 		row.categoryId,
 		row.category,
 		variant.id,
-		partIndex,
+		partPath,
 		value === 'name' ? null : value
 	)
 }
 
-function namePartSelectionsForVariant(row: CategoryRow, variant: Variant): Record<number, NamePartSelectionValue> {
-	const selections: Record<number, NamePartSelectionValue> = {}
+function namePartSelectionsForVariant(row: CategoryRow, variant: Variant): Record<string, NamePartSelectionValue> {
+	const selections: Record<string, NamePartSelectionValue> = {}
 	for (const [partIndex, part] of variant.sentences.entries()) {
-		if (part.type !== 'name') continue
-		selections[partIndex] = namePartSelectionValue(row, variant.id, partIndex)
+		if (part.type === 'name') {
+			const partPath = String(partIndex)
+			selections[partPath] = namePartSelectionValue(row, variant.id, partPath)
+		}
+		if (part.type === 'optionalGroup') {
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				if (childPart.type !== 'name') continue
+				const partPath = `${partIndex}.${childIndex}`
+				selections[partPath] = namePartSelectionValue(row, variant.id, partPath)
+			}
+		}
 	}
 	return selections
 }
@@ -528,10 +533,10 @@ function toggleCategoryBody(categoryId: string) {
 										:name-part-selections="namePartSelectionsForVariant(row, variant)"
 										:optional-part-enabled-map="row.optionalPartOverrides"
 										:text-class="'text-xs text-default'"
-										@toggle-optional-text="
+										@toggle-optional-group="
 											(partId, enabled) => {
-												const part = findOptionalTextPart(variant, partId)
-												if (part) toggleOptionalTextPart(row, variant, part, enabled)
+												const part = findOptionalPart(variant, partId)
+												if (part) toggleOptionalPart(row, variant, part, enabled)
 											}
 										"
 										@set-name-part-selection="
@@ -619,10 +624,10 @@ function toggleCategoryBody(categoryId: string) {
 												:name-part-selections="namePartSelectionsForVariant(row, variant)"
 												:optional-part-enabled-map="row.optionalPartOverrides"
 												:text-class="'text-sm text-muted'"
-												@toggle-optional-text="
+												@toggle-optional-group="
 													(partId, enabled) => {
-														const part = findOptionalTextPart(variant, partId)
-														if (part) toggleOptionalTextPart(row, variant, part, enabled)
+														const part = findOptionalPart(variant, partId)
+														if (part) toggleOptionalPart(row, variant, part, enabled)
 													}
 												"
 												@set-name-part-selection="
