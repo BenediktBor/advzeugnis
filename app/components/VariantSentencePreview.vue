@@ -142,7 +142,7 @@ function toggleOptionalGroupById(partId: string, enabled: boolean) {
 			/>
 		</div>
 
-		<div class="mt-3 rounded border border-default bg-default px-3 py-2 text-sm text-default">
+		<div class="mt-2 text-sm text-default">
 			<VariantSentenceInlinePreview
 				v-if="previewText"
 				:variant="variant"

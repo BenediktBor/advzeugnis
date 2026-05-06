@@ -135,7 +135,7 @@ const previewSuffix = computed(() => {
 </script>
 
 <template>
-	<div :class="['leading-relaxed break-words', textClass]">
+	<div :class="['inline leading-relaxed break-words', textClass]">
 		<template
 			v-for="(part, partIndex) in variant.sentences"
 			:key="`${variant.id}-${partIndex}`"
@@ -149,12 +149,12 @@ const previewSuffix = computed(() => {
 				]"
 				value-key="value"
 				size="xs"
-				class="mr-1.5 inline-block w-auto min-w-20 align-middle"
+				class="mr-1.5 inline-block w-auto min-w-20 align-baseline"
 				@update:model-value="emit('setNamePartSelection', String(partIndex), (($event as NameSelectionValue) ?? 'name'))"
 			/>
 			<label
 				v-else-if="isOptionalGroup(part)"
-				class="mr-1.5 inline-flex items-center gap-1.5 align-middle rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
+				class="mr-1.5 inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-1 align-baseline rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
 			>
 				<UCheckbox
 					:model-value="optionalGroupEnabled(part)"
@@ -164,7 +164,10 @@ const previewSuffix = computed(() => {
 					@update:model-value="emit('toggleOptionalGroup', optionalGroupId(part), Boolean($event))"
 				/>
 				<span
-					:class="optionalGroupEnabled(part) ? 'text-default' : 'text-muted line-through'"
+					:class="[
+						'inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-1',
+						optionalGroupEnabled(part) ? 'text-default' : 'text-muted line-through',
+					]"
 				>
 					<template
 						v-for="(childPart, childIndex) in optionalGroupParts(part)"
@@ -179,12 +182,12 @@ const previewSuffix = computed(() => {
 							]"
 							value-key="value"
 							size="xs"
-							class="mr-1.5 inline-block w-auto min-w-20 align-middle"
+							class="inline-block w-auto min-w-20 align-baseline"
 							@update:model-value="emit('setNamePartSelection', `${partIndex}.${childIndex}`, (($event as NameSelectionValue) ?? 'name'))"
 						/>
 						<span
 							v-else-if="resolveInlinePart(childPart, `${partIndex}.${childIndex}`, groupChildResolvedPartsBefore(partIndex, childIndex)).trim()"
-							class="mr-1.5 align-middle"
+							class="inline align-baseline"
 						>
 							{{ resolveInlinePart(childPart, `${partIndex}.${childIndex}`, groupChildResolvedPartsBefore(partIndex, childIndex)).trim() }}
 						</span>
@@ -194,7 +197,7 @@ const previewSuffix = computed(() => {
 			</label>
 			<span
 				v-else-if="resolveInlinePart(part, String(partIndex), resolvedInlinePartsBefore(partIndex)).trim()"
-				class="mr-1.5 align-middle"
+				class="mr-1.5 inline align-baseline"
 			>
 				{{ resolveInlinePart(part, String(partIndex), resolvedInlinePartsBefore(partIndex)).trim() }}
 			</span>
