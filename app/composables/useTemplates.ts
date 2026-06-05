@@ -1,7 +1,9 @@
 import { produce } from 'immer'
-import type { MaybeRefOrGetter } from 'vue'
-import { toRaw, toValue } from 'vue'
+import type { MaybeRefOrGetter, Ref } from 'vue'
+import { ref, toRaw, toValue, watchEffect } from 'vue'
+import { TemplateSetSchema } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
+import { api } from '~/utils/convexApi'
 import { randomId } from '~/utils/randomId'
 import type {
 	Grade,
@@ -25,9 +27,49 @@ export type SetWithData = {
 	variantCount: number
 }
 
+function useOptionalConvexClient() {
+	try {
+		return useConvexClient()
+	} catch {
+		return null
+	}
+}
+
+function useOptionalConvexQuery<T>(createQuery: () => { data: Ref<T | undefined>, error: Ref<Error | null>, isPending: Ref<boolean> }) {
+	try {
+		return createQuery()
+	} catch {
+		return {
+			data: ref<T | undefined>(undefined),
+			error: ref<Error | null>(null),
+			isPending: ref(false),
+		}
+	}
+}
+
 export function useTemplateSets() {
 	const store = useTemplatesStore()
 	store.load()
+	const client = useOptionalConvexClient()
+	const templateSetsQuery = useOptionalConvexQuery(() => useConvexQuery(api.templates.list, {}, { server: false }))
+
+	watchEffect(() => {
+		const remoteSets = templateSetsQuery.data.value
+		if (!remoteSets) return
+
+		const record: Record<string, TemplateSet> = {}
+		const orderedIds: string[] = []
+		for (const row of remoteSets) {
+			const parsed = TemplateSetSchema.safeParse(row.data)
+			if (!parsed.success) {
+				console.warn(`[templates] Dropping invalid Convex template set "${row.id}":`, parsed.error.issues)
+				continue
+			}
+			record[row.id] = parsed.data as TemplateSet
+			orderedIds.push(row.id)
+		}
+		store.replaceAllSets(record, orderedIds)
+	})
 
 	const orderedIds = computed(() => store.orderedIds)
 
@@ -101,16 +143,40 @@ export function useTemplateSets() {
 		return store.getSetData(setId)
 	}
 
+	function syncSet(setId: string) {
+		const setData = store.getSetData(setId)
+		if (!setData) return
+		if (!client) return
+		void client.mutation(api.templates.upsert, {
+			templateId: setId,
+			label: setData.label,
+			data: JSON.parse(JSON.stringify(setData)),
+			sortOrder: store.orderedIds.indexOf(setId),
+		})
+	}
+
+	function addSet(label: string): string {
+		const setId = store.addSet(label)
+		if (setId) syncSet(setId)
+		return setId
+	}
+
+	function removeSet(setId: string) {
+		store.removeSet(setId)
+		if (!client) return
+		void client.mutation(api.templates.remove, { templateId: setId })
+	}
+
 	return {
 		orderedIds,
 		setsWithData,
 		sortedSetsWithData,
 		defaultAlphabeticalTemplateSetId,
 		hasAnyTemplateSets,
-		isLoaded: computed(() => store.isLoaded),
-		loadError: computed(() => store.loadError),
-		addSet: store.addSet,
-		removeSet: store.removeSet,
+		isLoaded: computed(() => store.isLoaded && !templateSetsQuery.isPending.value),
+		loadError: computed(() => store.loadError ?? templateSetsQuery.error.value),
+		addSet,
+		removeSet,
 		getSetLabel,
 		getSetData,
 	}
@@ -119,6 +185,7 @@ export function useTemplateSets() {
 export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 	const store = useTemplatesStore()
 	store.load()
+	const client = useOptionalConvexClient()
 
 	const setId = computed(() => toValue(setIdRef))
 
@@ -136,6 +203,13 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 	function save(setData: TemplateSet) {
 		if (!setId.value) return
 		store.saveSetData(setId.value, setData)
+		if (!client) return
+		void client.mutation(api.templates.upsert, {
+			templateId: setId.value,
+			label: setData.label,
+			data: JSON.parse(JSON.stringify(setData)),
+			sortOrder: store.orderedIds.indexOf(setId.value),
+		})
 	}
 
 	function updateSet(recipe: (draft: TemplateSet) => void) {

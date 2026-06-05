@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { canEditTemplates } = useCurrentUser()
+const { currentUser, canEditTemplates } = useCurrentUser()
 const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 </script>
 
@@ -29,6 +29,12 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 					tone="primary"
 				>
 					<div class="flex flex-wrap justify-center gap-2">
+						<UButton
+							v-if="currentUser.type === 'solo'"
+							label="Schule einrichten"
+							to="/app/setup-school"
+							icon="i-lucide-building-2"
+						/>
 						<TemplateImportExportActions
 							:can-edit="canEditTemplates"
 							:disabled="true"
@@ -40,6 +46,7 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 							icon="i-lucide-plus"
 						/>
 						<UButton
+							v-if="canEditTemplates"
 							label="Zu Vorlagen"
 							to="/app/templates"
 							icon="i-lucide-file-text"
@@ -67,6 +74,7 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 									Lege Satzvorlagen an oder importiere bestehende `.azset`-Dateien.
 								</p>
 								<UButton
+									v-if="canEditTemplates"
 									label="Zu den Vorlagen"
 									to="/app/templates"
 									icon="i-lucide-file-text"

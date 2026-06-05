@@ -1,9 +1,6 @@
 import { defineStore } from 'pinia'
-import { idbGet, createDebouncedPersist } from '~/utils/idbStorage'
 import { CurrentUserSchema } from '~/schemas/user'
 import type { CurrentUser, SchoolRole, UserType } from '~/types/user'
-
-const STORAGE_KEY = 'auth-stub'
 
 // Deterministic defaults: avoids module-evaluation randomness (SSR/tests).
 const DEFAULT_CURRENT_USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
@@ -11,7 +8,7 @@ const DEFAULT_CURRENT_USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 export const defaultUser: CurrentUser = {
 	id: DEFAULT_CURRENT_USER_ID,
 	displayName: 'Demo Benutzer',
-	email: 'demo@example.com',
+	email: undefined,
 	type: 'solo',
 }
 
@@ -30,40 +27,23 @@ export function repairStoredCurrentUser(raw: CurrentUser | undefined): CurrentUs
 export const useCurrentUserStore = defineStore('currentUser', () => {
 	const currentUser = ref<CurrentUser>({ ...defaultUser })
 	const isLoaded = ref(false)
-	const { persist: debouncedPersist } = createDebouncedPersist<CurrentUser>(STORAGE_KEY)
-	let loadPromise: Promise<void> | null = null
 
 	function load() {
-		if (loadPromise) return loadPromise
-		loadPromise = doLoad()
-		return loadPromise
-	}
-
-	async function doLoad() {
-		const raw = await idbGet<CurrentUser>(STORAGE_KEY)
-		if (raw) {
-			const repaired = repairStoredCurrentUser(raw)
-			const didRepair = JSON.stringify(repaired) !== JSON.stringify(raw)
-			currentUser.value = repaired
-			if (didRepair) persist()
-		}
 		isLoaded.value = true
-	}
-
-	function persist() {
-		debouncedPersist(currentUser.value)
+		return Promise.resolve()
 	}
 
 	const isAdmin = computed(
 		() =>
-			currentUser.value.type === 'solo' ||
+			currentUser.value.type === 'school' &&
 			currentUser.value.role === 'admin'
 	)
 	const canEditTemplates = computed(
 		() =>
-			currentUser.value.type === 'solo' ||
+			currentUser.value.type === 'school' && (
 			currentUser.value.role === 'admin' ||
-			currentUser.value.role === 'editor'
+			currentUser.value.role === 'templateManager'
+			)
 	)
 	const canManageTeachers = computed(
 		() =>
@@ -79,18 +59,21 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 				? { role: undefined }
 				: { role: 'admin' as SchoolRole }),
 		}
-		persist()
 	}
 
 	function setUserRole(role: SchoolRole) {
 		if (currentUser.value.type !== 'school') return
 		currentUser.value = { ...currentUser.value, role }
-		persist()
 	}
 
 	function setStubUser(user: Partial<CurrentUser>) {
 		currentUser.value = { ...currentUser.value, ...user }
-		persist()
+		isLoaded.value = true
+	}
+
+	function clearUser() {
+		currentUser.value = { ...defaultUser }
+		isLoaded.value = true
 	}
 
 	return {
@@ -103,5 +86,6 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 		setUserType,
 		setUserRole,
 		setStubUser,
+		clearUser,
 	}
 })

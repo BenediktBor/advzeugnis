@@ -6,8 +6,8 @@ import { studentFullName } from '~/utils/student'
 const open = ref(false)
 const router = useRouter()
 const { students } = useStudents()
-const { canEditTemplates } = useCurrentUser()
-// const { currentUser, canEditTemplates } = useCurrentUser()
+const { currentUser, canEditTemplates } = useCurrentUser()
+const { signOut } = useConvexAuthActions()
 const { sortedSetsWithData, hasAnyTemplateSets } = useTemplateSets()
 const createStudentModalOpen = ref(false)
 
@@ -21,7 +21,6 @@ function onAddTemplate() {
 	void router.push({ path: '/app/templates', query: { create: '1' } })
 }
 
-/*
 const accountNavItem = computed<NavigationMenuItem>(() =>
 	currentUser.value.type === 'school'
 		? {
@@ -41,12 +40,11 @@ const accountNavItem = computed<NavigationMenuItem>(() =>
 				},
 		  }
 )
-*/
 
 const links = computed<NavigationMenuItem[]>(() => {
 	const hasStudents = students.value.length > 0
-	return [
-		// accountNavItem.value,
+	const items: NavigationMenuItem[] = [
+		accountNavItem.value,
 		{
 			label: 'Schüler',
 			icon: 'i-lucide-users',
@@ -63,7 +61,10 @@ const links = computed<NavigationMenuItem[]>(() => {
 			}),
 			slot: 'students' as const,
 		},
-		{
+	]
+
+	if (canEditTemplates.value) {
+		items.push({
 			label: 'Vorlagen',
 			icon: 'i-lucide-file-text',
 			to: '/app/templates',
@@ -76,8 +77,10 @@ const links = computed<NavigationMenuItem[]>(() => {
 				},
 			})),
 			slot: 'templates' as const,
-		},
-	]
+		})
+	}
+
+	return items
 })
 </script>
 
@@ -173,34 +176,43 @@ const links = computed<NavigationMenuItem[]>(() => {
 				</UNavigationMenu>
 			</template>
 
-			<!--
 			<template #footer="{ collapsed }">
-				<UButton
-					:to="
-						currentUser.type === 'school'
-							? '/app/school'
-							: '/app/user'
-					"
-					:avatar="{
-						src:
-							'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
-							currentUser.id,
-						alt: currentUser.displayName,
-					}"
-					:label="
-						collapsed
-							? undefined
-							: currentUser.displayName +
-							  (currentUser.role ? ` (${currentUser.role})` : '')
-					"
-					color="neutral"
-					variant="ghost"
-					block
-					:square="collapsed"
-					class="data-[state=open]:bg-elevated"
-				/>
+				<div class="flex flex-col gap-2">
+					<UButton
+						:to="
+							currentUser.type === 'school'
+								? '/app/school'
+								: '/app/user'
+						"
+						:avatar="{
+							src:
+								'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
+								currentUser.id,
+							alt: currentUser.displayName,
+						}"
+						:label="
+							collapsed
+								? undefined
+								: currentUser.displayName +
+								  (currentUser.role ? ` (${currentUser.role})` : '')
+						"
+						color="neutral"
+						variant="ghost"
+						block
+						:square="collapsed"
+						class="data-[state=open]:bg-elevated"
+					/>
+					<UButton
+						icon="i-lucide-log-out"
+						:label="collapsed ? undefined : 'Abmelden'"
+						color="neutral"
+						variant="ghost"
+						block
+						:square="collapsed"
+						@click="signOut"
+					/>
+				</div>
 			</template>
-			-->
 		</UDashboardSidebar>
 
 		<slot />

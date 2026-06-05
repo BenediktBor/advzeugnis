@@ -1,5 +1,6 @@
 import { AzSetExportPayloadSchema, type AzSetExportPayload } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
+import { api } from '~/utils/convexApi'
 import {
 	downloadJsonFile,
 	readJsonFile,
@@ -8,6 +9,7 @@ import {
 
 export function useAdvZeUTemplatesImportExport() {
 	const templatesStore = useTemplatesStore()
+	const client = useConvexClient()
 	const toast = useToast()
 	const importDialog = useConfirmDialog()
 	const importFileInput = ref<HTMLInputElement | null>(null)
@@ -79,6 +81,15 @@ export function useAdvZeUTemplatesImportExport() {
 				onConfirm: async () => {
 					if (!pendingImportPayload.value) return
 					await templatesStore.mergeFromAzset(pendingImportPayload.value)
+					const snapshot = await templatesStore.exportAllAzset()
+					await client.mutation(api.templates.upsertMany, {
+						sets: snapshot.orderedIds.map((templateId, index) => ({
+							templateId,
+							label: snapshot.templateSets[templateId]?.label ?? '',
+							data: snapshot.templateSets[templateId],
+							sortOrder: index,
+						})),
+					})
 					toast.add({ title: 'Vorlagen importiert' })
 					pendingImportPayload.value = null
 				},

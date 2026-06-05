@@ -15,6 +15,7 @@ const {
 	isLoaded: templatesLoaded,
 	loadError: templatesLoadError,
 } = useTemplateSets()
+const { canEditTemplates } = useCurrentUser()
 const createStudentModalOpen = ref(false)
 
 const searchQuery = ref('')
@@ -218,6 +219,7 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 					tone="primary"
 				>
 					<UButton
+						v-if="canEditTemplates"
 						label="Zu Vorlagen"
 						to="/app/templates"
 						icon="i-lucide-file-text"

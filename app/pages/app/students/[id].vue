@@ -24,6 +24,7 @@ const id = computed(() => route.params.id as string)
 const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoadError } = useStudents()
 const { orderedIds, defaultAlphabeticalTemplateSetId, loadError: templatesLoadError } =
 	useTemplateSets()
+const { canEditTemplates } = useCurrentUser()
 const { copyToClipboard } = useClipboardCopy()
 const rewriter = useAiRewriter()
 
@@ -595,6 +596,7 @@ watch(
 					tone="primary"
 				>
 					<UButton
+						v-if="canEditTemplates"
 						label="Zu Vorlagen"
 						to="/app/templates"
 						icon="i-lucide-file-text"
