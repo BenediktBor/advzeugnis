@@ -40,7 +40,7 @@ watch(
 			<div
 				ref="outputRef"
 				id="text-output"
-				class="flex-1 min-h-[200px] w-full overflow-auto rounded-md border border-default bg-default px-3 py-2 text-sm text-default focus:outline-none focus:ring-2 focus:ring-primary"
+				class="flex-1 min-h-[200px] w-full overflow-auto rounded-md border border-default bg-default px-3 py-2 text-sm leading-relaxed text-default focus:outline-none focus:ring-2 focus:ring-primary"
 				role="region"
 				tabindex="0"
 				aria-label="Textausgabe"
@@ -50,7 +50,7 @@ watch(
 						<span
 							:data-category-id="seg.categoryId"
 							:data-variant-id="seg.variantId"
-							class="inline-block rounded py-0.5 transition-colors"
+							class="inline rounded box-decoration-clone px-0.5 py-0.5 transition-colors"
 							:class="
 								highlightedVariantId === seg.variantId
 									? 'bg-primary/25 ring-2 ring-primary/50'
@@ -58,8 +58,7 @@ watch(
 										? 'bg-primary/15 ring-1 ring-primary/30'
 										: ''
 							"
-						>{{ seg.text }}</span>
-						<span v-if="idx < segments.length - 1" aria-hidden="true">&nbsp;</span>
+						>{{ seg.text }}</span><template v-if="idx < segments.length - 1"> </template>
 					</template>
 				</template>
 				<template v-else>
