@@ -1,6 +1,6 @@
 export type UserType = 'solo' | 'school'
 
-export type SchoolRole = 'admin' | 'templateManager' | 'teacher'
+export type SchoolRole = 'owner' | 'admin' | 'templateManager' | 'teacher'
 
 export interface CurrentUser {
 	id: string

@@ -1,14 +1,17 @@
 import { ConvexError, v } from 'convex/values'
-import { internalMutation, mutation, query } from './_generated/server'
+import { action, internalMutation, mutation, query } from './_generated/server'
 import type { Id } from './_generated/dataModel'
-import { schoolRoleValidator } from './schema'
+import { assignableSchoolRoleValidator } from './schema'
 import {
 	getActiveMembershipForUser,
 	hasActiveSubscription,
 	requireActiveSubscription,
 	requireAdmin,
+	requireOwner,
 	requireUser,
 } from './lib/auth'
+import { api } from './_generated/api'
+import { sendResendEmail } from './ResendOTP'
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 14
 const DEFAULT_SEAT_LIMIT = 1
@@ -38,7 +41,7 @@ export const current = query({
 		return {
 			id: school._id,
 			name: school.name,
-			role: membership.role,
+			role: school.createdBy === userId ? 'owner' : membership.role,
 			subscriptionStatus: school.subscriptionStatus,
 			seatLimit: school.seatLimit,
 			stripeCustomerId: school.stripeCustomerId,
@@ -53,6 +56,8 @@ export const members = query({
 		const { userId } = await requireUser(ctx)
 		const membership = await getActiveMembershipForUser(ctx, userId)
 		if (!membership) return []
+		const school = await ctx.db.get(membership.schoolId)
+		if (!school) return []
 		const memberships = await ctx.db
 			.query('memberships')
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
@@ -68,7 +73,7 @@ export const members = query({
 						membershipId: row._id,
 						displayName: user?.name ?? user?.email ?? 'Benutzer',
 						email: user?.email,
-						role: row.role,
+						role: row.userId === school.createdBy ? 'owner' : row.role,
 					}
 				}),
 		)
@@ -83,7 +88,7 @@ export const invites = query({
 		const { userId } = await requireUser(ctx)
 		const membership = await getActiveMembershipForUser(ctx, userId)
 		if (!membership) return []
-		if (membership.role !== 'admin') return []
+		if (membership.role !== 'owner' && membership.role !== 'admin') return []
 		const rows = await ctx.db
 			.query('invites')
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
@@ -141,7 +146,7 @@ export const createSchool = mutation({
 		await ctx.db.insert('memberships', {
 			userId,
 			schoolId,
-			role: 'admin',
+			role: 'owner',
 			status: 'active',
 			createdAt: now,
 		})
@@ -153,7 +158,7 @@ export const createSchool = mutation({
 export const inviteUser = mutation({
 	args: {
 		email: v.string(),
-		role: schoolRoleValidator,
+		role: assignableSchoolRoleValidator,
 	},
 	handler: async (ctx, args) => {
 		const { userId, membership, school } = await requireActiveSubscription(ctx)
@@ -184,6 +189,51 @@ export const inviteUser = mutation({
 		})
 
 		return { inviteId, token }
+	},
+})
+
+export const inviteUserWithEmail = action({
+	args: {
+		email: v.string(),
+		role: assignableSchoolRoleValidator,
+		siteUrl: v.string(),
+	},
+	handler: async (ctx, args): Promise<{
+		inviteId: Id<'invites'>
+		token: string
+		inviteUrl: string
+		emailSent: boolean
+		emailId?: string
+		emailError?: string
+	}> => {
+		const invite = await ctx.runMutation(api.schools.inviteUser, {
+			email: args.email,
+			role: args.role,
+		}) as { inviteId: Id<'invites'>, token: string }
+		const siteUrl = args.siteUrl.replace(/\/$/, '')
+		const inviteUrl = `${siteUrl}/invite/${invite.token}`
+
+		try {
+			const email = await sendResendEmail({
+				to: normalizeEmail(args.email),
+				subject: 'Einladung zu AdvancedZeugnis',
+				text: [
+					'Du wurdest zu AdvancedZeugnis eingeladen.',
+					'',
+					'Öffne diesen Link, um dein Konto zu erstellen und der Schule beizutreten:',
+					inviteUrl,
+					'',
+					'Der Link ist 14 Tage gueltig.',
+				].join('\n'),
+			})
+			console.info(`[school] invite email sent to ${normalizeEmail(args.email)} (${email.id ?? 'unknown id'})`)
+			return { ...invite, inviteUrl, emailSent: true, emailId: email.id }
+		} catch (err) {
+			const emailError = err instanceof Error ? err.message : String(err)
+			console.error(`[school] invite email failed for ${normalizeEmail(args.email)}:`, emailError)
+			return { ...invite, inviteUrl, emailSent: false, emailError }
+		}
+
 	},
 })
 
@@ -262,10 +312,10 @@ export const removeMember = mutation({
 export const setRole = mutation({
 	args: {
 		userId: v.id('users'),
-		role: schoolRoleValidator,
+		role: assignableSchoolRoleValidator,
 	},
 	handler: async (ctx, args) => {
-		const { userId, membership } = await requireAdmin(ctx)
+		const { userId, membership, school } = await requireAdmin(ctx)
 		if (args.userId === userId && args.role !== 'admin') {
 			throw new ConvexError('Admins cannot demote themselves')
 		}
@@ -275,8 +325,29 @@ export const setRole = mutation({
 			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
 			.unique()
 		if (!member || member.status !== 'active') throw new ConvexError('Member not found')
+		if (member.role === 'owner' || member.userId === school.createdBy) {
+			throw new ConvexError('Owner role cannot be changed')
+		}
 
 		await ctx.db.patch(member._id, { role: args.role })
+	},
+})
+
+export const transferOwnership = mutation({
+	args: { userId: v.id('users') },
+	handler: async (ctx, args) => {
+		const { userId, membership, school } = await requireOwner(ctx)
+		if (args.userId === userId) throw new ConvexError('Owner already belongs to this user')
+
+		const newOwnerMembership = await ctx.db
+			.query('memberships')
+			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
+			.unique()
+		if (!newOwnerMembership || newOwnerMembership.status !== 'active') throw new ConvexError('Member not found')
+
+		await ctx.db.patch(membership._id, { role: 'admin' })
+		await ctx.db.patch(newOwnerMembership._id, { role: 'owner' })
+		await ctx.db.patch(school._id, { createdBy: args.userId })
 	},
 })
 

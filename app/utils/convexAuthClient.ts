@@ -1,8 +1,8 @@
 import type { ConvexClient } from 'convex/browser'
+import { api } from '~/utils/convexApi'
 
 const TOKEN_KEY = 'advanced-zeugnis-convex-token'
 const REFRESH_TOKEN_KEY = 'advanced-zeugnis-convex-refresh-token'
-const OAUTH_VERIFIER_KEY = 'advanced-zeugnis-oauth-verifier'
 
 type AuthTokens = {
 	token: string
@@ -28,19 +28,32 @@ export function clearAuthTokens() {
 	if (typeof window === 'undefined') return
 	window.localStorage.removeItem(TOKEN_KEY)
 	window.localStorage.removeItem(REFRESH_TOKEN_KEY)
-	window.sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
-}
-
-export function storeOauthVerifier(verifier: string) {
-	window.sessionStorage.setItem(OAUTH_VERIFIER_KEY, verifier)
-}
-
-export function takeOauthVerifier() {
-	const verifier = window.sessionStorage.getItem(OAUTH_VERIFIER_KEY)
-	if (verifier) window.sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
-	return verifier
 }
 
 export function configureConvexAuth(client: ConvexClient) {
-	client.setAuth(async () => getStoredAuthToken())
+	client.setAuth(async ({ forceRefreshToken }) => {
+		if (!forceRefreshToken) return getStoredAuthToken()
+
+		const refreshToken = getStoredRefreshToken()
+		if (!refreshToken) {
+			clearAuthTokens()
+			return null
+		}
+
+		try {
+			const result = await client.action(api.auth.signIn, { refreshToken }) as {
+				tokens?: AuthTokens | null
+			}
+			if (!result.tokens) {
+				clearAuthTokens()
+				return null
+			}
+			storeAuthTokens(result.tokens)
+			return result.tokens.token
+		} catch (err) {
+			console.error('[auth] token refresh failed:', err)
+			clearAuthTokens()
+			return null
+		}
+	})
 }

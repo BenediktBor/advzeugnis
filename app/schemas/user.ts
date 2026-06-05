@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SchoolRoleSchema = z.enum(['admin', 'templateManager', 'teacher'])
+export const SchoolRoleSchema = z.enum(['owner', 'admin', 'templateManager', 'teacher'])
 
 export const CurrentUserSchema = z.object({
 	id: z.string(),

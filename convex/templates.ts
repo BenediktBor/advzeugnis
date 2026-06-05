@@ -1,11 +1,14 @@
 import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
-import { requireSchoolMember, requireTemplateManagerOrAdmin } from './lib/auth'
+import { getActiveMembershipForUser, requireTemplateManagerOrAdmin, requireUser } from './lib/auth'
 
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		const { membership } = await requireSchoolMember(ctx)
+		const { userId } = await requireUser(ctx)
+		const membership = await getActiveMembershipForUser(ctx, userId)
+		if (!membership) return []
+
 		const rows = await ctx.db
 			.query('templateSets')
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))

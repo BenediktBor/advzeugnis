@@ -3,6 +3,13 @@ import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
 export const schoolRoleValidator = v.union(
+	v.literal('owner'),
+	v.literal('admin'),
+	v.literal('templateManager'),
+	v.literal('teacher'),
+)
+
+export const assignableSchoolRoleValidator = v.union(
 	v.literal('admin'),
 	v.literal('templateManager'),
 	v.literal('teacher'),

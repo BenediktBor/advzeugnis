@@ -36,11 +36,12 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 	const isAdmin = computed(
 		() =>
 			currentUser.value.type === 'school' &&
-			currentUser.value.role === 'admin'
+			(currentUser.value.role === 'owner' || currentUser.value.role === 'admin')
 	)
 	const canEditTemplates = computed(
 		() =>
 			currentUser.value.type === 'school' && (
+			currentUser.value.role === 'owner' ||
 			currentUser.value.role === 'admin' ||
 			currentUser.value.role === 'templateManager'
 			)
@@ -48,7 +49,7 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 	const canManageTeachers = computed(
 		() =>
 			currentUser.value.type === 'school' &&
-			currentUser.value.role === 'admin'
+			(currentUser.value.role === 'owner' || currentUser.value.role === 'admin')
 	)
 
 	function setUserType(type: UserType) {

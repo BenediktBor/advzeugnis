@@ -23,6 +23,7 @@
 		"@convex-dev/auth": "^0.0.92",
 		"@convex-dev/stripe": "^0.1.4",
 		"@nuxt/ui": "^4.6.1",
+		"@oslojs/crypto": "^1.0.1",
 		"@vueuse/integrations": "^11.3.0",
 		"convex": "^1.37.0",
 		"convex-nuxt": "^0.1.5",
@@ -32,6 +33,7 @@
 		"jose": "^6.2.3",
 		"nuxt": "^4.3.0",
 		"pinia": "^3.0.0",
+		"resend": "^6.12.4",
 		"sortablejs": "^1.15.6",
 		"stripe": "^22.1.0",
 		"tailwindcss": "^4.1.18",
@@ -40,6 +42,7 @@
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {
+		"@types/node": "^25.9.1",
 		"oxlint": "^0.16.0",
 		"typescript": "^5.9.3",
 		"vitest": "^3.1.0"

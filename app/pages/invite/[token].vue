@@ -6,18 +6,22 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const router = useRouter()
 const client = useConvexClient()
-const { isAuthenticated } = useCurrentUser()
-const { signIn } = useConvexAuthActions()
+const { isAuthenticated, isLoaded } = useCurrentUser()
 
 const isAccepting = ref(false)
 const error = ref('')
 
 const token = computed(() => String(route.params.token || ''))
+const isAuthReady = computed(() => isLoaded.value)
 
 async function onAccept() {
 	error.value = ''
+	if (!isAuthReady.value) return
 	if (!isAuthenticated.value) {
-		await signIn('google', route.fullPath)
+		await router.push({
+			path: '/sign-in',
+			query: { redirect: route.fullPath },
+		})
 		return
 	}
 
@@ -27,7 +31,15 @@ async function onAccept() {
 		await router.push('/app/school')
 	} catch (err) {
 		console.error('[school] invite acceptance failed:', err)
-		error.value = 'Einladung konnte nicht angenommen werden.'
+		error.value = String(err).includes('Invite email does not match')
+			? 'Diese Einladung wurde fuer eine andere E-Mail-Adresse erstellt.'
+			: String(err).includes('School subscription is not active')
+				? 'Die Schul-Subscription ist noch nicht aktiv.'
+				: String(err).includes('No seats available')
+					? 'In dieser Schule sind keine freien Sitzplaetze verfuegbar.'
+					: String(err).includes('Invite has expired')
+						? 'Diese Einladung ist abgelaufen.'
+						: 'Einladung konnte nicht angenommen werden.'
 	} finally {
 		isAccepting.value = false
 	}
@@ -48,12 +60,24 @@ async function onAccept() {
 
 			<div class="flex flex-col gap-4">
 				<UAlert v-if="error" color="error" variant="soft" :title="error" />
-				<UButton
-					:label="isAuthenticated ? 'Einladung annehmen' : 'Anmelden und Einladung annehmen'"
-					icon="i-lucide-mail-check"
-					:loading="isAccepting"
-					@click="onAccept"
+				<AppStateNotice
+					v-if="!isAuthReady"
+					title="Anmeldung wird geprüft"
+					icon="i-lucide-loader-2"
+					loading
 				/>
+				<template v-else>
+					<p v-if="!isAuthenticated" class="text-sm text-muted">
+						Du hast noch kein Konto? Auf der Anmeldeseite kannst du dich registrieren
+						oder mit einem bestehenden Konto anmelden.
+					</p>
+					<UButton
+						:label="isAuthenticated ? 'Einladung annehmen' : 'Anmelden und Einladung annehmen'"
+						icon="i-lucide-mail-check"
+						:loading="isAccepting"
+						@click="onAccept"
+					/>
+				</template>
 			</div>
 		</UCard>
 	</UContainer>

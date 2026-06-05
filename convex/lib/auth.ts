@@ -3,7 +3,7 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import type { QueryCtx, MutationCtx, ActionCtx } from '../_generated/server'
 import type { Doc, Id } from '../_generated/dataModel'
 
-export type SchoolRole = 'admin' | 'templateManager' | 'teacher'
+export type SchoolRole = 'owner' | 'admin' | 'templateManager' | 'teacher'
 export type AuthorizedCtx = QueryCtx | MutationCtx
 
 export async function requireUser(ctx: AuthorizedCtx) {
@@ -50,13 +50,25 @@ export async function requireSchoolMember(ctx: AuthorizedCtx, schoolId?: Id<'sch
 
 export async function requireAdmin(ctx: AuthorizedCtx, schoolId?: Id<'schools'>) {
 	const result = await requireSchoolMember(ctx, schoolId)
-	if (result.membership.role !== 'admin') throw new ConvexError('Admin role required')
+	if (result.membership.role !== 'owner' && result.membership.role !== 'admin') throw new ConvexError('Admin role required')
+	return result
+}
+
+export async function requireOwner(ctx: AuthorizedCtx, schoolId?: Id<'schools'>) {
+	const result = await requireSchoolMember(ctx, schoolId)
+	if (result.membership.role !== 'owner' && result.school.createdBy !== result.userId) {
+		throw new ConvexError('Owner role required')
+	}
 	return result
 }
 
 export async function requireTemplateManagerOrAdmin(ctx: AuthorizedCtx, schoolId?: Id<'schools'>) {
 	const result = await requireSchoolMember(ctx, schoolId)
-	if (result.membership.role !== 'admin' && result.membership.role !== 'templateManager') {
+	if (
+		result.membership.role !== 'owner' &&
+		result.membership.role !== 'admin' &&
+		result.membership.role !== 'templateManager'
+	) {
 		throw new ConvexError('Template manager role required')
 	}
 	return result

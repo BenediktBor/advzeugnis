@@ -11,8 +11,15 @@ export function useSchool() {
 		return await client.mutation(api.schools.createSchool, args)
 	}
 
-	async function inviteMember(args: { email: string, role: SchoolRole }) {
-		return await client.mutation(api.schools.inviteUser, args)
+	async function inviteMember(args: { email: string, role: SchoolRole, siteUrl: string }) {
+		return await client.action(api.schools.inviteUserWithEmail, args) as {
+			inviteId: string
+			token: string
+			inviteUrl: string
+			emailSent: boolean
+			emailId?: string
+			emailError?: string
+		}
 	}
 
 	async function revokeInvite(inviteId: string) {
@@ -31,6 +38,10 @@ export function useSchool() {
 		await client.mutation(api.schools.setRole, { userId, role })
 	}
 
+	async function transferOwnership(userId: string) {
+		await client.mutation(api.schools.transferOwnership, { userId })
+	}
+
 	return {
 		school: computed(() => schoolQuery.data.value ?? null),
 		members: computed<SchoolMember[]>(() => membersQuery.data.value ?? []),
@@ -43,5 +54,6 @@ export function useSchool() {
 		acceptInvite,
 		removeMember,
 		setRole,
+		transferOwnership,
 	}
 }
