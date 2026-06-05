@@ -12,9 +12,11 @@ import {
 } from './lib/auth'
 import { api } from './_generated/api'
 import { sendResendEmail } from './ResendOTP'
+import { buildAppUrl } from './lib/config'
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 14
 const DEFAULT_SEAT_LIMIT = 1
+const MAX_SEAT_LIMIT = 500
 
 function normalizeEmail(email: string) {
 	return email.trim().toLowerCase()
@@ -26,6 +28,14 @@ async function countActiveMembers(ctx: Parameters<typeof requireAdmin>[0], schoo
 		.withIndex('by_school', (q) => q.eq('schoolId', schoolId))
 		.collect()
 	return memberships.filter((membership) => membership.status === 'active').length
+}
+
+function normalizeSeatLimit(value: number | undefined, minimum = DEFAULT_SEAT_LIMIT) {
+	const rawSeatLimit = value ?? minimum
+	if (!Number.isFinite(rawSeatLimit)) throw new ConvexError('Seat limit must be a finite number')
+	const seatLimit = Math.floor(rawSeatLimit)
+	if (seatLimit < minimum || seatLimit > MAX_SEAT_LIMIT) throw new ConvexError('Seat limit is outside the allowed range')
+	return seatLimit
 }
 
 export const current = query({
@@ -111,6 +121,7 @@ export const billingContext = query({
 	args: {},
 	handler: async (ctx) => {
 		const { userId, user, membership, school } = await requireAdmin(ctx)
+		const activeMemberCount = await countActiveMembers(ctx, membership.schoolId)
 		return {
 			userId,
 			email: user.email,
@@ -120,6 +131,7 @@ export const billingContext = query({
 			stripeCustomerId: school.stripeCustomerId,
 			stripeSubscriptionId: school.stripeSubscriptionId,
 			seatLimit: school.seatLimit,
+			activeMemberCount,
 			subscriptionStatus: school.subscriptionStatus,
 		}
 	},
@@ -140,7 +152,7 @@ export const createSchool = mutation({
 			name: args.name.trim() || 'Neue Schule',
 			createdBy: userId,
 			subscriptionStatus: 'checkoutPending',
-			seatLimit: Math.max(DEFAULT_SEAT_LIMIT, Math.floor(args.seatLimit ?? DEFAULT_SEAT_LIMIT)),
+			seatLimit: normalizeSeatLimit(args.seatLimit),
 		})
 
 		await ctx.db.insert('memberships', {
@@ -196,7 +208,6 @@ export const inviteUserWithEmail = action({
 	args: {
 		email: v.string(),
 		role: assignableSchoolRoleValidator,
-		siteUrl: v.string(),
 	},
 	handler: async (ctx, args): Promise<{
 		inviteId: Id<'invites'>
@@ -210,8 +221,7 @@ export const inviteUserWithEmail = action({
 			email: args.email,
 			role: args.role,
 		}) as { inviteId: Id<'invites'>, token: string }
-		const siteUrl = args.siteUrl.replace(/\/$/, '')
-		const inviteUrl = `${siteUrl}/invite/${invite.token}`
+		const inviteUrl = buildAppUrl(`/invite/${invite.token}`)
 
 		try {
 			const email = await sendResendEmail({
@@ -367,8 +377,23 @@ export const updateSubscriptionFromStripe = internalMutation({
 			stripeCustomerId: args.stripeCustomerId,
 			stripeSubscriptionId: args.stripeSubscriptionId,
 			subscriptionStatus: mapStripeStatus(args.subscriptionStatus),
-			...(args.seatLimit ? { seatLimit: Math.max(DEFAULT_SEAT_LIMIT, args.seatLimit) } : {}),
+			...(args.seatLimit ? { seatLimit: normalizeSeatLimit(args.seatLimit) } : {}),
 		})
+	},
+})
+
+export const updateStripeCustomer = internalMutation({
+	args: {
+		schoolId: v.id('schools'),
+		stripeCustomerId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const school = await ctx.db.get(args.schoolId)
+		if (!school) throw new ConvexError('School not found')
+		if (school.stripeCustomerId && school.stripeCustomerId !== args.stripeCustomerId) {
+			throw new ConvexError('School already has a different Stripe customer')
+		}
+		await ctx.db.patch(args.schoolId, { stripeCustomerId: args.stripeCustomerId })
 	},
 })
 

@@ -1,6 +1,6 @@
 import { produce } from 'immer'
 import type { MaybeRefOrGetter, Ref } from 'vue'
-import { ref, toRaw, toValue, watchEffect } from 'vue'
+import { reactive, ref, toRaw, toValue, watchEffect } from 'vue'
 import { TemplateSetSchema } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
 import { api } from '~/utils/convexApi'
@@ -26,6 +26,118 @@ export type SetWithData = {
 	categoryCount: number
 	gradeCount: number
 	variantCount: number
+}
+
+type TemplateSyncUpsertOperation = {
+	kind: 'upsert'
+	templateId: string
+	label: string
+	data: TemplateSet
+	sortOrder: number
+}
+
+type TemplateSyncRemoveOperation = {
+	kind: 'remove'
+	templateId: string
+}
+
+type TemplateSyncOperation = TemplateSyncUpsertOperation | TemplateSyncRemoveOperation
+
+type TemplateSyncQueue = {
+	timer: ReturnType<typeof setTimeout> | null
+	inFlight: Promise<void> | null
+	latest: TemplateSyncOperation | null
+	failed: TemplateSyncOperation | null
+}
+
+const TEMPLATE_SYNC_DEBOUNCE_MS = 400
+const templateSyncQueues = new Map<string, TemplateSyncQueue>()
+const templateSyncStatus = reactive<Record<string, { isPending: boolean, error: string | null }>>({})
+
+function getTemplateSyncQueue(templateId: string) {
+	let queue = templateSyncQueues.get(templateId)
+	if (!queue) {
+		queue = { timer: null, inFlight: null, latest: null, failed: null }
+		templateSyncQueues.set(templateId, queue)
+	}
+	return queue
+}
+
+function setTemplateSyncStatus(templateId: string, status: { isPending?: boolean, error?: string | null }) {
+	const current = templateSyncStatus[templateId] ?? { isPending: false, error: null }
+	templateSyncStatus[templateId] = {
+		isPending: status.isPending ?? current.isPending,
+		error: status.error === undefined ? current.error : status.error,
+	}
+}
+
+function getErrorMessage(err: unknown) {
+	return err instanceof Error ? err.message : String(err)
+}
+
+async function runTemplateSyncOperation(client: ReturnType<typeof useConvexClient>, operation: TemplateSyncOperation) {
+	if (operation.kind === 'remove') {
+		await client.mutation(api.templates.remove, { templateId: operation.templateId })
+		return
+	}
+	await client.mutation(api.templates.upsert, {
+		templateId: operation.templateId,
+		label: operation.label,
+		data: JSON.parse(JSON.stringify(operation.data)),
+		sortOrder: operation.sortOrder,
+	})
+}
+
+function flushTemplateSync(client: ReturnType<typeof useConvexClient>, templateId: string) {
+	const queue = getTemplateSyncQueue(templateId)
+	if (queue.inFlight) return
+	const operation = queue.latest
+	if (!operation) {
+		setTemplateSyncStatus(templateId, { isPending: false })
+		return
+	}
+
+	queue.latest = null
+	queue.failed = null
+	queue.inFlight = runTemplateSyncOperation(client, operation)
+		.then(() => {
+			if (!queue.latest) setTemplateSyncStatus(templateId, { isPending: false, error: null })
+		})
+		.catch((err) => {
+			console.error('[templates] Convex sync failed:', err)
+			queue.failed = operation
+			setTemplateSyncStatus(templateId, { isPending: false, error: getErrorMessage(err) })
+		})
+		.finally(() => {
+			queue.inFlight = null
+			if (queue.latest) flushTemplateSync(client, templateId)
+		})
+}
+
+function enqueueTemplateSync(client: ReturnType<typeof useConvexClient> | null, operation: TemplateSyncOperation) {
+	if (!client) return
+	const queue = getTemplateSyncQueue(operation.templateId)
+	if (queue.timer) clearTimeout(queue.timer)
+	queue.latest = operation
+	queue.failed = null
+	setTemplateSyncStatus(operation.templateId, { isPending: true, error: null })
+	queue.timer = setTimeout(() => {
+		queue.timer = null
+		flushTemplateSync(client, operation.templateId)
+	}, TEMPLATE_SYNC_DEBOUNCE_MS)
+}
+
+function retryTemplateSync(client: ReturnType<typeof useConvexClient> | null, templateId: string) {
+	if (!client) return
+	const queue = getTemplateSyncQueue(templateId)
+	const operation = queue.latest ?? queue.failed
+	if (!operation) return
+	queue.latest = operation
+	queue.failed = null
+	if (queue.timer) clearTimeout(queue.timer)
+	queue.timer = null
+	setTemplateSyncStatus(templateId, { isPending: true, error: null })
+	flushTemplateSync(client, templateId)
 }
 
 function useOptionalConvexClient() {
@@ -147,11 +259,11 @@ export function useTemplateSets() {
 	function syncSet(setId: string) {
 		const setData = store.getSetData(setId)
 		if (!setData) return
-		if (!client) return
-		void client.mutation(api.templates.upsert, {
+		enqueueTemplateSync(client, {
+			kind: 'upsert',
 			templateId: setId,
 			label: setData.label,
-			data: JSON.parse(JSON.stringify(setData)),
+			data: setData,
 			sortOrder: store.orderedIds.indexOf(setId),
 		})
 	}
@@ -164,8 +276,7 @@ export function useTemplateSets() {
 
 	function removeSet(setId: string) {
 		store.removeSet(setId)
-		if (!client) return
-		void client.mutation(api.templates.remove, { templateId: setId })
+		enqueueTemplateSync(client, { kind: 'remove', templateId: setId })
 	}
 
 	return {
@@ -176,6 +287,10 @@ export function useTemplateSets() {
 		hasAnyTemplateSets,
 		isLoaded: computed(() => store.isLoaded && !templateSetsQuery.isPending.value),
 		loadError: computed(() => store.loadError ?? templateSetsQuery.error.value),
+		syncStatus: computed(() => templateSyncStatus),
+		hasPendingSync: computed(() => Object.values(templateSyncStatus).some((status) => status.isPending)),
+		syncError: computed(() => Object.values(templateSyncStatus).find((status) => status.error)?.error ?? null),
+		retrySync: (setId: string) => retryTemplateSync(client, setId),
 		addSet,
 		removeSet,
 		getSetLabel,
@@ -204,11 +319,11 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 	function save(setData: TemplateSet) {
 		if (!setId.value) return
 		store.saveSetData(setId.value, setData)
-		if (!client) return
-		void client.mutation(api.templates.upsert, {
+		enqueueTemplateSync(client, {
+			kind: 'upsert',
 			templateId: setId.value,
 			label: setData.label,
-			data: JSON.parse(JSON.stringify(setData)),
+			data: setData,
 			sortOrder: store.orderedIds.indexOf(setId.value),
 		})
 	}
@@ -679,6 +794,9 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		getSet,
 		isLoaded: computed(() => store.isLoaded),
 		loadError: computed(() => store.loadError),
+		isSyncPending: computed(() => templateSyncStatus[setId.value]?.isPending ?? false),
+		syncError: computed(() => templateSyncStatus[setId.value]?.error ?? null),
+		retrySync: () => retryTemplateSync(client, setId.value),
 		save,
 		addSubject,
 		deleteSubject,

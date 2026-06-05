@@ -55,6 +55,9 @@ const {
 	moveOptionalGroupPartToOptionalGroup,
 	insertSentenceParts,
 	deleteSentenceParts,
+	isSyncPending,
+	syncError,
+	retrySync,
 } = useTemplates(computed(() => props.setId))
 const { canEditTemplates } = useCurrentUser()
 const templateClipboard = useTemplateClipboardStore()
@@ -1211,6 +1214,25 @@ onBeforeUnmount(() => {
 		@paste-subjects="pasteSubjectsFromClipboard"
 		@paste-categories="pasteCategoriesFromClipboard"
 	/>
+
+	<UAlert
+		v-if="syncError"
+		class="fixed bottom-4 left-4 right-4 z-50 lg:left-[22rem] lg:right-4"
+		color="error"
+		variant="solid"
+		title="Vorlage konnte nicht synchronisiert werden"
+		:description="syncError"
+	>
+		<template #actions>
+			<UButton
+				label="Erneut versuchen"
+				color="neutral"
+				variant="outline"
+				:loading="isSyncPending"
+				@click="retrySync"
+			/>
+		</template>
+	</UAlert>
 
 	<USlideover
 		v-if="isMobile && selectedCategory && selectedCategoryData"

@@ -1,10 +1,12 @@
 import { ConvexError, v } from 'convex/values'
 import { StripeSubscriptions } from '@convex-dev/stripe'
 import { action } from './_generated/server'
-import { api, components } from './_generated/api'
+import { api, components, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
+import { buildAppUrl, getStripePriceId } from './lib/config'
 
 const stripeClient = new StripeSubscriptions(components.stripe as any, {})
+const MAX_SEAT_LIMIT = 500
 
 type BillingContext = {
 	userId: Id<'users'>
@@ -15,6 +17,7 @@ type BillingContext = {
 	stripeCustomerId?: string
 	stripeSubscriptionId?: string
 	seatLimit: number
+	activeMemberCount: number
 	subscriptionStatus: string
 }
 
@@ -26,16 +29,22 @@ type StripeCustomerRef = {
 	customerId: string
 }
 
+function normalizeSeatLimit(value: number, activeMemberCount: number) {
+	if (!Number.isFinite(value)) throw new ConvexError('Seat limit must be a finite number')
+	const seatLimit = Math.floor(value)
+	if (seatLimit < activeMemberCount) throw new ConvexError('Seat limit cannot be lower than active members')
+	if (seatLimit < 1 || seatLimit > MAX_SEAT_LIMIT) throw new ConvexError('Seat limit is outside the allowed range')
+	return seatLimit
+}
+
 export const createSchoolCheckout = action({
 	args: {
-		priceId: v.string(),
 		seatLimit: v.number(),
-		successUrl: v.string(),
-		cancelUrl: v.string(),
 	},
 	handler: async (ctx, args): Promise<StripeRedirectSession> => {
 		const billing = await ctx.runQuery(api.schools.billingContext) as BillingContext | null
 		if (!billing) throw new ConvexError('School not found')
+		const seatLimit = normalizeSeatLimit(args.seatLimit, billing.activeMemberCount)
 
 		const customer: StripeCustomerRef = billing.stripeCustomerId
 			? { customerId: billing.stripeCustomerId }
@@ -45,14 +54,20 @@ export const createSchoolCheckout = action({
 					metadata: { schoolId: billing.schoolId },
 					idempotencyKey: billing.schoolId,
 				})
+		if (!billing.stripeCustomerId) {
+			await ctx.runMutation(internal.schools.updateStripeCustomer, {
+				schoolId: billing.schoolId,
+				stripeCustomerId: customer.customerId,
+			})
+		}
 
 		return await stripeClient.createCheckoutSession(ctx, {
-			priceId: args.priceId,
+			priceId: getStripePriceId(),
 			customerId: customer.customerId,
 			mode: 'subscription',
-			quantity: Math.max(1, Math.floor(args.seatLimit)),
-			successUrl: args.successUrl,
-			cancelUrl: args.cancelUrl,
+			quantity: seatLimit,
+			successUrl: buildAppUrl('/app/school?billing=success'),
+			cancelUrl: buildAppUrl('/app/setup-school?billing=cancelled'),
 			metadata: { schoolId: billing.schoolId },
 			subscriptionMetadata: { schoolId: billing.schoolId },
 		})
@@ -81,10 +96,11 @@ export const updateSeatQuantity = action({
 	handler: async (ctx, args): Promise<void> => {
 		const billing = await ctx.runQuery(api.schools.billingContext) as BillingContext | null
 		if (!billing?.stripeSubscriptionId) throw new ConvexError('No Stripe subscription for this school')
+		const seatLimit = normalizeSeatLimit(args.seatLimit, billing.activeMemberCount)
 
 		await stripeClient.updateSubscriptionQuantity(ctx, {
 			stripeSubscriptionId: billing.stripeSubscriptionId,
-			quantity: Math.max(1, Math.floor(args.seatLimit)),
+			quantity: seatLimit,
 		})
 	},
 })

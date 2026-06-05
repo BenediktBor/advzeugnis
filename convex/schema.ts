@@ -24,6 +24,56 @@ export const subscriptionStatusValidator = v.union(
 	v.literal('incomplete'),
 )
 
+export const optionalGroupChildPartValidator = v.union(
+	v.object({ type: v.literal('text'), value: v.string() }),
+	v.object({ type: v.literal('genderVariant'), value: v.array(v.string()) }),
+	v.object({ type: v.literal('name'), value: v.optional(v.string()) }),
+)
+
+export const sentencePartValidator = v.union(
+	v.object({ type: v.literal('text'), value: v.string() }),
+	v.object({ type: v.literal('genderVariant'), value: v.array(v.string()) }),
+	v.object({ type: v.literal('name'), value: v.optional(v.string()) }),
+	v.object({
+		type: v.literal('optionalGroup'),
+		id: v.string(),
+		enabledByDefault: v.boolean(),
+		parts: v.array(optionalGroupChildPartValidator),
+	}),
+)
+
+export const variantValidator = v.object({
+	id: v.string(),
+	label: v.string(),
+	sentences: v.array(sentencePartValidator),
+})
+
+export const gradeValidator = v.object({
+	id: v.string(),
+	label: v.string(),
+	value: v.optional(v.number()),
+	variants: v.array(variantValidator),
+})
+
+export const categoryValidator = v.object({
+	id: v.string(),
+	label: v.string(),
+	grades: v.array(gradeValidator),
+})
+
+export const subjectValidator = v.object({
+	id: v.string(),
+	label: v.string(),
+	categories: v.array(categoryValidator),
+})
+
+export const templateDataValidator = v.object({
+	id: v.string(),
+	label: v.string(),
+	subjects: v.array(subjectValidator),
+	_schemaVersion: v.optional(v.number()),
+})
+
 export default defineSchema({
 	...authTables,
 	users: defineTable({
@@ -55,7 +105,8 @@ export default defineSchema({
 		removedAt: v.optional(v.number()),
 	}).index('by_user', ['userId'])
 		.index('by_school', ['schoolId'])
-		.index('by_school_user', ['schoolId', 'userId']),
+		.index('by_school_user', ['schoolId', 'userId'])
+		.index('by_invited_by', ['invitedBy']),
 	invites: defineTable({
 		schoolId: v.id('schools'),
 		email: v.string(),
@@ -69,12 +120,13 @@ export default defineSchema({
 		acceptedAt: v.optional(v.number()),
 	}).index('by_token', ['token'])
 		.index('by_school', ['schoolId'])
-		.index('by_school_email', ['schoolId', 'email']),
+		.index('by_school_email', ['schoolId', 'email'])
+		.index('by_invited_by', ['invitedBy']),
 	templateSets: defineTable({
 		schoolId: v.id('schools'),
 		templateId: v.string(),
 		label: v.string(),
-		data: v.any(),
+		data: templateDataValidator,
 		sortOrder: v.number(),
 		updatedBy: v.id('users'),
 		updatedAt: v.number(),

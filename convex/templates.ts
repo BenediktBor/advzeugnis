@@ -1,6 +1,12 @@
 import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import { getActiveMembershipForUser, requireTemplateManagerOrAdmin, requireUser } from './lib/auth'
+import { templateDataValidator } from './schema'
+import {
+	validateTemplateId,
+	validateTemplateInput,
+	validateTemplateSetLimit,
+} from './lib/templateValidation'
 
 export const list = query({
 	args: {},
@@ -31,11 +37,12 @@ export const upsert = mutation({
 	args: {
 		templateId: v.string(),
 		label: v.string(),
-		data: v.any(),
+		data: templateDataValidator,
 		sortOrder: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const { userId, membership } = await requireTemplateManagerOrAdmin(ctx)
+		validateTemplateInput(args)
 		const existing = await ctx.db
 			.query('templateSets')
 			.withIndex('by_school_template', (q) => q.eq('schoolId', membership.schoolId).eq('templateId', args.templateId))
@@ -57,6 +64,7 @@ export const upsert = mutation({
 			.query('templateSets')
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
 			.collect()
+		validateTemplateSetLimit(current.length + 1)
 		return await ctx.db.insert('templateSets', {
 			schoolId: membership.schoolId,
 			templateId: args.templateId,
@@ -74,18 +82,29 @@ export const upsertMany = mutation({
 		sets: v.array(v.object({
 			templateId: v.string(),
 			label: v.string(),
-			data: v.any(),
+			data: templateDataValidator,
 			sortOrder: v.number(),
 		})),
 	},
 	handler: async (ctx, args) => {
 		const { userId, membership } = await requireTemplateManagerOrAdmin(ctx)
 		const now = Date.now()
+		const templateIds = new Set<string>()
 		for (const set of args.sets) {
-			const existing = await ctx.db
-				.query('templateSets')
-				.withIndex('by_school_template', (q) => q.eq('schoolId', membership.schoolId).eq('templateId', set.templateId))
-				.unique()
+			validateTemplateInput(set)
+			if (templateIds.has(set.templateId)) throw new ConvexError('Duplicate templateId in bulk upsert')
+			templateIds.add(set.templateId)
+		}
+		const current = await ctx.db
+			.query('templateSets')
+			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
+			.collect()
+		const existingByTemplateId = new Map(current.map((row) => [row.templateId, row]))
+		const newSetCount = args.sets.filter((set) => !existingByTemplateId.has(set.templateId)).length
+		validateTemplateSetLimit(current.length + newSetCount)
+
+		for (const set of args.sets) {
+			const existing = existingByTemplateId.get(set.templateId)
 			if (existing) {
 				await ctx.db.patch(existing._id, {
 					label: set.label,
@@ -114,6 +133,7 @@ export const remove = mutation({
 	args: { templateId: v.string() },
 	handler: async (ctx, args) => {
 		const { membership } = await requireTemplateManagerOrAdmin(ctx)
+		validateTemplateId(args.templateId)
 		const existing = await ctx.db
 			.query('templateSets')
 			.withIndex('by_school_template', (q) => q.eq('schoolId', membership.schoolId).eq('templateId', args.templateId))
@@ -127,6 +147,12 @@ export const reorder = mutation({
 	args: { orderedIds: v.array(v.string()) },
 	handler: async (ctx, args) => {
 		const { membership } = await requireTemplateManagerOrAdmin(ctx)
+		const seen = new Set<string>()
+		for (const templateId of args.orderedIds) {
+			validateTemplateId(templateId)
+			if (seen.has(templateId)) throw new ConvexError('Duplicate templateId in reorder')
+			seen.add(templateId)
+		}
 		const rows = await ctx.db
 			.query('templateSets')
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
@@ -134,7 +160,8 @@ export const reorder = mutation({
 		const byTemplateId = new Map(rows.map((row) => [row.templateId, row]))
 		for (const [index, templateId] of args.orderedIds.entries()) {
 			const row = byTemplateId.get(templateId)
-			if (row) await ctx.db.patch(row._id, { sortOrder: index })
+			if (!row) throw new ConvexError('Template set not found')
+			await ctx.db.patch(row._id, { sortOrder: index })
 		}
 	},
 })

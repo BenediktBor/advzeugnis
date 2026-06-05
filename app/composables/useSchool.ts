@@ -11,7 +11,7 @@ export function useSchool() {
 		return await client.mutation(api.schools.createSchool, args)
 	}
 
-	async function inviteMember(args: { email: string, role: SchoolRole, siteUrl: string }) {
+	async function inviteMember(args: { email: string, role: SchoolRole }) {
 		return await client.action(api.schools.inviteUserWithEmail, args) as {
 			inviteId: string
 			token: string

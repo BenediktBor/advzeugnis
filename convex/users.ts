@@ -1,15 +1,11 @@
-import { ConvexError, v } from 'convex/values'
+import { ConvexError } from 'convex/values'
 import { StripeSubscriptions } from '@convex-dev/stripe'
-import { action, internalMutation, mutation, query } from './_generated/server'
+import { action, internalMutation, query } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { getActiveMembershipForUser, requireUser } from './lib/auth'
 import { api, components, internal } from './_generated/api'
 
 const stripeClient = new StripeSubscriptions(components.stripe as any, {})
-
-function normalizeEmail(email: string) {
-	return email.trim().toLowerCase()
-}
 
 export const viewer = query({
 	args: {},
@@ -38,43 +34,6 @@ export const viewer = query({
 					}
 				: null,
 		}
-	},
-})
-
-export const cleanupStalePasswordAccount = mutation({
-	args: { email: v.string() },
-	handler: async (ctx, args) => {
-		const email = normalizeEmail(args.email)
-		const account = await ctx.db
-			.query('authAccounts')
-			.withIndex('providerAndAccountId', (q) => q.eq('provider', 'password').eq('providerAccountId', email))
-			.unique()
-		if (!account) return false
-
-		const user = await ctx.db.get(account.userId)
-		if (user) return false
-
-		const verificationCodes = await ctx.db
-			.query('authVerificationCodes')
-			.withIndex('accountId', (q) => q.eq('accountId', account._id))
-			.collect()
-		for (const code of verificationCodes) await ctx.db.delete(code._id)
-
-		const sessions = await ctx.db
-			.query('authSessions')
-			.withIndex('userId', (q) => q.eq('userId', account.userId))
-			.collect()
-		for (const session of sessions) {
-			const refreshTokens = await ctx.db
-				.query('authRefreshTokens')
-				.withIndex('sessionId', (q) => q.eq('sessionId', session._id))
-				.collect()
-			for (const refreshToken of refreshTokens) await ctx.db.delete(refreshToken._id)
-			await ctx.db.delete(session._id)
-		}
-
-		await ctx.db.delete(account._id)
-		return true
 	},
 })
 
@@ -165,14 +124,17 @@ export const deleteCurrentAccountData = internalMutation({
 			}
 		}
 
-		const allMemberships = await ctx.db.query('memberships').collect()
-		for (const membership of allMemberships) {
-			if (membership.invitedBy === userId) await ctx.db.patch(membership._id, { invitedBy: undefined })
-		}
-		const allInvites = await ctx.db.query('invites').collect()
-		for (const invite of allInvites) {
-			if (invite.invitedBy === userId) await ctx.db.delete(invite._id)
-		}
+		const invitedMemberships = await ctx.db
+			.query('memberships')
+			.withIndex('by_invited_by', (q) => q.eq('invitedBy', userId))
+			.collect()
+		for (const membership of invitedMemberships) await ctx.db.patch(membership._id, { invitedBy: undefined })
+
+		const createdInvites = await ctx.db
+			.query('invites')
+			.withIndex('by_invited_by', (q) => q.eq('invitedBy', userId))
+			.collect()
+		for (const invite of createdInvites) await ctx.db.delete(invite._id)
 
 		const accounts = await ctx.db
 			.query('authAccounts')

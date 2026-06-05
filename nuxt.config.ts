@@ -23,8 +23,6 @@ const processEnv = (globalThis as {
 		CONVEX_URL?: string
 		NUXT_APP_BASE_URL?: string
 		NUXT_PUBLIC_CONVEX_URL?: string
-		NUXT_PUBLIC_STRIPE_PRICE_ID?: string
-		NUXT_PUBLIC_SITE_URL?: string
 	} }
 }).process?.env
 const env = {
@@ -51,12 +49,6 @@ export default defineNuxtConfig({
 			skipConvexDeploymentUrlCheck: true,
 		},
 		server: false,
-	},
-	runtimeConfig: {
-		public: {
-			stripePriceId: env.NUXT_PUBLIC_STRIPE_PRICE_ID || '',
-			siteUrl: env.NUXT_PUBLIC_SITE_URL || '',
-		},
 	},
 	css: ['~/assets/css/main.css'],
 })

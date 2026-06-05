@@ -33,9 +33,6 @@ export function useConvexAuthActions() {
 	}
 
 	async function runSignIn(provider: string | undefined, params: Record<string, string>) {
-		if (provider === 'password' && params.email) {
-			await client.mutation(api.users.cleanupStalePasswordAccount, { email: params.email })
-		}
 		const payload = provider ? { provider, params } : { params }
 		const result = await client.action(api.auth.signIn, payload) as SignInResult
 		return handleSignInResult(result)

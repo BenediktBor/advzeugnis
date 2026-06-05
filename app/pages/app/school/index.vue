@@ -5,7 +5,6 @@ import { api } from '~/utils/convexApi'
 const { currentUser, canManageTeachers } = useCurrentUser()
 const { school, members, invites, inviteMember, revokeInvite, removeMember, setRole, transferOwnership } = useSchool()
 const client = useConvexClient()
-const config = useRuntimeConfig()
 const route = useRoute()
 
 const roleLabels: Record<SchoolRole, string> = {
@@ -36,7 +35,6 @@ const inviteNotice = ref<{
 } | null>(null)
 
 const inviteBaseUrl = computed(() =>
-	config.public.siteUrl ||
 	(typeof window === 'undefined' ? '' : window.location.origin),
 )
 
@@ -68,7 +66,6 @@ async function handleInviteMember() {
 		const invite = await inviteMember({
 			email: newInvite.value.email.trim(),
 			role: newInvite.value.role,
-			siteUrl: inviteBaseUrl.value,
 		})
 		inviteNotice.value = invite.emailSent
 			? {
@@ -111,18 +108,11 @@ async function openBillingPortal() {
 async function restartCheckout() {
 	error.value = ''
 	if (!school.value) return
-	if (!config.public.stripePriceId) {
-		error.value = 'Stripe Preis-ID fehlt in NUXT_PUBLIC_STRIPE_PRICE_ID. Trage die Test-Preis-ID ein und starte Nuxt neu.'
-		return
-	}
 
 	isOpeningCheckout.value = true
 	try {
 		const result = await client.action(api.billing.createSchoolCheckout, {
-			priceId: config.public.stripePriceId,
 			seatLimit: school.value.seatLimit,
-			successUrl: `${inviteBaseUrl.value}/app/school?billing=success`,
-			cancelUrl: `${inviteBaseUrl.value}/app/school?billing=cancelled`,
 		}) as { url: string | null }
 		if (result.url) window.location.href = result.url
 		else error.value = 'Stripe Checkout konnte nicht gestartet werden.'
