@@ -43,9 +43,21 @@ export interface TemplateSet {
 	subjects: Subject[]
 }
 
-export type TemplateClipboardKind = 'grade' | 'variant' | 'sentencePart'
+export type TemplateClipboardKind = 'subject' | 'category' | 'grade' | 'variant' | 'sentencePart'
 
 export type TemplateClipboardPayload =
+	| {
+		kind: 'subject'
+		items: Subject[]
+		copiedAt: number
+		sourceLabel?: string
+	}
+	| {
+		kind: 'category'
+		items: Category[]
+		copiedAt: number
+		sourceLabel?: string
+	}
 	| {
 		kind: 'grade'
 		items: Grade[]

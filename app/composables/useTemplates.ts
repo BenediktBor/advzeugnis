@@ -6,6 +6,7 @@ import { useTemplatesStore } from '~/stores/templates'
 import { api } from '~/utils/convexApi'
 import { randomId } from '~/utils/randomId'
 import type {
+	Category,
 	Grade,
 	OptionalGroupChildPart,
 	SentencePart,
@@ -234,6 +235,24 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	function insertSubjects(subjects: Subject[], atIndex?: number) {
+		if (!subjects.length) return
+		updateSet((draft) => {
+			const index = atIndex === undefined
+				? draft.subjects.length
+				: Math.max(0, Math.min(atIndex, draft.subjects.length))
+			draft.subjects.splice(index, 0, ...subjects)
+		})
+	}
+
+	function deleteSubjects(subjectIds: string[]) {
+		if (!subjectIds.length) return
+		const ids = new Set(subjectIds)
+		updateSet((draft) => {
+			draft.subjects = draft.subjects.filter((subject) => !ids.has(subject.id))
+		})
+	}
+
 	function updateSubjectLabel(subjectId: string, label: string) {
 		updateSet((draft) => {
 			const s = draft.subjects.find((s) => s.id === subjectId)
@@ -266,6 +285,28 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 			const s = draft.subjects.find((s) => s.id === subjectId)
 			if (!s) return
 			s.categories = s.categories.filter((c) => c.id !== categoryId)
+		})
+	}
+
+	function insertCategories(subjectId: string, categories: Category[], atIndex?: number) {
+		if (!categories.length) return
+		updateSet((draft) => {
+			const subject = draft.subjects.find((s) => s.id === subjectId)
+			if (!subject) return
+			const index = atIndex === undefined
+				? subject.categories.length
+				: Math.max(0, Math.min(atIndex, subject.categories.length))
+			subject.categories.splice(index, 0, ...categories)
+		})
+	}
+
+	function deleteCategories(subjectId: string, categoryIds: string[]) {
+		if (!categoryIds.length) return
+		const ids = new Set(categoryIds)
+		updateSet((draft) => {
+			const subject = draft.subjects.find((s) => s.id === subjectId)
+			if (!subject) return
+			subject.categories = subject.categories.filter((category) => !ids.has(category.id))
 		})
 	}
 
@@ -641,10 +682,14 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		save,
 		addSubject,
 		deleteSubject,
+		insertSubjects,
+		deleteSubjects,
 		updateSubjectLabel,
 		reorderSubject,
 		addCategory,
 		deleteCategory,
+		insertCategories,
+		deleteCategories,
 		updateCategoryLabel,
 		reorderCategory,
 		addGrade,

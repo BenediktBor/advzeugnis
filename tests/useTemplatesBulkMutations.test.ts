@@ -94,6 +94,41 @@ describe('useTemplates bulk mutations', () => {
 		expect(store.record[setId]).toEqual(makeTemplateSet())
 	})
 
+	it('inserts and removes subjects and categories', () => {
+		const store = useTemplatesStore()
+		store.saveSetData(setId, makeTemplateSet())
+		const templates = useTemplates(ref(setId))
+
+		templates.insertSubjects([
+			{
+				id: '66666666-6666-6666-6666-666666666666',
+				label: 'Deutsch',
+				categories: [],
+			},
+		], 0)
+		expect(store.record[setId]?.subjects.map((subject) => subject.label)).toEqual(['Deutsch', 'Mathe'])
+
+		templates.insertCategories('66666666-6666-6666-6666-666666666666', [
+			{
+				id: '77777777-7777-7777-7777-777777777777',
+				label: 'Lesen',
+				grades: [],
+			},
+			{
+				id: '88888888-8888-8888-8888-888888888888',
+				label: 'Schreiben',
+				grades: [],
+			},
+		])
+		expect(store.record[setId]?.subjects[0]?.categories.map((category) => category.label)).toEqual(['Lesen', 'Schreiben'])
+
+		templates.deleteCategories('66666666-6666-6666-6666-666666666666', ['77777777-7777-7777-7777-777777777777'])
+		expect(store.record[setId]?.subjects[0]?.categories.map((category) => category.label)).toEqual(['Schreiben'])
+
+		templates.deleteSubjects(['66666666-6666-6666-6666-666666666666'])
+		expect(store.record[setId]).toEqual(makeTemplateSet())
+	})
+
 	it('mutates optional group sentence parts', () => {
 		const store = useTemplatesStore()
 		const templateSet = makeTemplateSet()

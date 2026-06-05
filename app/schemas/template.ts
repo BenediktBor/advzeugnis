@@ -71,6 +71,18 @@ export const TemplateSetsRecordSchema = z.record(z.string().uuid(), TemplateSetS
 
 export const TemplateClipboardPayloadSchema = z.discriminatedUnion('kind', [
 	z.object({
+		kind: z.literal('subject'),
+		items: z.array(SubjectSchema),
+		copiedAt: z.number().finite(),
+		sourceLabel: z.string().optional(),
+	}),
+	z.object({
+		kind: z.literal('category'),
+		items: z.array(CategorySchema),
+		copiedAt: z.number().finite(),
+		sourceLabel: z.string().optional(),
+	}),
+	z.object({
 		kind: z.literal('grade'),
 		items: z.array(GradeSchema),
 		copiedAt: z.number().finite(),
