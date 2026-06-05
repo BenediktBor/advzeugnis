@@ -150,11 +150,17 @@ const previewSuffix = computed(() => {
 				value-key="value"
 				size="xs"
 				class="mr-1.5 inline-block w-auto min-w-20 align-baseline"
+				@click.stop
+				@keydown.enter.stop
+				@keydown.space.stop
 				@update:model-value="emit('setNamePartSelection', String(partIndex), (($event as NameSelectionValue) ?? 'name'))"
 			/>
 			<label
 				v-else-if="isOptionalGroup(part)"
 				class="mr-1.5 inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-1 align-baseline rounded border border-default px-1.5 py-0.5 hover:bg-elevated"
+				@click.stop
+				@keydown.enter.stop
+				@keydown.space.stop
 			>
 				<UCheckbox
 					:model-value="optionalGroupEnabled(part)"
@@ -183,6 +189,9 @@ const previewSuffix = computed(() => {
 							value-key="value"
 							size="xs"
 							class="inline-block w-auto min-w-20 align-baseline"
+							@click.stop
+							@keydown.enter.stop
+							@keydown.space.stop
 							@update:model-value="emit('setNamePartSelection', `${partIndex}.${childIndex}`, (($event as NameSelectionValue) ?? 'name'))"
 						/>
 						<span
