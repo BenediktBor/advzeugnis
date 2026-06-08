@@ -112,15 +112,16 @@ async function handleInviteMember() {
 	inviteNotice.value = null
 	isInviting.value = true
 	try {
+		const email = newInvite.value.email.trim()
 		const invite = await inviteMember({
-			email: newInvite.value.email.trim(),
+			email,
 			role: newInvite.value.role,
 		})
 		inviteNotice.value = invite.emailSent
 			? {
 					type: 'success',
 					title: 'Einladung wurde per E-Mail verschickt.',
-					description: invite.emailId ? `Resend-ID: ${invite.emailId}` : undefined,
+					description: `Eine Einladung wurde an ${email} geschickt.`,
 				}
 			: {
 					type: 'warning',
