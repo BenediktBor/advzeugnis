@@ -11,6 +11,7 @@
 		"generate": "nuxt generate",
 		"convex:codegen": "convex codegen --typecheck disable",
 		"convex:auth-keys": "node scripts/generate-convex-auth-keys.mjs",
+		"generate:email-icon": "node scripts/generate-email-icon.mjs",
 		"preview": "nuxt preview",
 		"postinstall": "node scripts/patch-nuxt-ui-colors.mjs && nuxt prepare",
 		"lint": "oxlint",
@@ -44,6 +45,7 @@
 	"devDependencies": {
 		"@types/node": "^25.9.1",
 		"oxlint": "^0.16.0",
+		"sharp": "^0.34.5",
 		"typescript": "^5.9.3",
 		"vitest": "^3.1.0"
 	}

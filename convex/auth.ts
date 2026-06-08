@@ -1,16 +1,9 @@
-import Resend from '@auth/core/providers/resend'
 import { Password } from '@convex-dev/auth/providers/Password'
 import { convexAuth } from '@convex-dev/auth/server'
 import { ConvexError } from 'convex/values'
 import type { DataModel } from './_generated/dataModel'
-import { createResendOTPProvider } from './ResendOTP'
-
-declare const process: {
-	env: {
-		AUTH_RESEND_KEY?: string
-		AUTH_EMAIL_FROM?: string
-	}
-}
+import { buildEmailVerificationEmail, buildPasswordResetEmail } from './lib/emails'
+import { createResendMagicLinkProvider, createResendOTPProvider } from './ResendOTP'
 
 function normalizeEmail(value: unknown) {
 	if (typeof value !== 'string') throw new ConvexError('Email is required')
@@ -19,18 +12,14 @@ function normalizeEmail(value: unknown) {
 	return email
 }
 
-const emailFrom = process.env.AUTH_EMAIL_FROM || 'AdvancedZeugnis <onboarding@resend.dev>'
-
 const emailVerificationProvider = createResendOTPProvider({
 	id: 'resend-email-verification',
-	subject: 'AdvancedZeugnis E-Mail bestaetigen',
-	body: (token) => `Dein AdvancedZeugnis Bestaetigungscode lautet: ${token}`,
+	buildEmail: buildEmailVerificationEmail,
 })
 
 const passwordResetProvider = createResendOTPProvider({
 	id: 'resend-password-reset',
-	subject: 'AdvancedZeugnis Passwort zuruecksetzen',
-	body: (token) => `Dein AdvancedZeugnis Passwort-Zuruecksetzen-Code lautet: ${token}`,
+	buildEmail: buildPasswordResetEmail,
 })
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
@@ -49,10 +38,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 				}
 			},
 		}),
-		Resend({
+		createResendMagicLinkProvider({
 			id: 'resend',
-			apiKey: process.env.AUTH_RESEND_KEY,
-			from: emailFrom,
 		}),
 	],
 })

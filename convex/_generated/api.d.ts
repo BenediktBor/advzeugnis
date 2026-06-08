@@ -14,6 +14,7 @@ import type * as billing from "../billing.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_config from "../lib/config.js";
+import type * as lib_emails from "../lib/emails.js";
 import type * as lib_templateMigration from "../lib/templateMigration.js";
 import type * as lib_templateValidation from "../lib/templateValidation.js";
 import type * as schools from "../schools.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/auth": typeof lib_auth;
   "lib/config": typeof lib_config;
+  "lib/emails": typeof lib_emails;
   "lib/templateMigration": typeof lib_templateMigration;
   "lib/templateValidation": typeof lib_templateValidation;
   schools: typeof schools;

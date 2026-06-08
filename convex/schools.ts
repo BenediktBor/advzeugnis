@@ -14,6 +14,7 @@ import {
 import { api } from './_generated/api'
 import { sendResendEmail } from './ResendOTP'
 import { buildAppUrl } from './lib/config'
+import { buildSchoolInviteEmail } from './lib/emails'
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 14
 const DEFAULT_SEAT_LIMIT = 1
@@ -230,7 +231,16 @@ export const inviteUser = mutation({
 			expiresAt: Date.now() + INVITE_TTL_MS,
 		})
 
-		return { inviteId, token }
+		const inviter = await ctx.db.get(userId)
+		const inviterName = inviter?.name ?? inviter?.email ?? 'Ein Kollege'
+
+		return {
+			inviteId,
+			token,
+			schoolName: school.name,
+			role: args.role,
+			inviterName,
+		}
 	},
 })
 
@@ -250,21 +260,27 @@ export const inviteUserWithEmail = action({
 		const invite = await ctx.runMutation(api.schools.inviteUser, {
 			email: args.email,
 			role: args.role,
-		}) as { inviteId: Id<'invites'>, token: string }
+		}) as {
+			inviteId: Id<'invites'>
+			token: string
+			schoolName: string
+			role: 'admin' | 'templateManager' | 'teacher'
+			inviterName: string
+		}
 		const inviteUrl = buildAppUrl(`/invite/${invite.token}`)
+		const inviteEmail = buildSchoolInviteEmail({
+			schoolName: invite.schoolName,
+			inviterName: invite.inviterName,
+			role: invite.role,
+			inviteUrl,
+		})
 
 		try {
 			const email = await sendResendEmail({
 				to: normalizeEmail(args.email),
-				subject: 'Einladung zu AdvancedZeugnis',
-				text: [
-					'Du wurdest zu AdvancedZeugnis eingeladen.',
-					'',
-					'Öffne diesen Link, um dein Konto zu erstellen und der Schule beizutreten:',
-					inviteUrl,
-					'',
-					'Der Link ist 14 Tage gueltig.',
-				].join('\n'),
+				subject: inviteEmail.subject,
+				text: inviteEmail.text,
+				html: inviteEmail.html,
 			})
 			console.info(`[school] invite email sent to ${normalizeEmail(args.email)} (${email.id ?? 'unknown id'})`)
 			return { ...invite, inviteUrl, emailSent: true, emailId: email.id }

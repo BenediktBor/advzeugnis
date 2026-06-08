@@ -1,6 +1,7 @@
 import ResendProvider from '@auth/core/providers/resend'
 import { generateRandomString } from '@oslojs/crypto/random'
 import type { RandomReader } from '@oslojs/crypto/random'
+import { buildMagicLinkEmail } from './lib/emails'
 
 declare const process: {
 	env: {
@@ -11,15 +12,17 @@ declare const process: {
 
 type ResendOTPOptions = {
 	id: string
-	subject: string
-	body: (token: string) => string
+	buildEmail: (token: string) => { subject: string, text: string, html?: string }
 }
 
 type SendResendEmailArgs = {
 	to: string
 	subject: string
 	text: string
+	html?: string
 }
+
+const defaultFrom = () => process.env.AUTH_EMAIL_FROM || 'AdvancedZeugnis <onboarding@resend.dev>'
 
 export async function sendResendEmail(args: SendResendEmailArgs) {
 	const apiKey = process.env.AUTH_RESEND_KEY
@@ -32,10 +35,11 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
-			from: process.env.AUTH_EMAIL_FROM || 'AdvancedZeugnis <onboarding@resend.dev>',
+			from: defaultFrom(),
 			to: [args.to],
 			subject: args.subject,
 			text: args.text,
+			...(args.html ? { html: args.html } : {}),
 		}),
 		signal: AbortSignal.timeout(12_000),
 	})
@@ -52,7 +56,7 @@ export function createResendOTPProvider(options: ResendOTPOptions) {
 	return ResendProvider({
 		id: options.id,
 		apiKey: process.env.AUTH_RESEND_KEY,
-		from: process.env.AUTH_EMAIL_FROM || 'AdvancedZeugnis <onboarding@resend.dev>',
+		from: defaultFrom(),
 		async generateVerificationToken() {
 			const random: RandomReader = {
 				read(bytes) {
@@ -63,10 +67,33 @@ export function createResendOTPProvider(options: ResendOTPOptions) {
 			return generateRandomString(random, '0123456789', 8)
 		},
 		async sendVerificationRequest({ identifier: email, token }) {
+			const content = options.buildEmail(token)
 			await sendResendEmail({
 				to: email,
-				subject: options.subject,
-				text: options.body(token),
+				subject: content.subject,
+				text: content.text,
+				html: content.html,
+			})
+		},
+	})
+}
+
+type ResendMagicLinkOptions = {
+	id: string
+}
+
+export function createResendMagicLinkProvider(options: ResendMagicLinkOptions) {
+	return ResendProvider({
+		id: options.id,
+		apiKey: process.env.AUTH_RESEND_KEY,
+		from: defaultFrom(),
+		async sendVerificationRequest({ identifier: email, url }) {
+			const content = buildMagicLinkEmail(url)
+			await sendResendEmail({
+				to: email,
+				subject: content.subject,
+				text: content.text,
+				html: content.html,
 			})
 		},
 	})
