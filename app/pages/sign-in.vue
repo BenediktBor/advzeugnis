@@ -1,5 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+
+useAppSeo({ title: 'Anmelden' })
 </script>
 
 <template>

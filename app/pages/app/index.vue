@@ -1,4 +1,9 @@
 <script setup lang="ts">
+useAppSeo({
+	title: 'Übersicht',
+	robots: APP_ROBOTS,
+})
+
 const { currentUser, hasSchool, canEditTemplates } = useCurrentUser()
 const {
 	hasAnyTemplateSets,

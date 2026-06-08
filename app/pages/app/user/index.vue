@@ -1,4 +1,9 @@
 <script setup lang="ts">
+useAppSeo({
+	title: 'Benutzer',
+	robots: APP_ROBOTS,
+})
+
 const { currentUser } = useCurrentUser()
 const { signOut } = useConvexAuthActions()
 

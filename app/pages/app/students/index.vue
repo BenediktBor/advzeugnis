@@ -6,6 +6,11 @@ import {
 import StudentCreateModal from '~/components/StudentCreateModal.vue'
 import { studentFullName } from '~/utils/student'
 
+useAppSeo({
+	title: 'Schüler',
+	robots: APP_ROBOTS,
+})
+
 const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
 const {
 	sortedSetsWithData,

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+useAppSeo({
+	title: 'Vorlagen',
+	robots: APP_ROBOTS,
+})
+
 const route = useRoute()
 const router = useRouter()
 const {

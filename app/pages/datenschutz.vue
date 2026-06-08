@@ -1,7 +1,5 @@
 <script setup lang="ts">
-useHead({
-	title: 'Datenschutz – AdvancedZeugnis',
-})
+useAppSeo({ title: 'Datenschutz' })
 </script>
 
 <template>

@@ -44,6 +44,17 @@ export default defineNuxtConfig({
 	app: {
 		baseURL: env?.NUXT_APP_BASE_URL || '/',
 		head: {
+			title: 'AdvancedZeugnis',
+			htmlAttrs: {
+				lang: 'de',
+			},
+			meta: [
+				{
+					name: 'description',
+					content:
+						'Schüler verwalten, Satzvorlagen bearbeiten und Zeugnisse effizient erstellen — solo oder im Schulteam.',
+				},
+			],
 			link: [
 				{
 					rel: 'icon',

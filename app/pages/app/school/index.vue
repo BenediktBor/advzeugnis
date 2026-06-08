@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { SchoolRole } from '~/types/user'
 
+useAppSeo({
+	title: 'Schule',
+	robots: APP_ROBOTS,
+})
+
 const { currentUser, canManageTeachers } = useCurrentUser()
 const {
 	school,

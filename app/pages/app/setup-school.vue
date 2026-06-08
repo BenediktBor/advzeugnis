@@ -1,4 +1,9 @@
 <script setup lang="ts">
+useAppSeo({
+	title: 'Schule einrichten',
+	robots: APP_ROBOTS,
+})
+
 const { school, createSchool } = useSchool()
 
 const schoolName = ref('')

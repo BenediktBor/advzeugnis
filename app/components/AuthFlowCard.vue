@@ -62,6 +62,39 @@ function safeRedirectTarget(value: unknown) {
 
 const redirectTo = computed(() => safeRedirectTarget(route.query.redirect))
 
+const showSignUpPromo = computed(() => mode.value === 'signIn' && !pendingVerificationEmail.value)
+
+const backLabel = computed(() => {
+	if (pendingVerificationEmail.value) return 'Zurück zur Registrierung'
+	if (mode.value === 'magic' || mode.value === 'signUp' || mode.value === 'reset') return 'Zurück zur Anmeldung'
+	return 'Zurück'
+})
+
+const backTo = computed(() => {
+	if (mode.value === 'signUp' || mode.value === 'reset') {
+		return { path: '/sign-in', query: redirectQuery.value }
+	}
+	return undefined
+})
+
+function handleBack() {
+	if (pendingVerificationEmail.value) {
+		pendingVerificationEmail.value = ''
+		form.code = ''
+		resetStatus()
+		return
+	}
+	if (mode.value === 'magic') {
+		setMode('signIn')
+		return
+	}
+	if (window.history.length > 1) {
+		router.back()
+	} else {
+		router.push('/')
+	}
+}
+
 onMounted(async () => {
 	const params = new URLSearchParams(window.location.search)
 	if (!params.has('code') && !params.has('token')) {
@@ -201,7 +234,27 @@ async function submitPasswordReset() {
 </script>
 
 <template>
-	<UCard class="w-full max-w-md">
+	<div class="flex w-full max-w-md flex-col gap-4">
+		<UButton
+			v-if="backTo"
+			:to="backTo"
+			:label="backLabel"
+			variant="outline"
+			color="neutral"
+			icon="i-lucide-arrow-left"
+			class="w-fit"
+		/>
+		<UButton
+			v-else
+			:label="backLabel"
+			variant="outline"
+			color="neutral"
+			icon="i-lucide-arrow-left"
+			class="w-fit"
+			@click="handleBack"
+		/>
+
+		<UCard class="w-full">
 		<template #header>
 			<div class="space-y-1">
 				<h1 class="text-xl font-semibold text-highlighted">{{ title }}</h1>
@@ -334,7 +387,7 @@ async function submitPasswordReset() {
 				<NuxtLink v-if="mode !== 'signIn'" :to="{ path: '/sign-in', query: redirectQuery }">
 					<UButton label="Anmelden" color="neutral" variant="link" />
 				</NuxtLink>
-				<NuxtLink v-if="mode !== 'signUp'" :to="{ path: '/register', query: redirectQuery }">
+				<NuxtLink v-if="mode !== 'signUp' && mode !== 'signIn'" :to="{ path: '/register', query: redirectQuery }">
 					<UButton label="Konto erstellen" color="neutral" variant="link" />
 				</NuxtLink>
 				<UButton
@@ -353,5 +406,22 @@ async function submitPasswordReset() {
 				Schülerdaten bleiben weiterhin nur lokal in diesem Browser gespeichert.
 			</p>
 		</div>
-	</UCard>
+		</UCard>
+
+		<UCard v-if="showSignUpPromo" variant="soft" class="w-full">
+			<div class="flex flex-col gap-3">
+				<p class="text-sm font-medium text-highlighted">Neu hier?</p>
+				<p class="text-sm text-muted">
+					Erstelle dein Konto bei AdvancedZeugnis und richte danach deine Schule ein.
+				</p>
+				<NuxtLink :to="{ path: '/register', query: redirectQuery }">
+					<UButton
+						label="Konto erstellen"
+						icon="i-lucide-user-plus"
+						block
+					/>
+				</NuxtLink>
+			</div>
+		</UCard>
+	</div>
 </template>

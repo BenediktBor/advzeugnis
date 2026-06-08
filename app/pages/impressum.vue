@@ -1,7 +1,5 @@
 <script setup lang="ts">
-useHead({
-	title: 'Impressum – AdvancedZeugnis',
-})
+useAppSeo({ title: 'Impressum' })
 </script>
 
 <template>

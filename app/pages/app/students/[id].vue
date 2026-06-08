@@ -49,6 +49,12 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 )
 
 const student = computed(() => students.value.find((s) => s.id === id.value))
+
+useAppSeo({
+	title: computed(() => (student.value ? studentFullName(student.value) : 'Schüler')),
+	robots: APP_ROBOTS,
+})
+
 const isDeletingStudent = ref(false)
 const studentExistsForRedirect = computed(() => isDeletingStudent.value || student.value)
 

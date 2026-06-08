@@ -5,6 +5,10 @@ import {
 	landingFeatures,
 	landingHeroLinks,
 } from '~/data/landingContent'
+
+useAppSeo({
+	title: 'Zeugnisse in Minuten statt Stunden',
+})
 </script>
 
 <template>

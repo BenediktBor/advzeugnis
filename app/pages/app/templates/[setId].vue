@@ -9,6 +9,12 @@ const { getSet } = useTemplates(setId)
 
 const existsTemplateSet = computed(() => orderedIds.value.includes(setId.value))
 const templateSet = computed(() => getSet())
+
+useAppSeo({
+	title: computed(() => templateSet.value?.label ?? 'Vorlagen'),
+	robots: APP_ROBOTS,
+})
+
 const remoteLoadErrorDescription = computed(() =>
 	remoteLoadError.value instanceof Error
 		? remoteLoadError.value.message

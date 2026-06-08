@@ -3,6 +3,11 @@ import { api } from '~/utils/convexApi'
 
 definePageMeta({ layout: 'default' })
 
+useAppSeo({
+	title: 'Einladung',
+	robots: APP_ROBOTS,
+})
+
 const route = useRoute()
 const router = useRouter()
 const client = useConvexClient()
@@ -13,6 +18,14 @@ const error = ref('')
 
 const token = computed(() => String(route.params.token || ''))
 const isAuthReady = computed(() => isLoaded.value)
+
+function goBack() {
+	if (window.history.length > 1) {
+		router.back()
+	} else {
+		router.push('/')
+	}
+}
 
 async function onAccept() {
 	error.value = ''
@@ -48,7 +61,17 @@ async function onAccept() {
 
 <template>
 	<UContainer class="flex min-h-screen items-center justify-center py-12">
-		<UCard class="w-full max-w-md">
+		<div class="flex w-full max-w-md flex-col gap-4">
+			<UButton
+				label="Zurück"
+				variant="outline"
+				color="neutral"
+				icon="i-lucide-arrow-left"
+				class="w-fit"
+				@click="goBack"
+			/>
+
+			<UCard class="w-full">
 			<template #header>
 				<div class="space-y-1">
 					<h1 class="text-xl font-semibold text-highlighted">Schuleinladung</h1>
@@ -79,6 +102,7 @@ async function onAccept() {
 					/>
 				</template>
 			</div>
-		</UCard>
+			</UCard>
+		</div>
 	</UContainer>
 </template>
