@@ -579,7 +579,7 @@ function toggleCategoryBody(categoryId: string) {
 										:class="
 											canToggleVariant(variant.id, row)
 												? [
-														'cursor-pointer',
+														'cursor-pointer select-none',
 														isVariantSelected(variant.id, row)
 															? 'bg-primary/5 border-primary/30'
 															: 'hover:bg-elevated/40',
@@ -612,9 +612,6 @@ function toggleCategoryBody(categoryId: string) {
 										<div
 											v-if="row.variantPreviewById[variant.id]"
 											class="mt-3"
-											@click.stop
-											@keydown.enter.stop
-											@keydown.space.stop
 										>
 											<VariantSentenceInlinePreview
 												:variant="variant"

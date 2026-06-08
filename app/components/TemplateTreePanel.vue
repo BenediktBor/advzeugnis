@@ -18,6 +18,7 @@ type TemplateActionMenuItem =
 			label: string
 			icon: string
 			color?: 'neutral' | 'error'
+			disabled?: boolean
 			onSelect: () => void
 	  }
 	| { type: 'separator' }
@@ -27,6 +28,10 @@ const props = defineProps<{
 	templateSet: TemplateSet
 	canEdit: boolean
 	selectedCategory: { subjectId: string; categoryId: string } | null
+	selectedSubjectIds: string[]
+	selectedCategoryIds: string[]
+	canPasteSubjects: boolean
+	canPasteCategories: boolean
 	addSubject: (label?: string) => string
 	deleteSubject: (subjectId: string) => void
 	reorderSubject: (oldIndex: number, newIndex: number) => void
@@ -45,6 +50,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	'update:selectedCategory': [value: { subjectId: string; categoryId: string } | null]
+	'select-subject': [subjectId: string, event: MouseEvent | KeyboardEvent]
+	'select-tree-category': [subjectId: string, categoryId: string, event: MouseEvent | KeyboardEvent]
+	'context-action-subject': [action: 'copy' | 'cut' | 'paste', subjectId: string]
+	'context-action-category': [action: 'copy' | 'cut' | 'paste', subjectId: string, categoryId: string]
+	'paste-subjects': [afterSubjectId?: string]
+	'paste-categories': [subjectId: string, afterCategoryId?: string]
 }>()
 
 const router = useRouter()
@@ -82,15 +93,19 @@ function toggleSubjectExpanded(subjectId: string) {
 		: [...expandedKeys.value, key]
 }
 
-function selectCategory(category: { subjectId: string; categoryId: string } | null) {
-	emit('update:selectedCategory', category)
-}
-
 function isSelectedCategory(subjectId: string, categoryId: string): boolean {
 	return (
 		props.selectedCategory?.subjectId === subjectId &&
 		props.selectedCategory?.categoryId === categoryId
 	)
+}
+
+function isSelectedSubjectRow(subjectId: string): boolean {
+	return props.selectedSubjectIds.includes(subjectId)
+}
+
+function isSelectedCategoryRow(subjectId: string, categoryId: string): boolean {
+	return isSelectedCategory(subjectId, categoryId) || props.selectedCategoryIds.includes(categoryId)
 }
 
 function getSubject(subjectId: string) {
@@ -389,7 +404,30 @@ function confirmDeleteLabel(label: string): string {
 }
 
 function subjectActionItems(subjectId: string): TemplateActionMenuItem[] {
-	return [
+	const items: TemplateActionMenuItem[] = [
+		{
+			label: 'Kopieren',
+			icon: 'i-lucide-copy',
+			color: 'neutral',
+			onSelect: () => emit('context-action-subject', 'copy', subjectId),
+		},
+		{
+			label: 'Ausschneiden',
+			icon: 'i-lucide-scissors',
+			color: 'neutral',
+			onSelect: () => emit('context-action-subject', 'cut', subjectId),
+		},
+	]
+	if (props.canPasteSubjects) {
+		items.push({
+			label: 'Einfügen',
+			icon: 'i-lucide-clipboard-paste',
+			color: 'neutral',
+			onSelect: () => emit('context-action-subject', 'paste', subjectId),
+		})
+	}
+	items.push(
+		{ type: 'separator' },
 		{
 			label: 'Fach exportieren',
 			icon: 'i-lucide-download',
@@ -418,11 +456,35 @@ function subjectActionItems(subjectId: string): TemplateActionMenuItem[] {
 					onConfirm: () => props.deleteSubject(subjectId),
 				}),
 		},
-	]
+	)
+	return items
 }
 
 function categoryActionItems(subjectId: string, categoryId: string): TemplateActionMenuItem[] {
-	return [
+	const items: TemplateActionMenuItem[] = [
+		{
+			label: 'Kopieren',
+			icon: 'i-lucide-copy',
+			color: 'neutral',
+			onSelect: () => emit('context-action-category', 'copy', subjectId, categoryId),
+		},
+		{
+			label: 'Ausschneiden',
+			icon: 'i-lucide-scissors',
+			color: 'neutral',
+			onSelect: () => emit('context-action-category', 'cut', subjectId, categoryId),
+		},
+	]
+	if (props.canPasteCategories) {
+		items.push({
+			label: 'Einfügen',
+			icon: 'i-lucide-clipboard-paste',
+			color: 'neutral',
+			onSelect: () => emit('context-action-category', 'paste', subjectId, categoryId),
+		})
+	}
+	items.push(
+		{ type: 'separator' },
 		{
 			label: 'Umbenennen',
 			icon: 'i-lucide-pencil',
@@ -445,7 +507,8 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 					onConfirm: () => props.deleteCategory(subjectId, categoryId),
 				}),
 		},
-	]
+	)
+	return items
 }
 </script>
 
@@ -494,6 +557,15 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 						<span class="text-xs font-medium text-muted">Fächer</span>
 						<div v-if="canEdit" class="flex items-center gap-1">
 							<UButton
+								v-if="canPasteSubjects"
+								icon="i-lucide-clipboard-paste"
+								color="neutral"
+								variant="ghost"
+								size="xs"
+								aria-label="Fach aus Zwischenablage einfügen"
+								@click="emit('paste-subjects')"
+							/>
+							<UButton
 								icon="i-lucide-upload"
 								color="neutral"
 								variant="ghost"
@@ -522,10 +594,12 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 								class="flex items-center gap-1 rounded-md px-2 py-1.5"
 								:class="
 									descriptor.type === 'category'
-										? isSelectedCategory(descriptor.subjectId, descriptor.categoryId)
+										? isSelectedCategoryRow(descriptor.subjectId, descriptor.categoryId)
 											? 'bg-primary/10 text-default pl-6'
 											: 'hover:bg-elevated/70 pl-6'
-										: 'hover:bg-elevated/70'
+										: isSelectedSubjectRow(descriptor.subjectId)
+											? 'bg-primary/10 text-default'
+											: 'hover:bg-elevated/70'
 								"
 							>
 								<template v-if="descriptor.type === 'subject'">
@@ -553,7 +627,7 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 									<button
 										type="button"
 										class="min-w-0 flex-1 truncate text-left text-sm font-medium text-default"
-										@click="toggleSubjectExpanded(descriptor.subjectId)"
+										@click="emit('select-subject', descriptor.subjectId, $event)"
 									>
 										{{ getSubject(descriptor.subjectId)?.label || 'Unbenannt' }}
 									</button>
@@ -561,6 +635,15 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 										v-if="canEdit"
 										class="ml-auto flex items-center gap-1"
 									>
+										<UButton
+											v-if="canPasteCategories"
+											icon="i-lucide-clipboard-paste"
+											color="neutral"
+											variant="ghost"
+											size="xs"
+											aria-label="Kategorie aus Zwischenablage einfügen"
+											@click.stop="emit('paste-categories', descriptor.subjectId)"
+										/>
 										<UButton
 											label="Kategorie"
 											icon="i-lucide-plus"
@@ -606,10 +689,12 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 												: 'text-muted'
 										"
 										@click="
-											selectCategory({
-												subjectId: descriptor.subjectId,
-												categoryId: descriptor.categoryId,
-											})
+											emit(
+												'select-tree-category',
+												descriptor.subjectId,
+												descriptor.categoryId,
+												$event,
+											)
 										"
 									>
 										{{ getCategory(descriptor.subjectId, descriptor.categoryId)?.label || 'Unbenannt' }}

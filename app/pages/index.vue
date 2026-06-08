@@ -55,8 +55,8 @@ const plans = [
 					AdvancedZeugnis
 				</ULink>
 				<UButton
-					to="/app"
-					label="App öffnen"
+					to="/sign-in"
+					label="Anmelden"
 					trailing-icon="i-lucide-arrow-right"
 				/>
 			</UContainer>
@@ -76,7 +76,7 @@ const plans = [
 						variant: 'outline',
 					},
 					*/
-					{ label: 'Jetzt starten', to: '/app' },
+					{ label: 'Jetzt starten', to: '/sign-in' },
 				]"
 			/>
 

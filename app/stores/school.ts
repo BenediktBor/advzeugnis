@@ -8,12 +8,12 @@ const STORAGE_KEY = 'school-members-stub'
 
 // Deterministic defaults: avoids module-evaluation randomness (SSR/tests).
 const DEFAULT_ADMIN_ID = '11111111-1111-1111-1111-111111111111'
-const DEFAULT_EDITOR_ID = '22222222-2222-2222-2222-222222222222'
+const DEFAULT_TEMPLATE_MANAGER_ID = '22222222-2222-2222-2222-222222222222'
 const DEFAULT_TEACHER_ID = '33333333-3333-3333-3333-333333333333'
 
 export const defaultMembers: SchoolMember[] = [
 	{ id: DEFAULT_ADMIN_ID, displayName: 'Anna Admin', email: 'anna@schule.example', role: 'admin' },
-	{ id: DEFAULT_EDITOR_ID, displayName: 'Erik Editor', email: 'erik@schule.example', role: 'editor' },
+	{ id: DEFAULT_TEMPLATE_MANAGER_ID, displayName: 'Toni Template', email: 'toni@schule.example', role: 'templateManager' },
 	{ id: DEFAULT_TEACHER_ID, displayName: 'Thea Teacher', email: 'thea@schule.example', role: 'teacher' },
 ]
 

@@ -1,44 +1,167 @@
 <script setup lang="ts">
-/*
-import type { TableColumn } from '@nuxt/ui'
-import type { SchoolMember } from '~/types/user'
+import type { SchoolRole } from '~/types/user'
 
 const { currentUser, canManageTeachers } = useCurrentUser()
-const { members, addMember, removeMember, setRole } = useSchool()
+const { school, members, invites, inviteMember, revokeInvite, removeMember, setRole, transferOwnership } = useSchool()
 
-const roleLabels: Record<string, string> = {
+// Temporary switch while Stripe billing is disabled for Convex deployment.
+const BILLING_TEMPORARILY_DISABLED = true
+
+const roleLabels: Record<SchoolRole, string> = {
+	owner: 'Owner',
 	admin: 'Admin',
-	editor: 'Editor',
+	templateManager: 'Template Manager',
 	teacher: 'Lehrer',
 }
 
 const ROLE_OPTIONS = [
 	{ label: 'Admin', value: 'admin' },
-	{ label: 'Editor', value: 'editor' },
+	{ label: 'Template Manager', value: 'templateManager' },
 	{ label: 'Lehrer', value: 'teacher' },
 ]
 
-const newMember = ref({ displayName: '', email: '', role: 'teacher' as const })
+const newInvite = ref({ email: '', role: 'teacher' as SchoolRole })
 const showAddForm = ref(false)
+const isInviting = ref(false)
+const transferringOwnerId = ref<string | null>(null)
+const removingMemberId = ref<string | null>(null)
+const revokingInviteId = ref<string | null>(null)
+const error = ref('')
+const inviteNotice = ref<{
+	type: 'success' | 'warning'
+	title: string
+	description?: string
+	inviteUrl?: string
+} | null>(null)
 
-const columns = computed<TableColumn<SchoolMember>[]>(() => [
-	{ accessorKey: 'displayName', header: 'Name' },
-	{ accessorKey: 'email', header: 'E-Mail' },
-	{ accessorKey: 'role', header: 'Rolle' },
-	...(canManageTeachers.value ? [{ id: 'actions', header: '' }] : []),
-])
+const inviteBaseUrl = computed(() =>
+	(typeof window === 'undefined' ? '' : window.location.origin),
+)
 
-function handleAddMember() {
-	if (!newMember.value.displayName.trim()) return
-	addMember({
-		displayName: newMember.value.displayName.trim(),
-		email: newMember.value.email.trim() || undefined,
-		role: newMember.value.role,
-	})
-	newMember.value = { displayName: '', email: '', role: 'teacher' }
-	showAddForm.value = false
+const hasActiveSubscription = computed(() =>
+	BILLING_TEMPORARILY_DISABLED || school.value?.subscriptionStatus === 'active',
+)
+const billingStatusBadge = computed(() => {
+	if (BILLING_TEMPORARILY_DISABLED) return { color: 'neutral' as const, label: 'Abrechnung pausiert' }
+	return {
+		color: hasActiveSubscription.value ? 'success' as const : 'warning' as const,
+		label: hasActiveSubscription.value ? 'Abrechnung aktiv' : `Abrechnung ${school.value?.subscriptionStatus}`,
+	}
+})
+const canInviteUsers = computed(() => canManageTeachers.value && hasActiveSubscription.value)
+const isOwner = computed(() => currentUser.value.role === 'owner')
+
+function inviteUrl(token: string) {
+	return `${inviteBaseUrl.value}/invite/${token}`
 }
-*/
+
+function openInviteForm() {
+	if (!canInviteUsers.value) return
+	showAddForm.value = true
+}
+
+async function handleInviteMember() {
+	if (!newInvite.value.email.trim()) return
+	if (!canInviteUsers.value) {
+		error.value = 'Einladungen sind aktuell nicht möglich.'
+		return
+	}
+	error.value = ''
+	inviteNotice.value = null
+	isInviting.value = true
+	try {
+		const invite = await inviteMember({
+			email: newInvite.value.email.trim(),
+			role: newInvite.value.role,
+		})
+		inviteNotice.value = invite.emailSent
+			? {
+					type: 'success',
+					title: 'Einladung wurde per E-Mail verschickt.',
+					description: invite.emailId ? `Resend-ID: ${invite.emailId}` : undefined,
+				}
+			: {
+					type: 'warning',
+					title: 'Einladung wurde erstellt, aber die E-Mail konnte nicht versendet werden.',
+					description: invite.emailError,
+					inviteUrl: invite.inviteUrl,
+				}
+		newInvite.value = { email: '', role: 'teacher' }
+		showAddForm.value = false
+	} catch (err) {
+		console.error('[school] invite failed:', err)
+		error.value = 'Einladung konnte nicht erstellt oder per E-Mail verschickt werden.'
+	} finally {
+		isInviting.value = false
+	}
+}
+
+async function copyInviteUrl(token: string) {
+	await navigator.clipboard.writeText(inviteUrl(token))
+}
+
+async function copyRawInviteUrl(url: string) {
+	await navigator.clipboard.writeText(url)
+}
+
+async function updateRole(userId: string, value: unknown) {
+	const role = typeof value === 'object' && value !== null && 'value' in value
+		? (value as { value: SchoolRole }).value
+		: value as SchoolRole
+	if (role === 'owner') return
+	await setRole(userId, role)
+}
+
+async function handleRemoveMember(member: { id: string, displayName: string, role: SchoolRole }) {
+	if (!canManageTeachers.value || member.id === currentUser.value.id || member.role === 'owner') return
+	const confirmed = window.confirm(`${member.displayName} aus der Schule entfernen?`)
+	if (!confirmed) return
+
+	error.value = ''
+	removingMemberId.value = member.id
+	try {
+		await removeMember(member.id)
+	} catch (err) {
+		console.error('[school] remove member failed:', err)
+		error.value = 'Nutzer konnte nicht entfernt werden.'
+	} finally {
+		removingMemberId.value = null
+	}
+}
+
+async function handleRevokeInvite(inviteId: string) {
+	error.value = ''
+	revokingInviteId.value = inviteId
+	try {
+		await revokeInvite(inviteId)
+	} catch (err) {
+		console.error('[school] revoke invite failed:', err)
+		error.value = 'Einladung konnte nicht widerrufen werden.'
+	} finally {
+		revokingInviteId.value = null
+	}
+}
+
+function canChangeRole(member: { id: string, role: SchoolRole }) {
+	return canManageTeachers.value && member.id !== currentUser.value.id && member.role !== 'owner'
+}
+
+async function transferOwner(member: { id: string, displayName: string }) {
+	if (!isOwner.value || member.id === currentUser.value.id) return
+	const confirmed = window.confirm(`Eigentum an ${member.displayName} übertragen? Du bleibst danach Admin.`)
+	if (!confirmed) return
+
+	error.value = ''
+	transferringOwnerId.value = member.id
+	try {
+		await transferOwnership(member.id)
+	} catch (err) {
+		console.error('[school] ownership transfer failed:', err)
+		error.value = 'Eigentum konnte nicht übertragen werden.'
+	} finally {
+		transferringOwnerId.value = null
+	}
+}
 </script>
 
 <template>
@@ -51,142 +174,175 @@ function handleAddMember() {
 			</UDashboardNavbar>
 		</template>
 		<template #body>
-			<AppStateNotice
-				title="Schulverwaltung noch nicht aktiv"
-				description="Team- und Rollenfunktionen sind vorbereitet, aber in dieser Version noch nicht freigeschaltet."
-				icon="i-lucide-building-2"
-			>
-				<UButton
-					label="Zur Übersicht"
-					to="/app"
-					icon="i-lucide-layout-dashboard"
-					color="neutral"
-					variant="outline"
-				/>
-			</AppStateNotice>
-		</template>
-	</UDashboardPanel>
-	<!--
-	<UDashboardPanel>
-		<template #header>
-			<UDashboardNavbar title="Schule">
-				<template #leading>
-					<UDashboardSidebarCollapse />
-				</template>
-			</UDashboardNavbar>
-		</template>
-		<template #body>
-			<div class="flex flex-col gap-4">
-				<p class="text-sm text-muted">
-					Übersicht aller aktiven Lehrkräfte und ihrer Rollen.
-				</p>
-				<div
-					v-if="!canManageTeachers"
-					class="rounded-md border border-default bg-default p-3 text-sm text-muted"
+			<div v-if="!school" class="max-w-xl">
+				<AppStateNotice
+					title="Noch keine Schule eingerichtet"
+					description="Lege eine Schule an, um Teammitglieder einzuladen und Vorlagen zu synchronisieren. Die Abrechnung ist vorübergehend deaktiviert."
+					icon="i-lucide-building-2"
+					tone="primary"
 				>
-					Nur Admins können Lehrkräfte hinzufügen oder entfernen.
-				</div>
-
-				<UTable :data="members" :columns="columns">
-					<template #email-cell="{ row }">
-						{{ row.original.email ?? '–' }}
-					</template>
-					<template #role-cell="{ row }">
-						<USelectMenu
-							v-if="canManageTeachers"
-							:items="ROLE_OPTIONS"
-							:model-value="row.original.role"
-							value-key="value"
-							label-key="label"
-							size="xs"
-							class="min-w-28"
-							@update:model-value="
-								(v: unknown) => {
-									const value =
-										typeof v === 'object' &&
-										v !== null &&
-										'value' in v
-											? (v as { value: string }).value
-											: (v as string)
-									setRole(
-										row.original.id,
-										value as 'admin' | 'editor' | 'teacher',
-									)
-								}
-							"
-						/>
-						<span v-else class="text-sm text-muted">
-							{{
-								roleLabels[row.original.role] ??
-								row.original.role
-							}}
-						</span>
-					</template>
-					<template #actions-cell="{ row }">
-						<UButton
-							v-if="
-								canManageTeachers &&
-								row.original.id !== currentUser.id
-							"
-							icon="i-lucide-trash-2"
-							color="error"
-							variant="ghost"
-							size="xs"
-							aria-label="Entfernen"
-							@click="removeMember(row.original.id)"
-						/>
-					</template>
-				</UTable>
-
-				<div v-if="canManageTeachers" class="flex flex-col gap-2">
 					<UButton
-						v-if="!showAddForm"
-						label="Lehrkraft hinzufügen"
-						icon="i-lucide-plus"
-						color="neutral"
-						variant="outline"
-						@click="showAddForm = true"
+						label="Schule einrichten"
+						to="/app/setup-school"
+						icon="i-lucide-credit-card"
 					/>
-					<form
-						v-else
-						class="flex flex-col gap-2 rounded-md border border-default bg-default p-3"
-						@submit.prevent="handleAddMember"
-					>
-						<UFormField label="Name">
-							<UInput
-								v-model="newMember.displayName"
-								placeholder="Anzeigename"
-								required
-							/>
-						</UFormField>
-						<UFormField label="E-Mail">
-							<UInput
-								v-model="newMember.email"
-								type="email"
-								placeholder="email@schule.example"
-							/>
-						</UFormField>
-						<UFormField label="Rolle">
-							<USelectMenu
-								:items="ROLE_OPTIONS"
-								v-model="newMember.role"
-								value-key="value"
-								label-key="label"
-							/>
-						</UFormField>
-						<div class="flex gap-2">
-							<UButton type="submit" label="Hinzufügen" />
+				</AppStateNotice>
+			</div>
+			<div v-else class="flex max-w-5xl flex-col gap-6">
+				<UAlert v-if="error" color="error" variant="soft" :title="error" />
+				<UAlert
+					v-if="inviteNotice"
+					:color="inviteNotice.type"
+					variant="soft"
+					:title="inviteNotice.title"
+					:description="inviteNotice.description"
+				>
+					<template v-if="inviteNotice.inviteUrl" #actions>
+						<UButton
+							label="Einladungslink kopieren"
+							color="warning"
+							variant="solid"
+							@click="copyRawInviteUrl(inviteNotice.inviteUrl)"
+						/>
+					</template>
+				</UAlert>
+
+				<UCard>
+					<template #header>
+						<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div>
+								<h1 class="text-lg font-semibold text-highlighted">{{ school.name }}</h1>
+								<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+									<span>{{ members.length }} von {{ school.seatLimit }} Sitzplätzen belegt</span>
+									<UBadge
+										:color="billingStatusBadge.color"
+										variant="soft"
+										:label="billingStatusBadge.label"
+									/>
+								</div>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								<UButton
+									v-if="canManageTeachers"
+									label="Nutzer einladen"
+									icon="i-lucide-user-plus"
+									:disabled="!hasActiveSubscription"
+									@click="openInviteForm"
+								/>
+							</div>
+						</div>
+					</template>
+
+					<div class="flex flex-col gap-4">
+						<UAlert
+							v-if="canManageTeachers && !hasActiveSubscription"
+							color="warning"
+							variant="soft"
+							title="Schul-Abrechnung noch nicht aktiv"
+							description="Stripe Checkout ist aktuell pausiert, bis die Convex-Bereitstellung abgeschlossen ist."
+						/>
+						<UAlert
+							v-if="!canManageTeachers"
+							color="neutral"
+							variant="soft"
+							title="Nur Schul-Admins können Nutzer einladen, entfernen und Rollen ändern."
+						/>
+
+						<form
+							v-if="showAddForm && canInviteUsers"
+							class="grid gap-3 rounded-lg border border-default bg-muted/30 p-3 sm:grid-cols-[1fr_14rem_auto]"
+							@submit.prevent="handleInviteMember"
+						>
+							<UFormField label="E-Mail">
+								<UInput v-model="newInvite.email" type="email" required placeholder="name@schule.example" />
+							</UFormField>
+							<UFormField label="Rolle">
+								<USelectMenu
+									v-model="newInvite.role"
+									:items="ROLE_OPTIONS"
+									value-key="value"
+									label-key="label"
+								/>
+							</UFormField>
+							<div class="flex items-end gap-2">
+								<UButton type="submit" label="Einladen" :loading="isInviting" />
+								<UButton label="Abbrechen" color="neutral" variant="ghost" @click="showAddForm = false" />
+							</div>
+						</form>
+
+						<div class="overflow-hidden rounded-lg border border-default">
+							<div
+								v-for="member in members"
+								:key="member.id"
+								class="grid gap-3 border-b border-default p-3 last:border-b-0 md:grid-cols-[1fr_14rem_auto]"
+							>
+								<div class="min-w-0">
+									<div class="truncate font-medium text-highlighted">{{ member.displayName }}</div>
+									<div class="truncate text-sm text-muted">{{ member.email ?? 'Keine E-Mail' }}</div>
+								</div>
+								<USelectMenu
+									v-if="canChangeRole(member)"
+									:items="ROLE_OPTIONS"
+									:model-value="member.role"
+									value-key="value"
+									label-key="label"
+									@update:model-value="(value: unknown) => updateRole(member.id, value)"
+								/>
+								<div v-else class="text-sm text-muted">{{ roleLabels[member.role] }}</div>
+								<div class="flex justify-end gap-2">
+									<UButton
+										v-if="isOwner && member.id !== currentUser.id"
+										label="Eigentum übertragen"
+										icon="i-lucide-crown"
+										color="warning"
+										variant="soft"
+										:loading="transferringOwnerId === member.id"
+										@click="transferOwner(member)"
+									/>
+									<UButton
+										v-if="canManageTeachers && member.id !== currentUser.id && member.role !== 'owner'"
+										icon="i-lucide-trash-2"
+										color="error"
+										variant="ghost"
+										aria-label="Nutzer entfernen"
+										:loading="removingMemberId === member.id"
+										@click="handleRemoveMember(member)"
+									/>
+								</div>
+							</div>
+						</div>
+					</div>
+				</UCard>
+
+				<UCard v-if="canManageTeachers">
+					<template #header>
+						<h2 class="font-semibold text-highlighted">Offene Einladungen</h2>
+					</template>
+					<div v-if="invites.length" class="flex flex-col gap-3">
+						<div
+							v-for="invite in invites"
+							:key="invite.id"
+							class="grid gap-3 rounded-lg border border-default p-3 md:grid-cols-[1fr_auto_auto]"
+						>
+							<div class="min-w-0">
+								<div class="truncate font-medium text-highlighted">{{ invite.email }}</div>
+								<div class="truncate text-sm text-muted">
+									{{ roleLabels[invite.role] }} · gültig bis {{ new Date(invite.expiresAt).toLocaleDateString('de-DE') }}
+								</div>
+							</div>
+							<UButton label="Link kopieren" color="neutral" variant="outline" @click="copyInviteUrl(invite.token)" />
 							<UButton
-								label="Abbrechen"
-								color="neutral"
+								label="Widerrufen"
+								color="error"
 								variant="ghost"
-								@click="showAddForm = false"
+								:loading="revokingInviteId === invite.id"
+								@click="handleRevokeInvite(invite.id)"
 							/>
 						</div>
-					</form>
-				</div>
+					</div>
+					<p v-else class="text-sm text-muted">Keine offenen Einladungen.</p>
+				</UCard>
 			</div>
 		</template>
 	</UDashboardPanel>
-	-->
 </template>

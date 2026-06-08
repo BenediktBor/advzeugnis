@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import type { Category, Grade, OptionalGroupChildPart, SentencePart, SentencePartPath, TemplateSet, Variant } from '~/types/template'
+import type { Category, Grade, OptionalGroupChildPart, SentencePart, SentencePartPath, Subject, TemplateSet, Variant } from '~/types/template'
 import { useTemplatesStore } from '~/stores/templates'
 import { useTemplateClipboardStore } from '~/stores/templateClipboard'
 import {
@@ -19,9 +19,13 @@ const deleteDialog = useConfirmDialog()
 const {
 	addSubject,
 	deleteSubject,
+	insertSubjects,
+	deleteSubjects,
 	reorderSubject,
 	addCategory,
 	deleteCategory,
+	insertCategories,
+	deleteCategories,
 	reorderCategory,
 	addGrade,
 	deleteGrade,
@@ -51,17 +55,21 @@ const {
 	moveOptionalGroupPartToOptionalGroup,
 	insertSentenceParts,
 	deleteSentenceParts,
+	isSyncPending,
+	syncError,
+	retrySync,
 } = useTemplates(computed(() => props.setId))
 const { canEditTemplates } = useCurrentUser()
 const templateClipboard = useTemplateClipboardStore()
 templateClipboard.load()
 
 const selectedCategory = ref<{ subjectId: string; categoryId: string } | null>(null)
+const hasUnsyncedTemplateChanges = computed(() => isSyncPending.value)
 type CategorySelection = {
 	gradeId: string | null
 	variantId: string | null
 }
-type ChipSelectionKind = 'grade' | 'variant' | 'sentencePart'
+type ChipSelectionKind = 'subject' | 'category' | 'grade' | 'variant' | 'sentencePart'
 type ChipSelection = {
 	kind: ChipSelectionKind
 	scopeKey: string
@@ -71,6 +79,15 @@ type ChipSelection = {
 type ClipboardAction = 'copy' | 'cut' | 'paste'
 
 const chipSelection = ref<ChipSelection | null>(null)
+
+function subjectScopeKey() {
+	return `${props.setId}:subjects`
+}
+
+function categoryScopeKey(subjectId = selectedCategory.value?.subjectId) {
+	if (!subjectId) return ''
+	return `${props.setId}:${subjectId}:categories`
+}
 
 function gradeScopeKey() {
 	const category = selectedCategory.value
@@ -91,6 +108,8 @@ function sentencePartScopeKey() {
 }
 
 function selectionScopeKey(kind: ChipSelectionKind): string {
+	if (kind === 'subject') return subjectScopeKey()
+	if (kind === 'category') return categoryScopeKey()
 	if (kind === 'grade') return gradeScopeKey()
 	if (kind === 'variant') return variantScopeKey()
 	return sentencePartScopeKey()
@@ -99,6 +118,29 @@ function selectionScopeKey(kind: ChipSelectionKind): string {
 function clearChipSelection() {
 	chipSelection.value = null
 }
+
+function confirmLeavingWithPendingSync() {
+	return window.confirm('Vorlagen werden noch synchronisiert. Seite trotzdem verlassen?')
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+	if (!hasUnsyncedTemplateChanges.value) return
+	event.preventDefault()
+	event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+	if (!hasUnsyncedTemplateChanges.value) return true
+	return confirmLeavingWithPendingSync()
+})
+
+onMounted(() => {
+	window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('beforeunload', handleBeforeUnload)
+})
 
 function selectedChipIds(kind: ChipSelectionKind, scopeKey = selectionScopeKey(kind)): string[] {
 	const selection = chipSelection.value
@@ -127,9 +169,9 @@ function updateChipSelection(
 	id: string,
 	orderedIds: string[],
 	event: MouseEvent | KeyboardEvent,
-	options: { allowPlainToggle: boolean },
+	options: { allowPlainToggle: boolean, scopeKey?: string },
 ) {
-	const scopeKey = selectionScopeKey(kind)
+	const scopeKey = options.scopeKey ?? selectionScopeKey(kind)
 	if (!scopeKey) return
 	const current = chipSelection.value
 	const sameSelection = current?.kind === kind && current.scopeKey === scopeKey
@@ -524,16 +566,38 @@ function selectedVariantData() {
 	return grade?.variants.find((item) => item.id === selectedVariantId.value) ?? null
 }
 
+function selectedSubjectData() {
+	const ids = selectedChipIds('subject', subjectScopeKey())
+	return props.templateSet.subjects.filter((subject) => ids.includes(subject.id))
+}
+
+function selectedCategoryItems() {
+	const selection = chipSelection.value
+	if (!selection || selection.kind !== 'category') return []
+	const subject = props.templateSet.subjects.find(
+		(item) => categoryScopeKey(item.id) === selection.scopeKey,
+	)
+	if (!subject) return []
+	return subject.categories.filter((category) => selection.ids.includes(category.id))
+}
+
 function selectedGradeData() {
 	const category = selectedCategoryData.value
 	if (!category || !selectedGradeId.value) return null
 	return category.grades.find((item) => item.id === selectedGradeId.value) ?? null
 }
 
+const canPasteSubjects = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'subject')
+const canPasteCategories = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'category')
 const canPasteGrades = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'grade')
 const canPasteVariants = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'variant')
 const canPasteSentenceParts = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'sentencePart')
 
+const selectedSubjectIdsForTree = computed(() => selectedChipIds('subject', subjectScopeKey()))
+const selectedCategoryIdsForTree = computed(() => {
+	const selection = chipSelection.value
+	return selection?.kind === 'category' ? selection.ids : []
+})
 const selectedGradeIdsForEditor = computed(() => selectedChipIds('grade', gradeScopeKey()))
 const selectedVariantIdsForEditor = computed(() => selectedChipIds('variant', variantScopeKey()))
 const selectedSentencePartIdsForEditor = computed(() => selectedChipIds('sentencePart', sentencePartScopeKey()))
@@ -572,6 +636,27 @@ function orderedSentencePartPathIds(variant: Variant | null): string[] {
 	return ids
 }
 
+function handleSelectSubject(subjectId: string, event: MouseEvent | KeyboardEvent) {
+	updateChipSelection(
+		'subject',
+		subjectId,
+		props.templateSet.subjects.map((subject) => subject.id),
+		event,
+		{ allowPlainToggle: !hasSelectionModifier(event), scopeKey: subjectScopeKey() },
+	)
+}
+
+function handleSelectTreeCategory(subjectId: string, categoryId: string, event: MouseEvent | KeyboardEvent) {
+	selectCategory({ subjectId, categoryId })
+	updateChipSelection(
+		'category',
+		categoryId,
+		props.templateSet.subjects.find((subject) => subject.id === subjectId)?.categories.map((category) => category.id) ?? [],
+		event,
+		{ allowPlainToggle: false, scopeKey: categoryScopeKey(subjectId) },
+	)
+}
+
 function handleSelectGrade(gradeId: string, event: MouseEvent | KeyboardEvent) {
 	selectedGradeId.value = gradeId
 	const grade = selectedCategoryData.value?.grades.find((item) => item.id === gradeId)
@@ -603,12 +688,11 @@ function handleSelectSentencePart(path: SentencePartPath, event: MouseEvent | Ke
 	})
 }
 
-function handleContextOpen(kind: ChipSelectionKind, id: string) {
+function handleContextOpen(kind: ChipSelectionKind, id: string, scopeKey = selectionScopeKey(kind)) {
 	const current = chipSelection.value
-	const scopeKey = selectionScopeKey(kind)
 	if (!scopeKey) return
 	if (current?.kind === kind && current.scopeKey === scopeKey && current.ids.includes(id)) return
-	setSingleChipSelection(kind, id)
+	chipSelection.value = { kind, scopeKey, ids: [id], anchorId: id }
 }
 
 function selectedGrades(): Grade[] {
@@ -648,6 +732,16 @@ function selectedSentencePartPaths(): SentencePartPath[] {
 async function copySelection(kind = chipSelection.value?.kind) {
 	if (!kind) return
 	const sourceLabel = selectedCategoryData.value?.label
+	if (kind === 'subject') {
+		const items = selectedSubjectData()
+		if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('subject', items, props.templateSet.label))
+		return
+	}
+	if (kind === 'category') {
+		const items = selectedCategoryItems()
+		if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('category', items, sourceLabel))
+		return
+	}
 	if (kind === 'grade') {
 		const items = selectedGrades()
 		if (items.length) await templateClipboard.setPayload(createTemplateClipboardPayload('grade', items, sourceLabel))
@@ -665,15 +759,27 @@ async function copySelection(kind = chipSelection.value?.kind) {
 async function cutSelection(kind = chipSelection.value?.kind) {
 	if (!canEditTemplates.value || !kind) return
 	await copySelection(kind)
-	const category = selectedCategory.value
-	if (!category) return
-	if (kind === 'grade') {
+	if (kind === 'subject') {
+		deleteSubjects(selectedChipIds('subject', subjectScopeKey()))
+	} else if (kind === 'category') {
+		const selection = chipSelection.value
+		const subject = props.templateSet.subjects.find(
+			(item) => selection?.kind === 'category' && categoryScopeKey(item.id) === selection.scopeKey,
+		)
+		if (subject) deleteCategories(subject.id, selection?.ids ?? [])
+	} else if (kind === 'grade') {
+		const category = selectedCategory.value
+		if (!category) return
 		const ids = selectedChipIds('grade')
 		deleteGrades(category.subjectId, category.categoryId, ids)
 	} else if (kind === 'variant') {
+		const category = selectedCategory.value
+		if (!category) return
 		if (!selectedGradeId.value) return
 		deleteVariants(category.subjectId, category.categoryId, selectedGradeId.value, selectedChipIds('variant'))
 	} else {
+		const category = selectedCategory.value
+		if (!category) return
 		if (!selectedGradeId.value || !selectedVariantId.value) return
 		deleteSelectedSentencePartPaths(category.subjectId, category.categoryId, selectedGradeId.value, selectedVariantId.value)
 	}
@@ -693,6 +799,26 @@ function deleteSelectedSentencePartPaths(subjectId: string, categoryId: string, 
 		deleteSentencePartAtPath(subjectId, categoryId, gradeId, variantId, path)
 	}
 	deleteSentenceParts(subjectId, categoryId, gradeId, variantId, rootIndexes)
+}
+
+function pasteSubjectsFromClipboard(afterSubjectId?: string) {
+	if (!canPasteSubjects.value || templateClipboard.payload?.kind !== 'subject') return
+	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as Subject[]
+	const atIndex = afterSubjectId
+		? props.templateSet.subjects.findIndex((subject) => subject.id === afterSubjectId) + 1
+		: undefined
+	insertSubjects(items, atIndex && atIndex > 0 ? atIndex : undefined)
+}
+
+function pasteCategoriesFromClipboard(subjectId: string, afterCategoryId?: string) {
+	if (!canPasteCategories.value || templateClipboard.payload?.kind !== 'category') return
+	const subject = props.templateSet.subjects.find((item) => item.id === subjectId)
+	if (!subject) return
+	const items = cloneClipboardItemsForPaste(templateClipboard.payload) as Category[]
+	const atIndex = afterCategoryId
+		? subject.categories.findIndex((category) => category.id === afterCategoryId) + 1
+		: undefined
+	insertCategories(subjectId, items, atIndex && atIndex > 0 ? atIndex : undefined)
 }
 
 function pasteGradesFromClipboard(afterGradeId?: string) {
@@ -752,6 +878,20 @@ function pasteSentencePartsFromClipboard(afterPath?: SentencePartPath) {
 	)
 }
 
+async function handleSubjectContextAction(action: ClipboardAction, subjectId: string) {
+	handleContextOpen('subject', subjectId, subjectScopeKey())
+	if (action === 'copy') await copySelection('subject')
+	else if (action === 'cut') await cutSelection('subject')
+	else pasteSubjectsFromClipboard(subjectId)
+}
+
+async function handleCategoryContextAction(action: ClipboardAction, subjectId: string, categoryId: string) {
+	handleContextOpen('category', categoryId, categoryScopeKey(subjectId))
+	if (action === 'copy') await copySelection('category')
+	else if (action === 'cut') await cutSelection('category')
+	else pasteCategoriesFromClipboard(subjectId, categoryId)
+}
+
 async function handleGradeContextAction(action: ClipboardAction, gradeId: string) {
 	handleContextOpen('grade', gradeId)
 	if (action === 'copy') await copySelection('grade')
@@ -791,7 +931,16 @@ function isModalOpen(): boolean {
 
 function pasteIntoActiveList() {
 	const kind = chipSelection.value?.kind ?? templateClipboard.payload?.kind
-	if (kind === 'grade') pasteGradesFromClipboard()
+	if (kind === 'subject') pasteSubjectsFromClipboard()
+	else if (kind === 'category') {
+		const selection = chipSelection.value
+		const subject = props.templateSet.subjects.find(
+			(item) => selection?.kind === 'category' && categoryScopeKey(item.id) === selection.scopeKey,
+		)
+		const subjectId = subject?.id ?? selectedCategory.value?.subjectId
+		if (subjectId) pasteCategoriesFromClipboard(subjectId)
+	}
+	else if (kind === 'grade') pasteGradesFromClipboard()
 	else if (kind === 'variant') pasteVariantsFromClipboard()
 	else if (kind === 'sentencePart') pasteSentencePartsFromClipboard()
 }
@@ -1069,6 +1218,10 @@ onBeforeUnmount(() => {
 		:set-id="setId"
 		:template-set="templateSet"
 		:can-edit="canEditTemplates"
+		:selected-subject-ids="selectedSubjectIdsForTree"
+		:selected-category-ids="selectedCategoryIdsForTree"
+		:can-paste-subjects="canPasteSubjects"
+		:can-paste-categories="canPasteCategories"
 		:add-subject="addSubject"
 		:delete-subject="deleteSubject"
 		:reorder-subject="reorderSubject"
@@ -1078,7 +1231,32 @@ onBeforeUnmount(() => {
 		:update-subject-label="updateSubjectLabel"
 		:update-category-label="updateCategoryLabel"
 		:remove-set="removeSet"
+		@select-subject="handleSelectSubject"
+		@select-tree-category="handleSelectTreeCategory"
+		@context-action-subject="handleSubjectContextAction"
+		@context-action-category="handleCategoryContextAction"
+		@paste-subjects="pasteSubjectsFromClipboard"
+		@paste-categories="pasteCategoriesFromClipboard"
 	/>
+
+	<UAlert
+		v-if="syncError"
+		class="fixed bottom-4 left-4 right-4 z-50 lg:left-[22rem] lg:right-4"
+		color="error"
+		variant="solid"
+		title="Vorlage konnte nicht synchronisiert werden"
+		:description="syncError"
+	>
+		<template #actions>
+			<UButton
+				label="Erneut versuchen"
+				color="neutral"
+				variant="outline"
+				:loading="isSyncPending"
+				@click="retrySync"
+			/>
+		</template>
+	</UAlert>
 
 	<USlideover
 		v-if="isMobile && selectedCategory && selectedCategoryData"

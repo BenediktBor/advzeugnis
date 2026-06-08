@@ -31,9 +31,9 @@ function resetForm() {
 	templateSetId.value = defaultAlphabeticalTemplateSetId.value
 }
 
-function confirmCreateStudent() {
+async function confirmCreateStudent() {
 	if (!canSubmit.value) return
-	createStudentAndOpen({
+	await createStudentAndOpen({
 		name: name.value,
 		surname: surname.value,
 		gender: gender.value,

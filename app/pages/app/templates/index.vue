@@ -70,7 +70,7 @@ watch(
 					Satzvorlagen pro Jahrgang oder Schulstufe.
 				</p>
 				<p v-if="!canEdit" class="text-xs text-muted shrink-0">
-					Nur für Benutzer mit Rolle Editor oder Admin bearbeitbar.
+					Nur für Benutzer mit Rolle Template Manager oder Admin bearbeitbar.
 				</p>
 				<AppStateNotice
 					v-if="!isLoaded"

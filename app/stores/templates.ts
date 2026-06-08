@@ -10,10 +10,10 @@ import { randomId } from '~/utils/randomId'
 import { migrateLegacyOptionalTextInput } from '~/utils/templateMigration'
 import type { Subject, TemplateSet } from '~/types/template'
 
-const STORAGE_KEY = 'template-sets'
-const LIST_STORAGE_KEY = 'template-set-list'
 const LAST_SELECTED_CATEGORY_STORAGE_KEY = 'template-set-last-selected-category'
 const LAST_CATEGORY_SELECTIONS_STORAGE_KEY = 'template-set-last-category-selections'
+const LEGACY_STORAGE_KEY = 'template-sets'
+const LEGACY_LIST_STORAGE_KEY = 'template-set-list'
 
 type SelectedCategoryRef = {
 	subjectId: string
@@ -312,8 +312,6 @@ export const useTemplatesStore = defineStore('templates', () => {
 	const lastCategorySelectionsBySetId = ref<CategorySelectionMapBySet>({})
 	const isLoaded = ref(false)
 	const loadError = ref<unknown>(null)
-	const { persist: debouncedPersistRecord } = createDebouncedPersist<TemplateSetsRecord>(STORAGE_KEY)
-	const { persist: debouncedPersistList } = createDebouncedPersist<string[]>(LIST_STORAGE_KEY)
 	const { persist: debouncedPersistLastSelectedCategory } = createDebouncedPersist<Record<string, SelectedCategoryRef>>(
 		LAST_SELECTED_CATEGORY_STORAGE_KEY,
 	)
@@ -330,8 +328,8 @@ export const useTemplatesStore = defineStore('templates', () => {
 
 	async function doLoad() {
 		const [storedResult, storedListResult, storedSelectedCategoryResult, storedCategorySelectionsResult] = await Promise.all([
-			idbLoad<Record<string, TemplateSet>>(STORAGE_KEY),
-			idbLoad<string[]>(LIST_STORAGE_KEY),
+			idbLoad<Record<string, TemplateSet>>(LEGACY_STORAGE_KEY),
+			idbLoad<string[]>(LEGACY_LIST_STORAGE_KEY),
 			idbLoad<Record<string, SelectedCategoryRef>>(LAST_SELECTED_CATEGORY_STORAGE_KEY),
 			idbLoad<CategorySelectionMapBySet>(LAST_CATEGORY_SELECTIONS_STORAGE_KEY),
 		])
@@ -373,18 +371,15 @@ export const useTemplatesStore = defineStore('templates', () => {
 		}
 		lastCategorySelectionsBySetId.value = nextCategorySelections
 		isLoaded.value = true
-		if (normalized.didMigrate) {
-			debouncedPersistRecord(record.value)
-			debouncedPersistList(orderedIds.value)
-		}
 	}
 
 	function persistRecord() {
-		debouncedPersistRecord(record.value)
+		// Authoritative template data is stored in Convex. This store keeps an
+		// optimistic local mirror so existing editor code can stay synchronous.
 	}
 
 	function persistList() {
-		debouncedPersistList(orderedIds.value)
+		// Authoritative template ordering is stored in Convex.
 	}
 
 	function persistLastSelectedCategory() {
@@ -412,6 +407,16 @@ export const useTemplatesStore = defineStore('templates', () => {
 			persistList()
 		}
 		persistRecord()
+	}
+
+	function replaceAllSets(nextRecord: TemplateSetsRecord, nextOrderedIds: string[]) {
+		const normalized = normalizeTemplateSets(
+			nextRecord as Record<string, TemplateSet | null | undefined>,
+			nextOrderedIds,
+			{ schemaSafeParse: true },
+		)
+		record.value = normalized.record
+		orderedIds.value = normalized.orderedIds
 	}
 
 	function addSet(label: string): string {
@@ -560,8 +565,8 @@ export const useTemplatesStore = defineStore('templates', () => {
 		isLoaded.value = true
 
 		// Persist both snapshots together so UI ordering and stored sets stay aligned.
-		debouncedPersistRecord(record.value)
-		debouncedPersistList(orderedIds.value)
+		persistRecord()
+		persistList()
 	}
 
 	async function exportSubject(setId: string, subjectId: string): Promise<AzSubjectExportPayload | null> {
@@ -604,6 +609,7 @@ export const useTemplatesStore = defineStore('templates', () => {
 		getSetData,
 		ensureSet,
 		saveSetData,
+		replaceAllSets,
 		getSetLabel,
 		exportAllAzset,
 		exportAzsetForSet,
