@@ -14,7 +14,7 @@ const roleLabels: Record<SchoolRole, string> = {
 const open = ref(false)
 const router = useRouter()
 const { students } = useStudents()
-const { currentUser, hasSchool, canEditTemplates } = useCurrentUser()
+const { currentUser, hasSchool, canEditTemplates, canManageTeachers } = useCurrentUser()
 const { signOut } = useConvexAuthActions()
 const { sortedSetsWithData, hasAnyTemplateSets } = useTemplateSets()
 const createStudentModalOpen = ref(false)
@@ -35,7 +35,7 @@ function onAddTemplate() {
 }
 
 const accountNavItem = computed<NavigationMenuItem>(() =>
-	currentUser.value.type === 'school'
+	currentUser.value.type === 'school' && canManageTeachers.value
 		? {
 				label: 'Schule',
 				icon: 'i-lucide-building-2',
@@ -113,7 +113,7 @@ const profileAccountItems = computed(() => {
 			to: '/app/user',
 		},
 	]
-	if (currentUser.value.type === 'school') {
+	if (currentUser.value.type === 'school' && canManageTeachers.value) {
 		items.unshift({
 			label: 'Schule',
 			icon: 'i-lucide-building-2',

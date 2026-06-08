@@ -3,6 +3,7 @@ import { action, internalMutation, mutation, query } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { assignableSchoolRoleValidator } from './schema'
 import {
+	getActiveMembershipForSchoolUser,
 	getActiveMembershipForUser,
 	hasActiveSubscription,
 	requireActiveSubscription,
@@ -92,6 +93,7 @@ export const members = query({
 		const { userId } = await requireUser(ctx)
 		const membership = await getActiveMembershipForUser(ctx, userId)
 		if (!membership) return []
+		if (membership.role !== 'owner' && membership.role !== 'admin') return []
 		const school = await ctx.db.get(membership.schoolId)
 		if (!school) return []
 		const memberships = await ctx.db
@@ -311,14 +313,30 @@ export const acceptInvite = mutation({
 		const activeMemberCount = await countActiveMembers(ctx, invite.schoolId)
 		if (activeMemberCount >= school.seatLimit) throw new ConvexError('No seats available')
 
-		await ctx.db.insert('memberships', {
-			userId,
-			schoolId: invite.schoolId,
-			role: invite.role,
-			status: 'active',
-			invitedBy: invite.invitedBy,
-			createdAt: Date.now(),
-		})
+		const existingMemberships = await ctx.db
+			.query('memberships')
+			.withIndex('by_school_user', (q) => q.eq('schoolId', invite.schoolId).eq('userId', userId))
+			.collect()
+		const removedMembership = existingMemberships.find((row) => row.status === 'removed')
+		const now = Date.now()
+
+		if (removedMembership) {
+			await ctx.db.patch(removedMembership._id, {
+				role: invite.role,
+				status: 'active',
+				invitedBy: invite.invitedBy,
+				removedAt: undefined,
+			})
+		} else {
+			await ctx.db.insert('memberships', {
+				userId,
+				schoolId: invite.schoolId,
+				role: invite.role,
+				status: 'active',
+				invitedBy: invite.invitedBy,
+				createdAt: now,
+			})
+		}
 		await ctx.db.patch(invite._id, {
 			status: 'accepted',
 			invitedUserId: userId,
@@ -335,11 +353,8 @@ export const removeMember = mutation({
 		const { userId, membership, school } = await requireAdmin(ctx)
 		if (args.userId === userId) throw new ConvexError('Admins cannot remove themselves')
 
-		const member = await ctx.db
-			.query('memberships')
-			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
-			.unique()
-		if (!member || member.status !== 'active') throw new ConvexError('Member not found')
+		const member = await getActiveMembershipForSchoolUser(ctx, membership.schoolId, args.userId)
+		if (!member) throw new ConvexError('Member not found')
 		if (member.role === 'owner' || member.userId === school.createdBy) {
 			throw new ConvexError('Owner cannot be removed')
 		}
@@ -362,11 +377,8 @@ export const setRole = mutation({
 			throw new ConvexError('Admins cannot demote themselves')
 		}
 
-		const member = await ctx.db
-			.query('memberships')
-			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
-			.unique()
-		if (!member || member.status !== 'active') throw new ConvexError('Member not found')
+		const member = await getActiveMembershipForSchoolUser(ctx, membership.schoolId, args.userId)
+		if (!member) throw new ConvexError('Member not found')
 		if (member.role === 'owner' || member.userId === school.createdBy) {
 			throw new ConvexError('Owner role cannot be changed')
 		}
@@ -381,11 +393,8 @@ export const transferOwnership = mutation({
 		const { userId, membership, school } = await requireOwner(ctx)
 		if (args.userId === userId) throw new ConvexError('Owner already belongs to this user')
 
-		const newOwnerMembership = await ctx.db
-			.query('memberships')
-			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
-			.unique()
-		if (!newOwnerMembership || newOwnerMembership.status !== 'active') throw new ConvexError('Member not found')
+		const newOwnerMembership = await getActiveMembershipForSchoolUser(ctx, membership.schoolId, args.userId)
+		if (!newOwnerMembership) throw new ConvexError('Member not found')
 
 		await ctx.db.patch(membership._id, { role: 'admin' })
 		await ctx.db.patch(newOwnerMembership._id, { role: 'owner' })

@@ -33,7 +33,7 @@ async function onAccept() {
 	isAccepting.value = true
 	try {
 		await client.mutation(api.schools.acceptInvite, { token: token.value })
-		await router.push('/app/school')
+		await router.push('/app')
 	} catch (err) {
 		console.error('[school] invite acceptance failed:', err)
 		error.value = String(err).includes('Invite email does not match')

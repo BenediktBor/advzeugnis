@@ -6,7 +6,30 @@ useAppSeo({
 	robots: APP_ROBOTS,
 })
 
-const { currentUser, canManageTeachers } = useCurrentUser()
+const route = useRoute()
+const { currentUser, isLoaded, canManageTeachers } = useCurrentUser()
+
+const deniedTitle = computed(() => {
+	if (!isLoaded.value) return 'Berechtigungen werden geladen'
+	return 'Keine Berechtigung'
+})
+
+const deniedDescription = computed(() => {
+	if (!isLoaded.value) return undefined
+	return 'Nur Schul-Admins können die Schulverwaltung öffnen.'
+})
+
+watch(
+	[isLoaded, canManageTeachers],
+	([loaded, canManage]) => {
+		if (!loaded || canManage) return
+		void navigateTo({
+			path: '/app',
+			query: { denied: 'school', from: route.fullPath },
+		}, { replace: true })
+	},
+	{ immediate: true },
+)
 const {
 	school,
 	members,
@@ -215,7 +238,7 @@ function openDeleteSchoolDialog() {
 </script>
 
 <template>
-	<UDashboardPanel>
+	<UDashboardPanel v-if="canManageTeachers">
 		<template #header>
 			<UDashboardNavbar title="Schule">
 				<template #leading>
@@ -285,17 +308,11 @@ function openDeleteSchoolDialog() {
 
 					<div class="flex flex-col gap-4">
 						<UAlert
-							v-if="canManageTeachers && !hasActiveSubscription"
+							v-if="!hasActiveSubscription"
 							color="warning"
 							variant="soft"
 							title="Schul-Abrechnung noch nicht aktiv"
 							description="Stripe Checkout ist aktuell pausiert, bis die Convex-Bereitstellung abgeschlossen ist."
-						/>
-						<UAlert
-							v-if="!canManageTeachers"
-							color="neutral"
-							variant="soft"
-							title="Nur Schul-Admins können Nutzer einladen, entfernen und Rollen ändern."
 						/>
 
 						<form
@@ -487,4 +504,15 @@ function openDeleteSchoolDialog() {
 			/>
 		</template>
 	</UModal>
+
+	<UDashboardPanel v-if="!canManageTeachers">
+		<template #body>
+			<AppStateNotice
+				:title="deniedTitle"
+				:description="deniedDescription"
+				:icon="isLoaded ? 'i-lucide-lock' : 'i-lucide-loader-2'"
+				:loading="!isLoaded"
+			/>
+		</template>
+	</UDashboardPanel>
 </template>

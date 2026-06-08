@@ -5,6 +5,7 @@ useAppSeo({
 })
 
 const { school, createSchool } = useSchool()
+const { canManageTeachers } = useCurrentUser()
 
 const schoolName = ref('')
 const seatLimit = ref(5)
@@ -38,7 +39,7 @@ async function onSubmit() {
 				accessPassword: accessPassword.value,
 			}) as string
 		}
-		await navigateTo('/app/school')
+		await navigateTo(createdSchoolId.value || canManageTeachers.value ? '/app/school' : '/app')
 	} catch (err) {
 		console.error('[school] setup failed:', err)
 		error.value = school.value || createdSchoolId.value

@@ -32,6 +32,19 @@ export async function getActiveMembershipForUser(
 	return memberships.find((membership) => membership.status === 'active') ?? null
 }
 
+export async function getActiveMembershipForSchoolUser(
+	ctx: AuthorizedCtx,
+	schoolId: Id<'schools'>,
+	userId: Id<'users'>,
+): Promise<Doc<'memberships'> | null> {
+	const memberships = await ctx.db
+		.query('memberships')
+		.withIndex('by_school_user', (q) => q.eq('schoolId', schoolId).eq('userId', userId))
+		.collect()
+
+	return memberships.find((membership) => membership.status === 'active') ?? null
+}
+
 export async function requireActiveMembership(ctx: AuthorizedCtx) {
 	const { userId, user } = await requireUser(ctx)
 	const membership = await getActiveMembershipForUser(ctx, userId)
