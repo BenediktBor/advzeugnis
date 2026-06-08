@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { getStoredAuthToken } from '~/utils/convexAuthClient'
+import { useCurrentUserStore } from '~/stores/currentUser'
+import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
 
 definePageMeta({ layout: 'dashboard' })
+
+const AUTH_CHECK_TIMEOUT_MS = 10_000
 
 const route = useRoute()
 const { isLoaded, isAuthenticated, authError } = useCurrentUser()
@@ -24,6 +27,29 @@ watchEffect(() => {
 		path: '/sign-in',
 		query: { redirect: route.fullPath },
 	}, { replace: true })
+})
+
+let authCheckTimeout: ReturnType<typeof setTimeout> | null = null
+
+watch(isCheckingAuth, (checking) => {
+	if (authCheckTimeout) {
+		clearTimeout(authCheckTimeout)
+		authCheckTimeout = null
+	}
+	if (!checking || !import.meta.client) return
+
+	authCheckTimeout = setTimeout(() => {
+		clearAuthTokens()
+		useCurrentUserStore().clearUser()
+		void navigateTo({
+			path: '/sign-in',
+			query: { redirect: route.fullPath },
+		}, { replace: true })
+	}, AUTH_CHECK_TIMEOUT_MS)
+}, { immediate: true })
+
+onUnmounted(() => {
+	if (authCheckTimeout) clearTimeout(authCheckTimeout)
 })
 </script>
 

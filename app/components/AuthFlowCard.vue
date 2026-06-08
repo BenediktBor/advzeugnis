@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { safeRedirectTarget } from '~/utils/authCallback'
-import { getStoredAuthToken } from '~/utils/convexAuthClient'
+import { resolveStoredTokenRedirect } from '~/utils/authSession'
+import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
 
 const props = withDefaults(defineProps<{
 	initialMode?: 'signIn' | 'signUp' | 'magic' | 'reset'
@@ -10,6 +11,7 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const { isLoaded, isAuthenticated } = useCurrentUser()
 const {
 	requestMagicLink,
 	requestPasswordReset,
@@ -79,12 +81,54 @@ function handleBack() {
 	}
 }
 
-onMounted(async () => {
+const STORED_TOKEN_REDIRECT_TIMEOUT_MS = 10_000
+
+async function tryRedirectIfAuthenticated() {
 	if (route.query.authError === '1') {
 		error.value = 'Anmeldung konnte nicht abgeschlossen werden.'
 		return
 	}
-	if (getStoredAuthToken()) await router.replace(redirectTo.value)
+
+	const hasToken = Boolean(getStoredAuthToken())
+	const decision = resolveStoredTokenRedirect({
+		hasToken,
+		isLoaded: isLoaded.value,
+		isAuthenticated: isAuthenticated.value,
+	})
+
+	if (decision === 'noop' || decision === 'wait') return
+	if (decision === 'redirect') {
+		await router.replace(redirectTo.value)
+		return
+	}
+
+	clearAuthTokens()
+}
+
+onMounted(async () => {
+	await tryRedirectIfAuthenticated()
+
+	if (!getStoredAuthToken()) return
+
+	const deadline = Date.now() + STORED_TOKEN_REDIRECT_TIMEOUT_MS
+	while (Date.now() < deadline) {
+		const decision = resolveStoredTokenRedirect({
+			hasToken: true,
+			isLoaded: isLoaded.value,
+			isAuthenticated: isAuthenticated.value,
+		})
+		if (decision !== 'wait') {
+			await tryRedirectIfAuthenticated()
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, 100))
+	}
+
+	clearAuthTokens()
+})
+
+watch([isLoaded, isAuthenticated], () => {
+	void tryRedirectIfAuthenticated()
 })
 
 watch(

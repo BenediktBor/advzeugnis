@@ -4,7 +4,13 @@ import {
 	buildMagicLinkCallbackUrl,
 } from '~/utils/authCallback'
 import { api } from '~/utils/convexApi'
-import { clearAuthTokens, configureConvexAuth, storeAuthTokens } from '~/utils/convexAuthClient'
+import { useCurrentUserStore } from '~/stores/currentUser'
+import {
+	beginSignOut,
+	configureConvexAuth,
+	finalizeClientSignOut,
+	storeAuthTokens,
+} from '~/utils/convexAuthClient'
 
 type SignInResult = {
 	redirect?: string
@@ -98,10 +104,12 @@ export function useConvexAuthActions() {
 	}
 
 	async function signOut() {
+		beginSignOut()
 		try {
 			await client.action(api.auth.signOut, {})
 		} finally {
-			clearAuthTokens()
+			finalizeClientSignOut(client)
+			useCurrentUserStore().clearUser()
 			window.location.href = '/'
 		}
 	}

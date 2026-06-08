@@ -9,6 +9,20 @@ type AuthTokens = {
 	refreshToken: string
 }
 
+let signingOut = false
+
+export function beginSignOut() {
+	signingOut = true
+}
+
+export function isSigningOut() {
+	return signingOut
+}
+
+export function resetSignOutStateForTests() {
+	signingOut = false
+}
+
 export function getStoredAuthToken() {
 	if (typeof window === 'undefined') return null
 	return window.localStorage.getItem(TOKEN_KEY)
@@ -20,6 +34,7 @@ export function getStoredRefreshToken() {
 }
 
 export function storeAuthTokens(tokens: AuthTokens) {
+	if (signingOut) return
 	window.localStorage.setItem(TOKEN_KEY, tokens.token)
 	window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken)
 }
@@ -30,8 +45,14 @@ export function clearAuthTokens() {
 	window.localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+export function finalizeClientSignOut(client: ConvexClient) {
+	clearAuthTokens()
+	client.setAuth(async () => null)
+}
+
 export function configureConvexAuth(client: ConvexClient) {
 	client.setAuth(async ({ forceRefreshToken }) => {
+		if (signingOut) return null
 		if (!forceRefreshToken) return getStoredAuthToken()
 
 		const refreshToken = getStoredRefreshToken()

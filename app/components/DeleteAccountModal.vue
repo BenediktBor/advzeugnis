@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
-import { clearAuthTokens } from '~/utils/convexAuthClient'
+import { beginSignOut, finalizeClientSignOut } from '~/utils/convexAuthClient'
 
 const props = defineProps<{
 	open: boolean
@@ -35,8 +36,10 @@ async function deleteAccount() {
 	isDeleting.value = true
 	try {
 		await client.action(api.users.deleteCurrentAccount, {})
-		clearAuthTokens()
-		await navigateTo('/', { replace: true })
+		beginSignOut()
+		finalizeClientSignOut(client)
+		useCurrentUserStore().clearUser()
+		window.location.href = '/'
 	} catch (err) {
 		console.error('[user] account deletion failed:', err)
 		deleteError.value =
