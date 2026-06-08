@@ -1,4 +1,4 @@
-export const SHOW_LANDING_PRICING = true
+export const SHOW_LANDING_PRICING = false
 
 export const landingAnchorIds = {
 	demo: 'demo',
