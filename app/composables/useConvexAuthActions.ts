@@ -1,4 +1,8 @@
 import { useConvexClient } from 'convex-vue'
+import {
+	authCallbackParamsFromSearch,
+	buildMagicLinkCallbackUrl,
+} from '~/utils/authCallback'
 import { api } from '~/utils/convexApi'
 import { clearAuthTokens, configureConvexAuth, storeAuthTokens } from '~/utils/convexAuthClient'
 
@@ -40,11 +44,9 @@ export function useConvexAuthActions() {
 	}
 
 	async function completeSignInFromUrl() {
-		const params = Object.fromEntries(new URLSearchParams(window.location.search))
+		const params = authCallbackParamsFromSearch(window.location.search)
 		if (Object.keys(params).length === 0) return false
-		const result = await client.action(api.auth.signIn, {
-			params,
-		}) as SignInResult
+		const result = await client.action(api.auth.signIn, { params }) as SignInResult
 		return handleSignInResult(result).isSignedIn
 	}
 
@@ -72,10 +74,10 @@ export function useConvexAuthActions() {
 		})
 	}
 
-	async function requestMagicLink(email: string, redirectTo = '/app') {
+	async function requestMagicLink(email: string, postLoginPath = '/app') {
 		return await runSignIn('resend', {
 			email,
-			redirectTo,
+			redirectTo: buildMagicLinkCallbackUrl(postLoginPath),
 		})
 	}
 

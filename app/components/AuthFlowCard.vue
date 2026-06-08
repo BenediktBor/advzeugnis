@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { safeRedirectTarget } from '~/utils/authCallback'
 import { getStoredAuthToken } from '~/utils/convexAuthClient'
 
 const props = withDefaults(defineProps<{
@@ -10,7 +11,6 @@ const props = withDefaults(defineProps<{
 const route = useRoute()
 const router = useRouter()
 const {
-	completeSignInFromUrl,
 	requestMagicLink,
 	requestPasswordReset,
 	resetPassword,
@@ -18,7 +18,6 @@ const {
 	signUpWithPassword,
 	verifyEmail,
 } = useConvexAuthActions()
-const isCompleting = ref(false)
 const isSubmitting = ref(false)
 const error = ref('')
 const message = ref('')
@@ -53,13 +52,6 @@ const redirectQuery = computed(() => {
 	return typeof redirect === 'string' ? { redirect } : undefined
 })
 
-function safeRedirectTarget(value: unknown) {
-	const redirect = Array.isArray(value) ? value[0] : value
-	if (typeof redirect !== 'string') return '/app'
-	if (!redirect.startsWith('/') || redirect.startsWith('//')) return '/app'
-	return redirect
-}
-
 const redirectTo = computed(() => safeRedirectTarget(route.query.redirect))
 
 const showSignUpPromo = computed(() => mode.value === 'signIn' && !pendingVerificationEmail.value)
@@ -88,21 +80,11 @@ function handleBack() {
 }
 
 onMounted(async () => {
-	const params = new URLSearchParams(window.location.search)
-	if (!params.has('code') && !params.has('token')) {
-		if (getStoredAuthToken()) await router.replace(redirectTo.value)
+	if (route.query.authError === '1') {
+		error.value = 'Anmeldung konnte nicht abgeschlossen werden.'
 		return
 	}
-	isCompleting.value = true
-	try {
-		const completed = await completeSignInFromUrl()
-		if (completed) await router.replace(redirectTo.value)
-	} catch (err) {
-		console.error('[auth] sign-in callback failed:', err)
-		error.value = 'Anmeldung konnte nicht abgeschlossen werden.'
-	} finally {
-		isCompleting.value = false
-	}
+	if (getStoredAuthToken()) await router.replace(redirectTo.value)
 })
 
 watch(
@@ -281,7 +263,7 @@ async function submitPasswordReset() {
 					label="E-Mail bestaetigen"
 					icon="i-lucide-check"
 					block
-					:loading="isSubmitting || isCompleting"
+					:loading="isSubmitting"
 				/>
 			</form>
 
@@ -321,7 +303,7 @@ async function submitPasswordReset() {
 					:label="mode === 'signUp' ? 'Konto erstellen' : 'Anmelden'"
 					icon="i-lucide-log-in"
 					block
-					:loading="isSubmitting || isCompleting"
+					:loading="isSubmitting"
 					:disabled="mode === 'signUp' && !privacyAccepted"
 				/>
 			</form>
@@ -339,7 +321,7 @@ async function submitPasswordReset() {
 					label="Anmeldelink senden"
 					icon="i-lucide-mail"
 					block
-					:loading="isSubmitting || isCompleting"
+					:loading="isSubmitting"
 				/>
 			</form>
 
@@ -371,7 +353,7 @@ async function submitPasswordReset() {
 					:label="pendingResetEmail ? 'Passwort speichern' : 'Code senden'"
 					icon="i-lucide-key-round"
 					block
-					:loading="isSubmitting || isCompleting"
+					:loading="isSubmitting"
 				/>
 			</form>
 
