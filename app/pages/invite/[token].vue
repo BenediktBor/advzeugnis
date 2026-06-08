@@ -19,14 +19,6 @@ const error = ref('')
 const token = computed(() => String(route.params.token || ''))
 const isAuthReady = computed(() => isLoaded.value)
 
-function goBack() {
-	if (window.history.length > 1) {
-		router.back()
-	} else {
-		router.push('/')
-	}
-}
-
 async function onAccept() {
 	error.value = ''
 	if (!isAuthReady.value) return
@@ -63,12 +55,12 @@ async function onAccept() {
 	<UContainer class="flex min-h-screen items-center justify-center py-12">
 		<div class="flex w-full max-w-md flex-col gap-4">
 			<UButton
-				label="Zurück"
+				to="/"
+				label="Zurück zur Startseite"
 				variant="outline"
 				color="neutral"
 				icon="i-lucide-arrow-left"
 				class="w-fit"
-				@click="goBack"
 			/>
 
 			<UCard class="w-full">

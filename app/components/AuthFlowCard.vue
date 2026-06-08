@@ -66,15 +66,13 @@ const showSignUpPromo = computed(() => mode.value === 'signIn' && !pendingVerifi
 
 const backLabel = computed(() => {
 	if (pendingVerificationEmail.value) return 'Zurück zur Registrierung'
-	if (mode.value === 'magic' || mode.value === 'signUp' || mode.value === 'reset') return 'Zurück zur Anmeldung'
-	return 'Zurück'
+	if (mode.value === 'magic') return 'Zurück zur Anmeldung'
+	return 'Zurück zur Startseite'
 })
 
 const backTo = computed(() => {
-	if (mode.value === 'signUp' || mode.value === 'reset') {
-		return { path: '/sign-in', query: redirectQuery.value }
-	}
-	return undefined
+	if (pendingVerificationEmail.value || mode.value === 'magic') return undefined
+	return '/'
 })
 
 function handleBack() {
@@ -86,12 +84,6 @@ function handleBack() {
 	}
 	if (mode.value === 'magic') {
 		setMode('signIn')
-		return
-	}
-	if (window.history.length > 1) {
-		router.back()
-	} else {
-		router.push('/')
 	}
 }
 
