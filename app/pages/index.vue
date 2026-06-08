@@ -104,5 +104,25 @@ const plans = [
 			</section>
 			-->
 		</main>
+
+		<footer class="border-t border-default py-6">
+			<UContainer class="flex flex-col items-center gap-2 text-sm text-muted sm:flex-row sm:justify-between">
+				<p>© {{ new Date().getFullYear() }} AdvancedZeugnis</p>
+				<div class="flex items-center gap-4">
+					<ULink
+						to="/impressum"
+						class="hover:text-highlighted transition-colors"
+					>
+						Impressum
+					</ULink>
+					<ULink
+						to="/datenschutz"
+						class="hover:text-highlighted transition-colors"
+					>
+						Datenschutz
+					</ULink>
+				</div>
+			</UContainer>
+		</footer>
 	</div>
 </template>

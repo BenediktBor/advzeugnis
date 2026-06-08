@@ -31,6 +31,7 @@ const form = reactive({
 })
 const pendingVerificationEmail = ref('')
 const pendingResetEmail = ref('')
+const privacyAccepted = ref(false)
 
 const title = computed(() => {
 	if (pendingVerificationEmail.value) return 'E-Mail bestaetigen'
@@ -86,6 +87,7 @@ watch(
 		resetStatus()
 		pendingVerificationEmail.value = ''
 		pendingResetEmail.value = ''
+		privacyAccepted.value = false
 		form.code = ''
 		form.newPassword = ''
 	}
@@ -101,6 +103,7 @@ function setMode(nextMode: typeof mode.value) {
 	resetStatus()
 	pendingVerificationEmail.value = ''
 	pendingResetEmail.value = ''
+	privacyAccepted.value = false
 	form.code = ''
 	form.newPassword = ''
 }
@@ -108,6 +111,10 @@ function setMode(nextMode: typeof mode.value) {
 async function submitPasswordAuth() {
 	resetStatus()
 	if (!form.email.trim() || !form.password) return
+	if (mode.value === 'signUp' && !privacyAccepted.value) {
+		error.value = 'Bitte bestätige die Datenschutzerklärung.'
+		return
+	}
 	isSubmitting.value = true
 	try {
 		const result = mode.value === 'signUp'
@@ -251,12 +258,26 @@ async function submitPasswordReset() {
 						:minlength="8"
 					/>
 				</UFormField>
+				<UFormField
+					v-if="mode === 'signUp'"
+					class="w-full"
+				>
+					<UCheckbox
+						v-model="privacyAccepted"
+						required
+					>
+						<template #label>
+							<span class="text-sm text-muted">Ich habe die <ULink to="/datenschutz" target="_blank" class="text-primary hover:underline" @click.stop>Datenschutzerklärung</ULink> gelesen und akzeptiere sie.</span>
+						</template>
+					</UCheckbox>
+				</UFormField>
 				<UButton
 					type="submit"
 					:label="mode === 'signUp' ? 'Konto erstellen' : 'Anmelden'"
 					icon="i-lucide-log-in"
 					block
 					:loading="isSubmitting || isCompleting"
+					:disabled="mode === 'signUp' && !privacyAccepted"
 				/>
 			</form>
 
