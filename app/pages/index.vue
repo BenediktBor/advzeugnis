@@ -13,21 +13,12 @@ import {
 
 		<LandingDemoScope>
 			<UPageHero
+				headline="Für Lehrkräfte"
 				title="Zeugnisse in Minuten statt Stunden"
 				description="Schüler verwalten, Satzvorlagen bearbeiten und Zeugnisse effizient erstellen — solo oder im Schulteam."
 				orientation="horizontal"
 				:links="landingHeroLinks"
 			>
-				<template #headline>
-					<div class="flex flex-col items-start gap-4">
-						<div class="flex items-center gap-2.5">
-							<AppBrandIcon class="size-8" />
-							<span class="text-xl font-semibold text-highlighted">AdvancedZeugnis</span>
-						</div>
-						<span class="font-semibold text-primary">Für Lehrkräfte</span>
-					</div>
-				</template>
-
 				<LandingDemoPreviewCard />
 			</UPageHero>
 
