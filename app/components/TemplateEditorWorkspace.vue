@@ -1182,9 +1182,12 @@ function confirmEditPart() {
 	if (!editPartSaveCallback.value) return
 	let part: OptionalGroupChildPart
 	if (editPartType.value === 'text') {
-		part = { type: 'text', value: editPartText.value }
+		part = { type: 'text', value: editPartText.value.trim() }
 	} else {
-		part = { type: 'genderVariant', value: [editPartMale.value, editPartFemale.value] }
+		part = {
+			type: 'genderVariant',
+			value: [editPartMale.value.trim(), editPartFemale.value.trim()],
+		}
 	}
 
 	editPartSaveCallback.value(part)
@@ -1458,15 +1461,29 @@ onBeforeUnmount(() => {
 		<template #body>
 			<template v-if="editPartType === 'text'">
 				<UFormField label="Text" name="edit-part-text">
-					<UInput v-model="editPartText" placeholder="Text eingeben" autofocus @keydown.enter="confirmEditPart" />
+					<SentencePartTextInput
+						v-model="editPartText"
+						placeholder="Text eingeben"
+						autofocus
+						@submit="confirmEditPart"
+					/>
 				</UFormField>
 			</template>
 			<template v-else-if="editPartType === 'genderVariant'">
 				<UFormField label="Männliche Form" name="edit-part-male">
-					<UInput v-model="editPartMale" placeholder="z. B. Er" autofocus />
+					<SentencePartTextInput
+						v-model="editPartMale"
+						placeholder="z. B. Er"
+						autofocus
+						:submit-on-enter="false"
+					/>
 				</UFormField>
 				<UFormField label="Weibliche Form" name="edit-part-female">
-					<UInput v-model="editPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmEditPart" />
+					<SentencePartTextInput
+						v-model="editPartFemale"
+						placeholder="z. B. Sie"
+						@submit="confirmEditPart"
+					/>
 				</UFormField>
 			</template>
 		</template>

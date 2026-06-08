@@ -59,11 +59,11 @@ function onGenderPresetClick(male: string, female: string) {
 
 		<template v-if="partType === 'text'">
 			<UFormField label="Text" name="sentence-part-text" class="mt-3">
-				<UInput
+				<SentencePartTextInput
 					v-model="partText"
 					placeholder="Text eingeben"
 					:autofocus="props.autofocus !== false"
-					@keydown.enter="emit('submit')"
+					@submit="emit('submit')"
 				/>
 			</UFormField>
 		</template>
@@ -72,17 +72,18 @@ function onGenderPresetClick(male: string, female: string) {
 			<div class="mt-3 flex items-start gap-2">
 				<div class="flex-1">
 					<UFormField label="Männliche Form" name="sentence-part-male">
-						<UInput
+						<SentencePartTextInput
 							v-model="partMale"
 							placeholder="z. B. Er"
 							:autofocus="props.autofocus !== false"
+							:submit-on-enter="false"
 						/>
 					</UFormField>
 					<UFormField label="Weibliche Form" name="sentence-part-female">
-						<UInput
+						<SentencePartTextInput
 							v-model="partFemale"
 							placeholder="z. B. Sie"
-							@keydown.enter="emit('submit')"
+							@submit="emit('submit')"
 						/>
 					</UFormField>
 				</div>
