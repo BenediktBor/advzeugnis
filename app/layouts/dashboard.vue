@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import StudentCreateModal from '~/components/StudentCreateModal.vue'
+import type { SchoolRole } from '~/types/user'
 import { studentFullName } from '~/utils/student'
+
+const roleLabels: Record<SchoolRole, string> = {
+	owner: 'Owner',
+	admin: 'Admin',
+	templateManager: 'Template Manager',
+	teacher: 'Lehrer',
+}
 
 const open = ref(false)
 const router = useRouter()
@@ -82,6 +90,43 @@ const links = computed<NavigationMenuItem[]>(() => {
 
 	return items
 })
+
+const sidebarRoleLabel = computed(() =>
+	currentUser.value.role ? roleLabels[currentUser.value.role] : undefined,
+)
+
+function onProfileSignOut() {
+	void signOut()
+}
+
+const profileAccountItems = computed(() => {
+	const items = [
+		{
+			label: 'Benutzer',
+			icon: 'i-lucide-user',
+			to: '/app/user',
+		},
+	]
+	if (currentUser.value.type === 'school') {
+		items.unshift({
+			label: 'Schule',
+			icon: 'i-lucide-building-2',
+			to: '/app/school',
+		})
+	}
+	return items
+})
+
+const profileMenuItems = computed(() => [
+	profileAccountItems.value,
+	[
+		{
+			label: 'Abmelden',
+			icon: 'i-lucide-log-out',
+			onSelect: onProfileSignOut,
+		},
+	],
+])
 </script>
 
 <template>
@@ -177,40 +222,43 @@ const links = computed<NavigationMenuItem[]>(() => {
 			</template>
 
 			<template #footer="{ collapsed }">
-				<div class="flex flex-col gap-2">
-					<UButton
-						:to="
-							currentUser.type === 'school'
-								? '/app/school'
-								: '/app/user'
-						"
-						:avatar="{
-							src:
-								'https://api.dicebear.com/7.x/avataaars/svg?seed=' +
-								currentUser.id,
-							alt: currentUser.displayName,
-						}"
-						:label="
-							collapsed
-								? undefined
-								: currentUser.displayName +
-								  (currentUser.role ? ` (${currentUser.role})` : '')
-						"
-						color="neutral"
-						variant="ghost"
-						block
-						:square="collapsed"
-						class="data-[state=open]:bg-elevated"
-					/>
-					<UButton
-						icon="i-lucide-log-out"
-						:label="collapsed ? undefined : 'Abmelden'"
-						color="neutral"
-						variant="ghost"
-						block
-						:square="collapsed"
-						@click="signOut"
-					/>
+				<div class="flex w-full min-w-0 flex-col">
+					<UDropdownMenu
+						:items="profileMenuItems"
+						:content="{ side: 'top', align: collapsed ? 'center' : 'start' }"
+						:modal="false"
+						size="sm"
+						class="w-full"
+					>
+						<UButton
+							icon="i-lucide-user"
+							size="sm"
+							color="neutral"
+							variant="ghost"
+							block
+							:square="collapsed"
+							class="w-full min-w-0 data-[state=open]:bg-elevated"
+							:ui="{
+								base: 'w-full min-w-0 justify-start overflow-hidden',
+								label: 'min-w-0 flex-1',
+							}"
+							:title="collapsed ? currentUser.displayName : undefined"
+							@click.stop
+						>
+							<div
+								v-if="!collapsed"
+								class="flex min-w-0 flex-1 flex-col items-start text-left leading-tight"
+							>
+								<span class="w-full truncate">{{ currentUser.displayName }}</span>
+								<span
+									v-if="sidebarRoleLabel"
+									class="w-full truncate text-xs text-muted"
+								>
+									{{ sidebarRoleLabel }}
+								</span>
+							</div>
+						</UButton>
+					</UDropdownMenu>
 				</div>
 			</template>
 		</UDashboardSidebar>

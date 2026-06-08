@@ -31,7 +31,7 @@ const env = {
 	...processEnv,
 }
 
-const convexUrl = env.NUXT_PUBLIC_CONVEX_URL || env.CONVEX_URL
+const convexUrl = (env.NUXT_PUBLIC_CONVEX_URL || env.CONVEX_URL)?.replace(/\/+$/, '')
 if (!convexUrl) {
 	throw new Error('Missing NUXT_PUBLIC_CONVEX_URL or CONVEX_URL for Convex client configuration')
 }
