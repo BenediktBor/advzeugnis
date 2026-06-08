@@ -22,13 +22,13 @@ export function landingNavItems(showPricing = SHOW_LANDING_PRICING) {
 export const landingDemoLink = {
 	label: 'Live-Demo ansehen',
 	to: `#${landingAnchorIds.demo}`,
-	color: 'neutral',
-	variant: 'outline',
-	size: 'xl',
+	color: 'neutral' as const,
+	variant: 'outline' as const,
+	size: 'xl' as const,
 }
 
 export const landingHeroLinks = [
-	{ label: 'Kostenlos starten', to: '/sign-in', size: 'xl' },
+	{ label: 'Kostenlos starten', to: '/sign-in', size: 'xl' as const },
 	landingDemoLink,
 ]
 
@@ -150,7 +150,7 @@ export const landingPricingPlans = [
 ]
 
 export const landingCtaLinks = [
-	{ label: 'Kostenlos registrieren', to: '/register', size: 'xl' },
+	{ label: 'Kostenlos registrieren', to: '/register', size: 'xl' as const },
 	landingDemoLink,
 ]
 

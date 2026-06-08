@@ -4,8 +4,6 @@ import {
 	type SentencePartEditorType,
 } from '~/utils/sentencePartEditorHelp'
 
-export type { SentencePartEditorType }
-
 function cloneSentenceParts(parts: SentencePart[]): SentencePart[] {
 	return JSON.parse(JSON.stringify(parts)) as SentencePart[]
 }
@@ -139,11 +137,13 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		const path = editPath.value
 		if (!path || !canConfirmPart.value) return
 		const next = cloneSentenceParts(sentences.value)
-		const part = path.childIndex === undefined
-			? next[path.partIndex]
-			: next[path.partIndex]?.type === 'optionalGroup'
-				? next[path.partIndex].parts[path.childIndex]
-				: null
+		const container = next[path.partIndex]
+		const part =
+			path.childIndex === undefined
+				? container
+				: container?.type === 'optionalGroup'
+					? container.parts[path.childIndex]
+					: null
 		if (!part) return
 		if (partType.value === 'text' && part.type === 'text') {
 			part.value = partText.value.trim()
