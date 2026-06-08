@@ -30,6 +30,23 @@ async function countActiveMembers(ctx: Parameters<typeof requireAdmin>[0], schoo
 	return memberships.filter((membership) => membership.status === 'active').length
 }
 
+async function countPendingInvites(ctx: Parameters<typeof requireAdmin>[0], schoolId: Id<'schools'>) {
+	const invites = await ctx.db
+		.query('invites')
+		.withIndex('by_school', (q) => q.eq('schoolId', schoolId))
+		.collect()
+	const now = Date.now()
+	return invites.filter((invite) => invite.status === 'pending' && invite.expiresAt > now).length
+}
+
+async function countReservedSeats(ctx: Parameters<typeof requireAdmin>[0], schoolId: Id<'schools'>) {
+	const [activeMemberCount, pendingInviteCount] = await Promise.all([
+		countActiveMembers(ctx, schoolId),
+		countPendingInvites(ctx, schoolId),
+	])
+	return activeMemberCount + pendingInviteCount
+}
+
 function normalizeSeatLimit(value: number | undefined, minimum = DEFAULT_SEAT_LIMIT) {
 	const rawSeatLimit = value ?? minimum
 	if (!Number.isFinite(rawSeatLimit)) throw new ConvexError('Seat limit must be a finite number')
@@ -54,8 +71,6 @@ export const current = query({
 			role: school.createdBy === userId ? 'owner' : membership.role,
 			subscriptionStatus: school.subscriptionStatus,
 			seatLimit: school.seatLimit,
-			stripeCustomerId: school.stripeCustomerId,
-			stripeSubscriptionId: school.stripeSubscriptionId,
 		}
 	},
 })
@@ -177,9 +192,6 @@ export const inviteUser = mutation({
 		const email = normalizeEmail(args.email)
 		if (!email) throw new ConvexError('Email is required')
 
-		const activeMemberCount = await countActiveMembers(ctx, membership.schoolId)
-		if (activeMemberCount >= school.seatLimit) throw new ConvexError('No seats available')
-
 		const existing = await ctx.db
 			.query('invites')
 			.withIndex('by_school_email', (q) => q.eq('schoolId', membership.schoolId).eq('email', email))
@@ -187,6 +199,9 @@ export const inviteUser = mutation({
 		for (const invite of existing) {
 			if (invite.status === 'pending') await ctx.db.patch(invite._id, { status: 'revoked' })
 		}
+
+		const reservedSeatCount = await countReservedSeats(ctx, membership.schoolId)
+		if (reservedSeatCount >= school.seatLimit) throw new ConvexError('No seats available')
 
 		const token = crypto.randomUUID()
 		const inviteId = await ctx.db.insert('invites', {
@@ -273,7 +288,8 @@ export const acceptInvite = mutation({
 			await ctx.db.patch(invite._id, { status: 'expired' })
 			throw new ConvexError('Invite has expired')
 		}
-		if (user.email && normalizeEmail(user.email) !== invite.email) {
+		if (!user.email) throw new ConvexError('Invite requires an account email')
+		if (normalizeEmail(user.email) !== invite.email) {
 			throw new ConvexError('Invite email does not match signed-in user')
 		}
 
@@ -303,7 +319,7 @@ export const acceptInvite = mutation({
 export const removeMember = mutation({
 	args: { userId: v.id('users') },
 	handler: async (ctx, args) => {
-		const { userId, membership } = await requireAdmin(ctx)
+		const { userId, membership, school } = await requireAdmin(ctx)
 		if (args.userId === userId) throw new ConvexError('Admins cannot remove themselves')
 
 		const member = await ctx.db
@@ -311,6 +327,9 @@ export const removeMember = mutation({
 			.withIndex('by_school_user', (q) => q.eq('schoolId', membership.schoolId).eq('userId', args.userId))
 			.unique()
 		if (!member || member.status !== 'active') throw new ConvexError('Member not found')
+		if (member.role === 'owner' || member.userId === school.createdBy) {
+			throw new ConvexError('Owner cannot be removed')
+		}
 
 		await ctx.db.patch(member._id, {
 			status: 'removed',
@@ -372,12 +391,30 @@ export const updateSubscriptionFromStripe = internalMutation({
 	handler: async (ctx, args) => {
 		const school = await ctx.db.get(args.schoolId)
 		if (!school) throw new ConvexError('School not found')
+		const minimumSeatLimit = args.seatLimit
+			? Math.max(DEFAULT_SEAT_LIMIT, await countActiveMembers(ctx, args.schoolId))
+			: DEFAULT_SEAT_LIMIT
 
 		await ctx.db.patch(args.schoolId, {
 			stripeCustomerId: args.stripeCustomerId,
 			stripeSubscriptionId: args.stripeSubscriptionId,
 			subscriptionStatus: mapStripeStatus(args.subscriptionStatus),
-			...(args.seatLimit ? { seatLimit: normalizeSeatLimit(args.seatLimit) } : {}),
+			...(args.seatLimit ? { seatLimit: normalizeSeatLimit(args.seatLimit, minimumSeatLimit) } : {}),
+		})
+	},
+})
+
+export const updateSeatLimit = internalMutation({
+	args: {
+		schoolId: v.id('schools'),
+		seatLimit: v.number(),
+	},
+	handler: async (ctx, args) => {
+		const school = await ctx.db.get(args.schoolId)
+		if (!school) throw new ConvexError('School not found')
+		const minimumSeatLimit = Math.max(DEFAULT_SEAT_LIMIT, await countActiveMembers(ctx, args.schoolId))
+		await ctx.db.patch(args.schoolId, {
+			seatLimit: normalizeSeatLimit(args.seatLimit, minimumSeatLimit),
 		})
 	},
 })

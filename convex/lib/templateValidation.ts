@@ -52,6 +52,12 @@ function assertUuid(value: string, field: string) {
 	if (!uuidPattern.test(value)) throw new ConvexError(`${field} must be a UUID`)
 }
 
+function assertUniqueId(value: string, field: string, seenIds: Set<string>) {
+	assertUuid(value, field)
+	if (seenIds.has(value)) throw new ConvexError(`${field} must be unique`)
+	seenIds.add(value)
+}
+
 function assertLabel(value: string, field: string) {
 	const trimmed = value.trim()
 	if (!trimmed) throw new ConvexError(`${field} is required`)
@@ -84,9 +90,9 @@ function validateChildPart(part: OptionalGroupChildPart, field: string) {
 	assertText(part.value, `${field}.value`)
 }
 
-function validateSentencePart(part: SentencePart, field: string) {
+function validateSentencePart(part: SentencePart, field: string, seenIds: Set<string>) {
 	if (part.type === 'optionalGroup') {
-		assertUuid(part.id, `${field}.id`)
+		assertUniqueId(part.id, `${field}.id`, seenIds)
 		assertArrayLimit(part.parts, MAX_OPTIONAL_GROUP_PARTS, `${field}.parts`)
 		part.parts.forEach((child, index) => validateChildPart(child, `${field}.parts[${index}]`))
 		return
@@ -99,37 +105,41 @@ export function validateTemplateInput(args: {
 	label: string
 	data: TemplateData
 }) {
+	const seenIds = new Set<string>()
 	assertUuid(args.templateId, 'templateId')
 	assertLabel(args.label, 'label')
 	if (args.data.id !== args.templateId) throw new ConvexError('Template data id must match templateId')
 	if (args.data.label !== args.label) throw new ConvexError('Template data label must match label')
+	if (args.data._schemaVersion !== undefined && !Number.isSafeInteger(args.data._schemaVersion)) {
+		throw new ConvexError('_schemaVersion must be an integer')
+	}
 
 	const serialized = JSON.stringify(args.data)
 	if (serialized.length > MAX_TEMPLATE_JSON_BYTES) throw new ConvexError('Template data is too large')
 
-	assertUuid(args.data.id, 'data.id')
+	assertUniqueId(args.data.id, 'data.id', seenIds)
 	assertLabel(args.data.label, 'data.label')
 	assertArrayLimit(args.data.subjects, MAX_SUBJECTS, 'subjects')
 	args.data.subjects.forEach((subject, subjectIndex) => {
-		assertUuid(subject.id, `subjects[${subjectIndex}].id`)
+		assertUniqueId(subject.id, `subjects[${subjectIndex}].id`, seenIds)
 		assertLabel(subject.label, `subjects[${subjectIndex}].label`)
 		assertArrayLimit(subject.categories, MAX_CATEGORIES_PER_SUBJECT, `subjects[${subjectIndex}].categories`)
 		subject.categories.forEach((category, categoryIndex) => {
-			assertUuid(category.id, `subjects[${subjectIndex}].categories[${categoryIndex}].id`)
+			assertUniqueId(category.id, `subjects[${subjectIndex}].categories[${categoryIndex}].id`, seenIds)
 			assertLabel(category.label, `subjects[${subjectIndex}].categories[${categoryIndex}].label`)
 			assertArrayLimit(category.grades, MAX_GRADES_PER_CATEGORY, `subjects[${subjectIndex}].categories[${categoryIndex}].grades`)
 			category.grades.forEach((grade, gradeIndex) => {
 				const gradePath = `subjects[${subjectIndex}].categories[${categoryIndex}].grades[${gradeIndex}]`
-				assertUuid(grade.id, `${gradePath}.id`)
+				assertUniqueId(grade.id, `${gradePath}.id`, seenIds)
 				assertLabel(grade.label, `${gradePath}.label`)
 				if (grade.value !== undefined && !Number.isFinite(grade.value)) throw new ConvexError(`${gradePath}.value must be finite`)
 				assertArrayLimit(grade.variants, MAX_VARIANTS_PER_GRADE, `${gradePath}.variants`)
 				grade.variants.forEach((variant, variantIndex) => {
 					const variantPath = `${gradePath}.variants[${variantIndex}]`
-					assertUuid(variant.id, `${variantPath}.id`)
+					assertUniqueId(variant.id, `${variantPath}.id`, seenIds)
 					assertLabel(variant.label, `${variantPath}.label`)
 					assertArrayLimit(variant.sentences, MAX_SENTENCE_PARTS_PER_VARIANT, `${variantPath}.sentences`)
-					variant.sentences.forEach((part, partIndex) => validateSentencePart(part, `${variantPath}.sentences[${partIndex}]`))
+					variant.sentences.forEach((part, partIndex) => validateSentencePart(part, `${variantPath}.sentences[${partIndex}]`, seenIds))
 				})
 			})
 		})

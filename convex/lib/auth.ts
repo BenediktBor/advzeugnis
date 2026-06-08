@@ -6,6 +6,10 @@ import type { Doc, Id } from '../_generated/dataModel'
 export type SchoolRole = 'owner' | 'admin' | 'templateManager' | 'teacher'
 export type AuthorizedCtx = QueryCtx | MutationCtx
 
+// Temporary switch while Stripe billing is disabled for Convex deployment.
+// Flip to false when restoring Stripe checkout/webhook enforcement.
+export const BILLING_TEMPORARILY_DISABLED = true
+
 export async function requireUser(ctx: AuthorizedCtx) {
 	const userId = await getAuthUserId(ctx)
 	if (!userId) throw new ConvexError('Not authenticated')
@@ -81,7 +85,7 @@ export async function requireActionUser(ctx: ActionCtx) {
 }
 
 export function hasActiveSubscription(school: Doc<'schools'>) {
-	return school.subscriptionStatus === 'active'
+	return BILLING_TEMPORARILY_DISABLED || school.subscriptionStatus === 'active'
 }
 
 export async function requireActiveSubscription(ctx: AuthorizedCtx, schoolId?: Id<'schools'>) {

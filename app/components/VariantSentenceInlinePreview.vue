@@ -151,8 +151,7 @@ const previewSuffix = computed(() => {
 				size="xs"
 				class="mr-1.5 inline-block w-auto min-w-20 align-baseline"
 				@click.stop
-				@keydown.enter.stop
-				@keydown.space.stop
+				@keydown.stop
 				@update:model-value="emit('setNamePartSelection', String(partIndex), (($event as NameSelectionValue) ?? 'name'))"
 			/>
 			<label
@@ -190,8 +189,7 @@ const previewSuffix = computed(() => {
 							size="xs"
 							class="inline-block w-auto min-w-20 align-baseline"
 							@click.stop
-							@keydown.enter.stop
-							@keydown.space.stop
+							@keydown.stop
 							@update:model-value="emit('setNamePartSelection', `${partIndex}.${childIndex}`, (($event as NameSelectionValue) ?? 'name'))"
 						/>
 						<span

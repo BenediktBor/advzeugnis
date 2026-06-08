@@ -1,3 +1,4 @@
+import { useConvexClient, useConvexQuery } from 'convex-vue'
 import type { SchoolInvite, SchoolMember, SchoolRole } from '~/types/user'
 import { api } from '~/utils/convexApi'
 
@@ -46,7 +47,7 @@ export function useSchool() {
 		school: computed(() => schoolQuery.data.value ?? null),
 		members: computed<SchoolMember[]>(() => membersQuery.data.value ?? []),
 		invites: computed<SchoolInvite[]>(() => invitesQuery.data.value ?? []),
-		isLoaded: computed(() => !schoolQuery.isPending.value && !membersQuery.isPending.value),
+		isLoaded: computed(() => !schoolQuery.isPending.value && !membersQuery.isPending.value && !invitesQuery.isPending.value),
 		error: computed(() => schoolQuery.error.value ?? membersQuery.error.value ?? invitesQuery.error.value),
 		createSchool,
 		inviteMember,

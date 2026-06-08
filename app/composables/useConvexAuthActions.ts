@@ -1,3 +1,4 @@
+import { useConvexClient } from 'convex-vue'
 import { api } from '~/utils/convexApi'
 import { clearAuthTokens, configureConvexAuth, storeAuthTokens } from '~/utils/convexAuthClient'
 

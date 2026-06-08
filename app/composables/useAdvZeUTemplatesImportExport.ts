@@ -1,3 +1,4 @@
+import { useConvexClient } from 'convex-vue'
 import { AzSetExportPayloadSchema, type AzSetExportPayload } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
 import { api } from '~/utils/convexApi'
@@ -79,19 +80,24 @@ export function useAdvZeUTemplatesImportExport() {
 				title: 'Vorlagen importieren?',
 				description: azsetOverwriteWarning,
 				onConfirm: async () => {
-					if (!pendingImportPayload.value) return
-					await templatesStore.mergeFromAzset(pendingImportPayload.value)
-					const snapshot = await templatesStore.exportAllAzset()
-					await client.mutation(api.templates.upsertMany, {
-						sets: snapshot.orderedIds.map((templateId, index) => ({
-							templateId,
-							label: snapshot.templateSets[templateId]?.label ?? '',
-							data: snapshot.templateSets[templateId],
-							sortOrder: index,
-						})),
-					})
-					toast.add({ title: 'Vorlagen importiert' })
-					pendingImportPayload.value = null
+					try {
+						if (!pendingImportPayload.value) return
+						await templatesStore.mergeFromAzset(pendingImportPayload.value)
+						const snapshot = await templatesStore.exportAllAzset()
+						await client.mutation(api.templates.upsertMany, {
+							sets: snapshot.orderedIds.map((templateId, index) => ({
+								templateId,
+								label: snapshot.templateSets[templateId]?.label ?? '',
+								data: snapshot.templateSets[templateId],
+								sortOrder: index,
+							})),
+						})
+						toast.add({ title: 'Vorlagen importiert' })
+						pendingImportPayload.value = null
+					} catch (err) {
+						console.error('[templates] azset import sync failed:', err)
+						toast.add({ title: 'Vorlagen importieren fehlgeschlagen', color: 'error' })
+					}
 				},
 			})
 		} catch (err) {

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { getStoredAuthToken } from '~/utils/convexAuthClient'
-
 definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
-const isAuthorized = ref(import.meta.client && Boolean(getStoredAuthToken()))
+const { isLoaded, isAuthenticated } = useCurrentUser()
+const isAuthorized = computed(() => isLoaded.value && isAuthenticated.value)
 
-onMounted(() => {
-	if (isAuthorized.value) return
+watchEffect(() => {
+	if (!import.meta.client) return
+	if (!isLoaded.value) return
+	if (isAuthenticated.value) return
 	void navigateTo({
 		path: '/sign-in',
 		query: { redirect: route.fullPath },

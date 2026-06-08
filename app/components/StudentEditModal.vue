@@ -12,7 +12,7 @@ const emit = defineEmits<{
 }>()
 
 const { updateStudent } = useStudents()
-const { orderedIds, defaultAlphabeticalTemplateSetId, getSetData } = useTemplateSets()
+const { orderedIds, defaultAlphabeticalTemplateSetId, getSetData, loadSetData } = useTemplateSets()
 
 const name = ref('')
 const surname = ref('')
@@ -79,6 +79,11 @@ watch(orderedIds, () => {
 	if (!templateSetId.value || !orderedIds.value.includes(templateSetId.value)) {
 		templateSetId.value = defaultAlphabeticalTemplateSetId.value
 	}
+})
+
+watch(templateSetId, (nextTemplateSetId) => {
+	if (!nextTemplateSetId || getSetData(nextTemplateSetId)) return
+	void loadSetData(nextTemplateSetId)
 })
 </script>
 

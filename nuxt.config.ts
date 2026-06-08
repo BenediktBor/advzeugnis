@@ -21,6 +21,7 @@ function loadLocalEnv() {
 const processEnv = (globalThis as {
 	process?: { env?: {
 		CONVEX_URL?: string
+		NODE_ENV?: string
 		NUXT_APP_BASE_URL?: string
 		NUXT_PUBLIC_CONVEX_URL?: string
 	} }
@@ -34,6 +35,7 @@ const convexUrl = env.NUXT_PUBLIC_CONVEX_URL || env.CONVEX_URL
 if (!convexUrl) {
 	throw new Error('Missing NUXT_PUBLIC_CONVEX_URL or CONVEX_URL for Convex client configuration')
 }
+const isProduction = env.NODE_ENV === 'production'
 
 export default defineNuxtConfig({
 	compatibilityDate: '2025-07-15',
@@ -46,7 +48,7 @@ export default defineNuxtConfig({
 	convex: {
 		url: convexUrl,
 		clientOptions: {
-			skipConvexDeploymentUrlCheck: true,
+			skipConvexDeploymentUrlCheck: !isProduction,
 		},
 		server: false,
 	},

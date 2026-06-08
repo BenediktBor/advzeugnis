@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { SchoolRole } from '~/types/user'
-import { api } from '~/utils/convexApi'
 
 const { currentUser, canManageTeachers } = useCurrentUser()
 const { school, members, invites, inviteMember, revokeInvite, removeMember, setRole, transferOwnership } = useSchool()
-const client = useConvexClient()
-const route = useRoute()
+
+// Temporary switch while Stripe billing is disabled for Convex deployment.
+const BILLING_TEMPORARILY_DISABLED = true
 
 const roleLabels: Record<SchoolRole, string> = {
 	owner: 'Owner',
@@ -23,9 +23,9 @@ const ROLE_OPTIONS = [
 const newInvite = ref({ email: '', role: 'teacher' as SchoolRole })
 const showAddForm = ref(false)
 const isInviting = ref(false)
-const isOpeningPortal = ref(false)
-const isOpeningCheckout = ref(false)
 const transferringOwnerId = ref<string | null>(null)
+const removingMemberId = ref<string | null>(null)
+const revokingInviteId = ref<string | null>(null)
 const error = ref('')
 const inviteNotice = ref<{
 	type: 'success' | 'warning'
@@ -38,10 +38,17 @@ const inviteBaseUrl = computed(() =>
 	(typeof window === 'undefined' ? '' : window.location.origin),
 )
 
-const billingSuccess = computed(() => route.query.billing === 'success')
-const hasActiveSubscription = computed(() => school.value?.subscriptionStatus === 'active')
+const hasActiveSubscription = computed(() =>
+	BILLING_TEMPORARILY_DISABLED || school.value?.subscriptionStatus === 'active',
+)
+const billingStatusBadge = computed(() => {
+	if (BILLING_TEMPORARILY_DISABLED) return { color: 'neutral' as const, label: 'Abrechnung pausiert' }
+	return {
+		color: hasActiveSubscription.value ? 'success' as const : 'warning' as const,
+		label: hasActiveSubscription.value ? 'Abrechnung aktiv' : `Abrechnung ${school.value?.subscriptionStatus}`,
+	}
+})
 const canInviteUsers = computed(() => canManageTeachers.value && hasActiveSubscription.value)
-const canRestartCheckout = computed(() => canManageTeachers.value && !hasActiveSubscription.value)
 const isOwner = computed(() => currentUser.value.role === 'owner')
 
 function inviteUrl(token: string) {
@@ -56,7 +63,7 @@ function openInviteForm() {
 async function handleInviteMember() {
 	if (!newInvite.value.email.trim()) return
 	if (!canInviteUsers.value) {
-		error.value = 'Einladungen sind erst mit aktiver Schul-Abrechnung möglich.'
+		error.value = 'Einladungen sind aktuell nicht möglich.'
 		return
 	}
 	error.value = ''
@@ -89,41 +96,6 @@ async function handleInviteMember() {
 	}
 }
 
-async function openBillingPortal() {
-	error.value = ''
-	isOpeningPortal.value = true
-	try {
-		const result = await client.action(api.billing.createCustomerPortal, {
-			returnUrl: `${inviteBaseUrl.value}/app/school`,
-		}) as { url: string }
-		window.location.href = result.url
-	} catch (err) {
-		console.error('[billing] portal failed:', err)
-		error.value = 'Stripe Kundenportal konnte nicht geöffnet werden.'
-	} finally {
-		isOpeningPortal.value = false
-	}
-}
-
-async function restartCheckout() {
-	error.value = ''
-	if (!school.value) return
-
-	isOpeningCheckout.value = true
-	try {
-		const result = await client.action(api.billing.createSchoolCheckout, {
-			seatLimit: school.value.seatLimit,
-		}) as { url: string | null }
-		if (result.url) window.location.href = result.url
-		else error.value = 'Stripe Checkout konnte nicht gestartet werden.'
-	} catch (err) {
-		console.error('[billing] checkout restart failed:', err)
-		error.value = 'Stripe Checkout konnte nicht gestartet werden. Bitte pruefe Stripe-Konfiguration und versuche es erneut.'
-	} finally {
-		isOpeningCheckout.value = false
-	}
-}
-
 async function copyInviteUrl(token: string) {
 	await navigator.clipboard.writeText(inviteUrl(token))
 }
@@ -138,6 +110,36 @@ async function updateRole(userId: string, value: unknown) {
 		: value as SchoolRole
 	if (role === 'owner') return
 	await setRole(userId, role)
+}
+
+async function handleRemoveMember(member: { id: string, displayName: string, role: SchoolRole }) {
+	if (!canManageTeachers.value || member.id === currentUser.value.id || member.role === 'owner') return
+	const confirmed = window.confirm(`${member.displayName} aus der Schule entfernen?`)
+	if (!confirmed) return
+
+	error.value = ''
+	removingMemberId.value = member.id
+	try {
+		await removeMember(member.id)
+	} catch (err) {
+		console.error('[school] remove member failed:', err)
+		error.value = 'Nutzer konnte nicht entfernt werden.'
+	} finally {
+		removingMemberId.value = null
+	}
+}
+
+async function handleRevokeInvite(inviteId: string) {
+	error.value = ''
+	revokingInviteId.value = inviteId
+	try {
+		await revokeInvite(inviteId)
+	} catch (err) {
+		console.error('[school] revoke invite failed:', err)
+		error.value = 'Einladung konnte nicht widerrufen werden.'
+	} finally {
+		revokingInviteId.value = null
+	}
 }
 
 function canChangeRole(member: { id: string, role: SchoolRole }) {
@@ -175,7 +177,7 @@ async function transferOwner(member: { id: string, displayName: string }) {
 			<div v-if="!school" class="max-w-xl">
 				<AppStateNotice
 					title="Noch keine Schule eingerichtet"
-					description="Lege eine Schule an und aktiviere die Stripe-Abrechnung, um Teammitglieder einzuladen und Vorlagen zu synchronisieren."
+					description="Lege eine Schule an, um Teammitglieder einzuladen und Vorlagen zu synchronisieren. Die Abrechnung ist vorübergehend deaktiviert."
 					icon="i-lucide-building-2"
 					tone="primary"
 				>
@@ -187,13 +189,6 @@ async function transferOwner(member: { id: string, displayName: string }) {
 				</AppStateNotice>
 			</div>
 			<div v-else class="flex max-w-5xl flex-col gap-6">
-				<UAlert
-					v-if="billingSuccess"
-					color="success"
-					variant="soft"
-					title="Stripe Checkout abgeschlossen"
-					description="Sobald der Stripe Webhook verarbeitet wurde, wird die Schulmitgliedschaft als aktiv markiert."
-				/>
 				<UAlert v-if="error" color="error" variant="soft" :title="error" />
 				<UAlert
 					v-if="inviteNotice"
@@ -220,31 +215,13 @@ async function transferOwner(member: { id: string, displayName: string }) {
 								<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
 									<span>{{ members.length }} von {{ school.seatLimit }} Sitzplätzen belegt</span>
 									<UBadge
-										:color="hasActiveSubscription ? 'success' : 'warning'"
+										:color="billingStatusBadge.color"
 										variant="soft"
-										:label="hasActiveSubscription ? 'Abrechnung aktiv' : `Abrechnung ${school.subscriptionStatus}`"
+										:label="billingStatusBadge.label"
 									/>
 								</div>
 							</div>
 							<div class="flex flex-wrap gap-2">
-								<UButton
-									v-if="canManageTeachers && school.stripeCustomerId"
-									label="Abrechnung verwalten"
-									icon="i-lucide-credit-card"
-									color="neutral"
-									variant="outline"
-									:loading="isOpeningPortal"
-									@click="openBillingPortal"
-								/>
-								<UButton
-									v-if="canRestartCheckout"
-									label="Checkout fortsetzen"
-									icon="i-lucide-credit-card"
-									color="warning"
-									variant="soft"
-									:loading="isOpeningCheckout"
-									@click="restartCheckout"
-								/>
 								<UButton
 									v-if="canManageTeachers"
 									label="Nutzer einladen"
@@ -262,19 +239,8 @@ async function transferOwner(member: { id: string, displayName: string }) {
 							color="warning"
 							variant="soft"
 							title="Schul-Abrechnung noch nicht aktiv"
-							description="Du kannst Nutzer erst einladen, wenn die Stripe-Subscription aktiv ist. Falls du gerade den Checkout abgeschlossen hast, warte kurz auf den Stripe-Webhook oder prüfe die Webhook-Konfiguration."
-						>
-							<template #actions>
-								<UButton
-									label="Checkout fortsetzen"
-									icon="i-lucide-credit-card"
-									color="warning"
-									variant="solid"
-									:loading="isOpeningCheckout"
-									@click="restartCheckout"
-								/>
-							</template>
-						</UAlert>
+							description="Stripe Checkout ist aktuell pausiert, bis die Convex-Bereitstellung abgeschlossen ist."
+						/>
 						<UAlert
 							v-if="!canManageTeachers"
 							color="neutral"
@@ -339,7 +305,8 @@ async function transferOwner(member: { id: string, displayName: string }) {
 										color="error"
 										variant="ghost"
 										aria-label="Nutzer entfernen"
-										@click="removeMember(member.id)"
+										:loading="removingMemberId === member.id"
+										@click="handleRemoveMember(member)"
 									/>
 								</div>
 							</div>
@@ -364,7 +331,13 @@ async function transferOwner(member: { id: string, displayName: string }) {
 								</div>
 							</div>
 							<UButton label="Link kopieren" color="neutral" variant="outline" @click="copyInviteUrl(invite.token)" />
-							<UButton label="Widerrufen" color="error" variant="ghost" @click="revokeInvite(invite.id)" />
+							<UButton
+								label="Widerrufen"
+								color="error"
+								variant="ghost"
+								:loading="revokingInviteId === invite.id"
+								@click="handleRevokeInvite(invite.id)"
+							/>
 						</div>
 					</div>
 					<p v-else class="text-sm text-muted">Keine offenen Einladungen.</p>

@@ -28,9 +28,15 @@ const form = reactive({
 const pendingVerificationEmail = ref('')
 const pendingResetEmail = ref('')
 
+function safeRedirectTarget(value: unknown) {
+	const redirect = Array.isArray(value) ? value[0] : value
+	if (typeof redirect !== 'string') return '/app'
+	if (!redirect.startsWith('/') || redirect.startsWith('//')) return '/app'
+	return redirect
+}
+
 const redirectTo = computed(() => {
-	const redirect = route.query.redirect
-	return Array.isArray(redirect) ? redirect[0] ?? '/app' : redirect ?? '/app'
+	return safeRedirectTarget(route.query.redirect)
 })
 
 onMounted(async () => {

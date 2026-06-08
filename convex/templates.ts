@@ -7,12 +7,113 @@ import {
 	validateTemplateInput,
 	validateTemplateSetLimit,
 } from './lib/templateValidation'
+import { migrateLegacyTemplateData } from './lib/templateMigration'
+
+function summarizeTemplateData(data: {
+	subjects: Array<{
+		label: string
+		categories: Array<{
+			grades: Array<{
+				variants: unknown[]
+			}>
+		}>
+	}>
+}) {
+	const subjectLabels = data.subjects.map((subject) => subject.label)
+	const categoryCount = data.subjects.reduce(
+		(total, subject) => total + subject.categories.length,
+		0,
+	)
+	const gradeCount = data.subjects.reduce(
+		(total, subject) =>
+			total +
+			subject.categories.reduce(
+				(categoryTotal, category) => categoryTotal + category.grades.length,
+				0,
+			),
+		0,
+	)
+	const variantCount = data.subjects.reduce(
+		(total, subject) =>
+			total +
+			subject.categories.reduce(
+				(categoryTotal, category) =>
+					categoryTotal +
+					category.grades.reduce(
+						(gradeTotal, grade) => gradeTotal + grade.variants.length,
+						0,
+					),
+				0,
+			),
+		0,
+	)
+
+	return {
+		subjects: subjectLabels,
+		subjectPreview: subjectLabels.slice(0, 4),
+		remainingSubjectCount: Math.max(0, subjectLabels.length - 4),
+		subjectCount: subjectLabels.length,
+		categoryCount,
+		gradeCount,
+		variantCount,
+	}
+}
+
+async function getCurrentMembership(ctx: Parameters<typeof requireUser>[0]) {
+	const { userId } = await requireUser(ctx)
+	return await getActiveMembershipForUser(ctx, userId)
+}
+
+export const listSummary = query({
+	args: {},
+	handler: async (ctx) => {
+		const membership = await getCurrentMembership(ctx)
+		if (!membership) return []
+
+		const rows = await ctx.db
+			.query('templateSets')
+			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
+			.collect()
+
+		return rows
+			.sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }))
+			.map((row) => ({
+				id: row.templateId,
+				label: row.label,
+				sortOrder: row.sortOrder,
+				updatedAt: row.updatedAt,
+				updatedBy: row.updatedBy,
+				...summarizeTemplateData(row.data),
+			}))
+	},
+})
+
+export const get = query({
+	args: { templateId: v.string() },
+	handler: async (ctx, args) => {
+		const membership = await getCurrentMembership(ctx)
+		if (!membership) return null
+		validateTemplateId(args.templateId)
+		const row = await ctx.db
+			.query('templateSets')
+			.withIndex('by_school_template', (q) => q.eq('schoolId', membership.schoolId).eq('templateId', args.templateId))
+			.unique()
+		if (!row) return null
+		return {
+			id: row.templateId,
+			label: row.label,
+			data: row.data,
+			sortOrder: row.sortOrder,
+			updatedAt: row.updatedAt,
+			updatedBy: row.updatedBy,
+		}
+	},
+})
 
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		const { userId } = await requireUser(ctx)
-		const membership = await getActiveMembershipForUser(ctx, userId)
+		const membership = await getCurrentMembership(ctx)
 		if (!membership) return []
 
 		const rows = await ctx.db
@@ -126,6 +227,47 @@ export const upsertMany = mutation({
 			}
 		}
 		return args.sets.length
+	},
+})
+
+export const repairLegacyData = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const { userId, membership } = await requireTemplateManagerOrAdmin(ctx)
+		const rows = await ctx.db
+			.query('templateSets')
+			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
+			.collect()
+		const usedTemplateIds = new Set<string>()
+		let repaired = 0
+		const now = Date.now()
+
+		for (const row of rows) {
+			let data = migrateLegacyTemplateData(row.data, row.templateId, row.label)
+			if (!data) continue
+			if (usedTemplateIds.has(data.id)) {
+				data = { ...data, id: crypto.randomUUID() }
+			}
+			usedTemplateIds.add(data.id)
+			validateTemplateInput({ templateId: data.id, label: data.label, data })
+			if (
+				row.templateId === data.id &&
+				row.label === data.label &&
+				JSON.stringify(row.data) === JSON.stringify(data)
+			) {
+				continue
+			}
+
+			await ctx.db.patch(row._id, {
+				templateId: data.id,
+				label: data.label,
+				data,
+				updatedBy: userId,
+				updatedAt: now,
+			})
+			repaired += 1
+		}
+		return repaired
 	},
 })
 

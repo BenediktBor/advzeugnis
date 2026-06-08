@@ -1,11 +1,13 @@
-import { ConvexError } from 'convex/values'
-import { StripeSubscriptions } from '@convex-dev/stripe'
+import { ConvexError, v } from 'convex/values'
 import { action, internalMutation, query } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { getActiveMembershipForUser, requireUser } from './lib/auth'
-import { api, components, internal } from './_generated/api'
+import { api, internal } from './_generated/api'
 
-const stripeClient = new StripeSubscriptions(components.stripe as any, {})
+// Stripe billing is temporarily disabled until the Convex deployment is ready.
+// Re-enable by restoring the StripeSubscriptions import, components import, and client below.
+// import { StripeSubscriptions } from '@convex-dev/stripe'
+// const stripeClient = new StripeSubscriptions(components.stripe as any, {})
 
 export const viewer = query({
 	args: {},
@@ -47,8 +49,17 @@ export const deletionPreview = query({
 			.collect()
 		const activeMembership = memberships.find((membership) => membership.status === 'active') ?? null
 		const school = activeMembership ? await ctx.db.get(activeMembership.schoolId) : null
+		const schoolMemberships = activeMembership
+			? await ctx.db
+					.query('memberships')
+					.withIndex('by_school', (q) => q.eq('schoolId', activeMembership.schoolId))
+					.collect()
+			: []
 		return {
 			ownsSchool: school?.createdBy === userId,
+			hasOtherActiveMembers: schoolMemberships.some(
+				(membership) => membership.status === 'active' && membership.userId !== userId,
+			),
 			stripeSubscriptionId: school?.createdBy === userId ? school.stripeSubscriptionId : undefined,
 			subscriptionStatus: school?.createdBy === userId ? school.subscriptionStatus : undefined,
 		}
@@ -60,29 +71,39 @@ export const deleteCurrentAccount = action({
 	handler: async (ctx): Promise<void> => {
 		const preview = await ctx.runQuery(api.users.deletionPreview) as {
 			ownsSchool: boolean
+			hasOtherActiveMembers: boolean
 			stripeSubscriptionId?: string
 			subscriptionStatus?: string
 		}
 
-		if (
-			preview.ownsSchool &&
-			preview.stripeSubscriptionId &&
-			preview.subscriptionStatus &&
-			preview.subscriptionStatus !== 'canceled'
-		) {
-			await stripeClient.cancelSubscription(ctx, {
-				stripeSubscriptionId: preview.stripeSubscriptionId,
-				cancelAtPeriodEnd: false,
-			})
+		if (preview.ownsSchool && preview.hasOtherActiveMembers) {
+			throw new ConvexError('Transfer ownership or remove other school members before deleting this owner account')
 		}
 
-		await ctx.runMutation(internal.users.deleteCurrentAccountData)
+		// Stripe cancellation is disabled while billing is temporarily turned off.
+		// if (
+		// 	preview.ownsSchool &&
+		// 	preview.stripeSubscriptionId &&
+		// 	preview.subscriptionStatus &&
+		// 	preview.subscriptionStatus !== 'canceled'
+		// ) {
+		// 	await stripeClient.cancelSubscription(ctx, {
+		// 		stripeSubscriptionId: preview.stripeSubscriptionId,
+		// 		cancelAtPeriodEnd: false,
+		// 	})
+		// }
+
+		await ctx.runMutation(internal.users.deleteCurrentAccountData, {
+			subscriptionCanceled: false,
+		})
 	},
 })
 
 export const deleteCurrentAccountData = internalMutation({
-	args: {},
-	handler: async (ctx) => {
+	args: {
+		subscriptionCanceled: v.boolean(),
+	},
+	handler: async (ctx, _args) => {
 		const { userId } = await requireUser(ctx)
 		const memberships = await ctx.db
 			.query('memberships')
@@ -92,9 +113,15 @@ export const deleteCurrentAccountData = internalMutation({
 
 		if (activeMembership) {
 			const school = await ctx.db.get(activeMembership.schoolId)
-			if (school?.createdBy === userId && school.stripeSubscriptionId && school.subscriptionStatus !== 'canceled') {
-				throw new ConvexError('Cancel the active school subscription before deleting this account')
-			}
+			// Stripe billing is temporarily disabled, so account deletion must not require subscription cancellation.
+			// if (
+			// 	school?.createdBy === userId &&
+			// 	school.stripeSubscriptionId &&
+			// 	school.subscriptionStatus !== 'canceled' &&
+			// 	!args.subscriptionCanceled
+			// ) {
+			// 	throw new ConvexError('Cancel the active school subscription before deleting this account')
+			// }
 			const schoolMemberships = await ctx.db
 				.query('memberships')
 				.withIndex('by_school', (q) => q.eq('schoolId', activeMembership.schoolId))

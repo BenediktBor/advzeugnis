@@ -86,7 +86,7 @@ async function deleteAccount() {
 						<div class="space-y-1">
 							<h2 class="font-semibold text-error">Konto löschen</h2>
 							<p class="text-sm text-muted">
-								Löscht dein Benutzerkonto, beendet deine Sitzungen und kündigt eine von dir verwaltete aktive Schul-Subscription sofort.
+								Löscht dein Benutzerkonto und beendet deine Sitzungen.
 							</p>
 						</div>
 					</template>
@@ -95,7 +95,7 @@ async function deleteAccount() {
 							color="warning"
 							variant="soft"
 							title="Diese Aktion kann nicht rückgängig gemacht werden."
-							description="Wenn du Schul-Admin bist, musst du zuerst andere aktive Mitglieder entfernen oder die Schule darf keine weiteren aktiven Mitglieder haben. Eine aktive Stripe-Subscription der Schule wird sofort gekündigt."
+							description="Wenn du Schul-Admin bist, musst du zuerst andere aktive Mitglieder entfernen oder die Schule darf keine weiteren aktiven Mitglieder haben."
 						/>
 						<UButton
 							label="Konto löschen"

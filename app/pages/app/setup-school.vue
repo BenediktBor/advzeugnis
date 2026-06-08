@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { api } from '~/utils/convexApi'
-
-const client = useConvexClient()
 const { school, createSchool } = useSchool()
 
 const schoolName = ref('')
 const seatLimit = ref(5)
 const isSubmitting = ref(false)
 const error = ref('')
+const createdSchoolId = ref<string | null>(null)
 const isExistingSchool = computed(() => Boolean(school.value))
 
 watchEffect(() => {
@@ -17,27 +15,24 @@ watchEffect(() => {
 })
 
 async function onSubmit() {
+	if (isSubmitting.value) return
 	error.value = ''
 	if (!isExistingSchool.value && !schoolName.value.trim()) return
 
 	isSubmitting.value = true
 	try {
-		if (!school.value) {
-			await createSchool({
+		if (!school.value && !createdSchoolId.value) {
+			createdSchoolId.value = await createSchool({
 				name: schoolName.value.trim(),
 				seatLimit: seatLimit.value,
-			})
+			}) as string
 		}
-		const checkout = await client.action(api.billing.createSchoolCheckout, {
-			seatLimit: seatLimit.value,
-		}) as { url: string | null }
-		if (checkout.url) window.location.href = checkout.url
-		else error.value = 'Stripe Checkout konnte nicht gestartet werden.'
+		await navigateTo('/app/school')
 	} catch (err) {
-		console.error('[billing] checkout failed:', err)
-		error.value = school.value
-			? 'Stripe Checkout konnte nicht gestartet werden. Bitte pruefe Stripe-Konfiguration und versuche es erneut.'
-			: 'Schule wurde angelegt, aber Stripe Checkout konnte nicht gestartet werden. Du kannst den Checkout nach der Stripe-Konfiguration erneut starten.'
+		console.error('[school] setup failed:', err)
+		error.value = school.value || createdSchoolId.value
+			? 'Schule wurde angelegt, aber die Weiterleitung konnte nicht abgeschlossen werden.'
+			: 'Schule konnte nicht angelegt werden. Bitte versuche es erneut.'
 	} finally {
 		isSubmitting.value = false
 	}
@@ -58,14 +53,14 @@ async function onSubmit() {
 				<template #header>
 					<div class="space-y-1">
 						<h1 class="text-lg font-semibold text-highlighted">
-							{{ isExistingSchool ? 'Stripe Checkout fortsetzen' : 'Neue Schule anlegen' }}
+							{{ isExistingSchool ? 'Schule ist eingerichtet' : 'Neue Schule anlegen' }}
 						</h1>
 						<p class="text-sm text-muted">
 							<span v-if="isExistingSchool">
-								Deine Schule wurde bereits angelegt. Starte den Stripe Checkout erneut, um die Abrechnung zu aktivieren.
+								Deine Schule wurde bereits angelegt. Die Abrechnung ist vorübergehend deaktiviert.
 							</span>
 							<span v-else>
-								Die Schule wird über Stripe abgerechnet. Eingeladene Nutzer verwenden AdvancedZeugnis kostenlos über diese Schulmitgliedschaft.
+								Die Abrechnung ist vorübergehend deaktiviert. Du kannst die Schule anlegen und Teammitglieder direkt einladen.
 							</span>
 						</p>
 					</div>
@@ -77,8 +72,8 @@ async function onSubmit() {
 						v-if="isExistingSchool && school?.subscriptionStatus !== 'active'"
 						color="warning"
 						variant="soft"
-						title="Abrechnung noch nicht aktiv"
-						description="Du kannst den Checkout hier erneut starten. Erst nach erfolgreichem Stripe Webhook werden Einladungen freigeschaltet."
+						title="Abrechnung vorübergehend deaktiviert"
+						description="Stripe Checkout ist pausiert, bis die Convex-Bereitstellung abgeschlossen ist."
 					/>
 					<UFormField label="Schulname">
 						<UInput
@@ -93,8 +88,8 @@ async function onSubmit() {
 					</UFormField>
 					<UButton
 						type="submit"
-						:label="isExistingSchool ? 'Checkout erneut starten' : 'Weiter zu Stripe'"
-						icon="i-lucide-credit-card"
+						:label="isExistingSchool ? 'Zur Schule' : 'Schule anlegen'"
+						icon="i-lucide-building-2"
 						:loading="isSubmitting"
 						class="w-fit"
 					/>

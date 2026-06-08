@@ -1,4 +1,5 @@
 import { storeToRefs } from 'pinia'
+import { useConvexQuery } from 'convex-vue'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'

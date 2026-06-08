@@ -1,7 +1,9 @@
 import { defineApp } from 'convex/server'
-import stripe from '@convex-dev/stripe/convex.config.js'
+// Stripe billing is temporarily disabled until the Convex deployment is ready.
+// Re-enable by restoring this import and app.use(stripe) below.
+// import stripe from '@convex-dev/stripe/convex.config.js'
 
 const app = defineApp()
-app.use(stripe)
+// app.use(stripe)
 
 export default app

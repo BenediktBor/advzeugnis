@@ -64,6 +64,7 @@ const templateClipboard = useTemplateClipboardStore()
 templateClipboard.load()
 
 const selectedCategory = ref<{ subjectId: string; categoryId: string } | null>(null)
+const hasUnsyncedTemplateChanges = computed(() => isSyncPending.value)
 type CategorySelection = {
 	gradeId: string | null
 	variantId: string | null
@@ -117,6 +118,29 @@ function selectionScopeKey(kind: ChipSelectionKind): string {
 function clearChipSelection() {
 	chipSelection.value = null
 }
+
+function confirmLeavingWithPendingSync() {
+	return window.confirm('Vorlagen werden noch synchronisiert. Seite trotzdem verlassen?')
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+	if (!hasUnsyncedTemplateChanges.value) return
+	event.preventDefault()
+	event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+	if (!hasUnsyncedTemplateChanges.value) return true
+	return confirmLeavingWithPendingSync()
+})
+
+onMounted(() => {
+	window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('beforeunload', handleBeforeUnload)
+})
 
 function selectedChipIds(kind: ChipSelectionKind, scopeKey = selectionScopeKey(kind)): string[] {
 	const selection = chipSelection.value
