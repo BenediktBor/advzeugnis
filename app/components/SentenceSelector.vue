@@ -375,7 +375,7 @@ function toggleCategoryBody(categoryId: string) {
 						:display-value="formatAverage(activeSubjectAverageSummary.average)"
 						:label="`Durchschnitt ${formatAverage(activeSubjectAverageSummary.average)} im aktiven Fach`"
 						below-label="Ø Fach"
-						tone="success"
+						tone="primary"
 					/>
 					<CategoryProgressCircle
 						:value="activeSelectedCategoryCount"

@@ -143,7 +143,7 @@ function formatAverage(value: number): string {
 					:display-value="formatAverage(gradeAverageSummary.average)"
 					:label="`Notendurchschnitt ${formatAverage(gradeAverageSummary.average)}`"
 					below-label="Ø Note"
-					tone="success"
+					tone="primary"
 				/>
 			</div>
 		</section>

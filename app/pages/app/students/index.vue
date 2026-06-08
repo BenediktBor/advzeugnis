@@ -344,7 +344,7 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 											:total="card.coverageSummary.total"
 											:label="`${card.coverageSummary.completed} aktiv, ${card.coverageSummary.total - card.coverageSummary.completed} deaktiviert`"
 											below-label="Kategorien"
-											:tone="card.coverageSummary.isFinished ? 'success' : 'primary'"
+											tone="primary"
 										/>
 									</div>
 
@@ -365,7 +365,7 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 											:display-value="formatAverage(card.averageSummary.average)"
 											:label="`Notendurchschnitt ${formatAverage(card.averageSummary.average)}`"
 											below-label="Ø Note"
-											tone="success"
+											tone="primary"
 										/>
 									</div>
 									<p v-else class="text-xs text-muted">

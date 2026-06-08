@@ -5,7 +5,7 @@ const props = defineProps<{
 	label: string
 	displayValue?: string
 	belowLabel?: string
-	tone?: 'primary' | 'success' | 'neutral'
+	tone?: 'primary' | 'neutral'
 }>()
 
 const radius = 18
@@ -16,7 +16,6 @@ const progress = computed(() => {
 })
 const strokeOffset = computed(() => circumference * (1 - progress.value))
 const strokeToneClass = computed(() => {
-	if (props.tone === 'success') return 'text-success'
 	if (props.tone === 'neutral') return 'text-muted'
 	return 'text-primary'
 })

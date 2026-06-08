@@ -29,7 +29,7 @@ const coverageSummary = computed(() => demo.coverageSummary.value)
 			:value="coverageSummary.completed"
 			:total="coverageSummary.total"
 			label="Fortschritt"
-			:tone="coverageSummary.isFinished ? 'success' : 'primary'"
+			tone="primary"
 		/>
 	</div>
 </template>
