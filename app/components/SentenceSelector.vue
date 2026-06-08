@@ -386,7 +386,7 @@ function toggleCategoryBody(categoryId: string) {
 				</div>
 			</div>
 		</div>
-		<div class="border-b border-default px-4 py-3">
+		<div v-if="subjectGroups.length > 1" class="border-b border-default px-4 py-3">
 			<HorizontalScrollableTabStrip
 				:items="subjectTabItems"
 				:model-value="activeSubjectId"

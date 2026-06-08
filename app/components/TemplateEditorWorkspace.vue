@@ -7,6 +7,7 @@ import {
 	cloneClipboardItemsForPaste,
 	createTemplateClipboardPayload,
 } from '~/utils/templateClipboard'
+import { genderVariantPresets } from '~/constants/templateEditor'
 
 const props = defineProps<{
 	setId: string
@@ -1006,12 +1007,6 @@ const addPartHelp = computed(() => {
 	}
 	return 'Optionale Gruppen können in der Satzauswahl pro Schüler ein- oder ausgeblendet werden.'
 })
-const genderVariantPresets = [
-	{ label: 'Er/Sie', male: 'Er', female: 'Sie' },
-	{ label: 'er/sie', male: 'er', female: 'sie' },
-	{ label: 'Ihn/Sie', male: 'Ihn', female: 'Sie' },
-	{ label: 'ihn/sie', male: 'ihn', female: 'sie' },
-]
 
 function openAddPartModal(groupIndex: number | null = null) {
 	addPartTargetGroupIndex.value = groupIndex
@@ -1021,13 +1016,6 @@ function openAddPartModal(groupIndex: number | null = null) {
 	addPartFemale.value = ''
 	addPartOptionalEnabledByDefault.value = true
 	addPartModalOpen.value = true
-}
-
-function applyGenderVariantPreset(preset: (typeof genderVariantPresets)[number]) {
-	addPartType.value = 'genderVariant'
-	addPartMale.value = preset.male
-	addPartFemale.value = preset.female
-	confirmAddPart()
 }
 
 const canConfirmAddPart = computed(() => {
@@ -1068,6 +1056,12 @@ function confirmAddPart() {
 	}
 
 	addPartModalOpen.value = false
+	insertSentencePart(part)
+}
+
+function insertSentencePart(part: SentencePart | OptionalGroupChildPart) {
+	if (!selectedCategory.value || !selectedGradeId.value || !selectedVariantId.value) return
+
 	if (addPartTargetGroupIndex.value !== null) {
 		if (part.type === 'optionalGroup') return
 		addOptionalGroupPart(
@@ -1080,6 +1074,7 @@ function confirmAddPart() {
 		)
 		return
 	}
+
 	addSentencePart(
 		selectedCategory.value.subjectId,
 		selectedCategory.value.categoryId,
@@ -1087,6 +1082,30 @@ function confirmAddPart() {
 		selectedVariantId.value,
 		part as SentencePart,
 	)
+}
+
+function addQuickNamePart() {
+	addPartTargetGroupIndex.value = null
+	insertSentencePart({ type: 'name' })
+}
+
+function addQuickOptionalGroupPart() {
+	addPartTargetGroupIndex.value = null
+	insertSentencePart({
+		type: 'optionalGroup',
+		id: crypto.randomUUID(),
+		enabledByDefault: true,
+		parts: [],
+	})
+}
+
+function applyGenderVariantPreset(preset: (typeof genderVariantPresets)[number]) {
+	addPartTargetGroupIndex.value = null
+	insertSentencePart({
+		type: 'genderVariant',
+		value: [preset.male, preset.female],
+	})
+	addPartModalOpen.value = false
 }
 
 const editLabelModalOpen = ref(false)
@@ -1296,6 +1315,9 @@ onBeforeUnmount(() => {
 					@delete-variant="handleDeleteVariant"
 					@add-sentence-part="openAddPartModal"
 					@add-sentence-part-to-group="openAddPartModal"
+					@quick-add-name="addQuickNamePart"
+					@quick-add-optional-group="addQuickOptionalGroupPart"
+					@quick-add-gender-preset="applyGenderVariantPreset"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
@@ -1351,6 +1373,9 @@ onBeforeUnmount(() => {
 					@delete-variant="handleDeleteVariant"
 					@add-sentence-part="openAddPartModal"
 					@add-sentence-part-to-group="openAddPartModal"
+					@quick-add-name="addQuickNamePart"
+					@quick-add-optional-group="addQuickOptionalGroupPart"
+					@quick-add-gender-preset="applyGenderVariantPreset"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"

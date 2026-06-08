@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { GenderVariantPreset } from '~/constants/templateEditor'
 import type { Category, OptionalGroupChildPart, SentencePart, SentencePartPath, Variant } from '~/types/template'
 
 const props = defineProps<{
@@ -37,6 +38,9 @@ const emit = defineEmits<{
 	deleteVariant: [variantId: string, label: string]
 	addSentencePart: []
 	addSentencePartToGroup: [groupIndex: number]
+	quickAddName: []
+	quickAddOptionalGroup: []
+	quickAddGenderPreset: [preset: GenderVariantPreset]
 	editSentencePart: [part: SentencePart | OptionalGroupChildPart, path: SentencePartPath]
 	deleteSentencePart: [path: SentencePartPath]
 	reorderSentenceParts: [oldIndex: number, newIndex: number]
@@ -248,6 +252,14 @@ function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGrou
 			<h3 class="text-sm font-medium text-default mb-2">
 				Satzbausteine (Variante {{ selectedVariantData.label }})
 			</h3>
+			<SentencePartQuickAddBar
+				v-if="canEdit"
+				class="mb-3"
+				@add-text="emit('addSentencePart')"
+				@add-name="emit('quickAddName')"
+				@add-gender-preset="emit('quickAddGenderPreset', $event)"
+				@add-optional-group="emit('quickAddOptionalGroup')"
+			/>
 			<SortablePillList
 				:parts="sentencePartsList"
 				:can-edit="canEdit"
