@@ -30,7 +30,7 @@ export const viewer = query({
 				? {
 						id: school._id,
 						name: school.name,
-						role: membership.role,
+						role: school.createdBy === userId ? 'owner' : membership.role,
 						subscriptionStatus: school.subscriptionStatus,
 						seatLimit: school.seatLimit,
 					}

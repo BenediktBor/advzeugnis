@@ -8,7 +8,7 @@ const emit = defineEmits<{
 }>()
 
 const { orderedIds, defaultAlphabeticalTemplateSetId } = useTemplateSets()
-const { createStudentAndOpen } = useCreateStudentFlow()
+const { canCreateStudent, createStudentAndOpen } = useCreateStudentFlow()
 
 const name = ref('')
 const surname = ref('')
@@ -16,7 +16,7 @@ const gender = ref<'male' | 'female'>('male')
 const templateSetId = ref('')
 
 const canSubmit = computed(
-	() => name.value.trim() !== '' && templateSetId.value.trim() !== ''
+	() => canCreateStudent.value && name.value.trim() !== '' && templateSetId.value.trim() !== ''
 )
 
 const isOpen = computed({

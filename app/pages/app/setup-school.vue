@@ -3,6 +3,7 @@ const { school, createSchool } = useSchool()
 
 const schoolName = ref('')
 const seatLimit = ref(5)
+const accessPassword = ref('')
 const isSubmitting = ref(false)
 const error = ref('')
 const createdSchoolId = ref<string | null>(null)
@@ -18,6 +19,10 @@ async function onSubmit() {
 	if (isSubmitting.value) return
 	error.value = ''
 	if (!isExistingSchool.value && !schoolName.value.trim()) return
+	if (!isExistingSchool.value && !accessPassword.value.trim()) {
+		error.value = 'Bitte gib das Zugangspasswort ein.'
+		return
+	}
 
 	isSubmitting.value = true
 	try {
@@ -25,6 +30,7 @@ async function onSubmit() {
 			createdSchoolId.value = await createSchool({
 				name: schoolName.value.trim(),
 				seatLimit: seatLimit.value,
+				accessPassword: accessPassword.value,
 			}) as string
 		}
 		await navigateTo('/app/school')
@@ -32,7 +38,11 @@ async function onSubmit() {
 		console.error('[school] setup failed:', err)
 		error.value = school.value || createdSchoolId.value
 			? 'Schule wurde angelegt, aber die Weiterleitung konnte nicht abgeschlossen werden.'
-			: 'Schule konnte nicht angelegt werden. Bitte versuche es erneut.'
+			: err instanceof Error && err.message.includes('Invalid school creation password')
+				? 'Das Zugangspasswort ist nicht korrekt.'
+				: err instanceof Error && err.message.includes('School creation is not configured')
+					? 'Schulen können aktuell nicht angelegt werden. Bitte kontaktiere den Betreiber.'
+					: 'Schule konnte nicht angelegt werden. Bitte versuche es erneut.'
 	} finally {
 		isSubmitting.value = false
 	}
@@ -60,7 +70,7 @@ async function onSubmit() {
 								Deine Schule wurde bereits angelegt. Die Abrechnung ist vorübergehend deaktiviert.
 							</span>
 							<span v-else>
-								Die Abrechnung ist vorübergehend deaktiviert. Du kannst die Schule anlegen und Teammitglieder direkt einladen.
+								Gib das Zugangspasswort ein, um eine Schule anzulegen. Die Abrechnung ist vorübergehend deaktiviert.
 							</span>
 						</p>
 					</div>
@@ -85,6 +95,15 @@ async function onSubmit() {
 					</UFormField>
 					<UFormField label="Sitzplätze">
 						<UInput v-model.number="seatLimit" type="number" min="1" required />
+					</UFormField>
+					<UFormField v-if="!isExistingSchool" label="Zugangspasswort">
+						<UInput
+							v-model="accessPassword"
+							type="password"
+							required
+							autocomplete="off"
+							placeholder="Passwort eingeben"
+						/>
 					</UFormField>
 					<UButton
 						type="submit"

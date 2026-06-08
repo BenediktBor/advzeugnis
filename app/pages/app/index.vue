@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { currentUser, canEditTemplates } = useCurrentUser()
+const { currentUser, hasSchool, canEditTemplates } = useCurrentUser()
 const {
 	hasAnyTemplateSets,
 	isLoaded,
@@ -112,6 +112,7 @@ const remoteLoadErrorDescription = computed(() =>
 									Wähle Name, Geschlecht und passende Vorlage für jeden Schüler.
 								</p>
 								<UButton
+									v-if="hasSchool"
 									label="Zur Schülerliste"
 									to="/app/students"
 									icon="i-lucide-users"

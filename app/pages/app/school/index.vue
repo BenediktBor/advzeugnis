@@ -2,7 +2,17 @@
 import type { SchoolRole } from '~/types/user'
 
 const { currentUser, canManageTeachers } = useCurrentUser()
-const { school, members, invites, inviteMember, revokeInvite, removeMember, setRole, transferOwnership } = useSchool()
+const {
+	school,
+	members,
+	invites,
+	inviteMember,
+	revokeInvite,
+	removeMember,
+	setRole,
+	transferOwnership,
+	deleteSchool,
+} = useSchool()
 
 // Temporary switch while Stripe billing is disabled for Convex deployment.
 const BILLING_TEMPORARILY_DISABLED = true
@@ -26,6 +36,10 @@ const isInviting = ref(false)
 const transferringOwnerId = ref<string | null>(null)
 const removingMemberId = ref<string | null>(null)
 const revokingInviteId = ref<string | null>(null)
+const isDeletingSchool = ref(false)
+const removeMemberDialog = useConfirmDialog()
+const transferOwnershipDialog = useConfirmDialog()
+const deleteSchoolDialog = useConfirmDialog()
 const error = ref('')
 const inviteNotice = ref<{
 	type: 'success' | 'warning'
@@ -49,7 +63,7 @@ const billingStatusBadge = computed(() => {
 	}
 })
 const canInviteUsers = computed(() => canManageTeachers.value && hasActiveSubscription.value)
-const isOwner = computed(() => currentUser.value.role === 'owner')
+const isOwner = computed(() => school.value?.role === 'owner')
 
 function inviteUrl(token: string) {
 	return `${inviteBaseUrl.value}/invite/${token}`
@@ -112,21 +126,24 @@ async function updateRole(userId: string, value: unknown) {
 	await setRole(userId, role)
 }
 
-async function handleRemoveMember(member: { id: string, displayName: string, role: SchoolRole }) {
+function openRemoveMemberDialog(member: { id: string, displayName: string, role: SchoolRole }) {
 	if (!canManageTeachers.value || member.id === currentUser.value.id || member.role === 'owner') return
-	const confirmed = window.confirm(`${member.displayName} aus der Schule entfernen?`)
-	if (!confirmed) return
-
-	error.value = ''
-	removingMemberId.value = member.id
-	try {
-		await removeMember(member.id)
-	} catch (err) {
-		console.error('[school] remove member failed:', err)
-		error.value = 'Nutzer konnte nicht entfernt werden.'
-	} finally {
-		removingMemberId.value = null
-	}
+	removeMemberDialog.show({
+		title: 'Nutzer entfernen',
+		description: `${member.displayName} aus der Schule entfernen? Der Zugriff auf Schulvorlagen endet sofort.`,
+		onConfirm: async () => {
+			error.value = ''
+			removingMemberId.value = member.id
+			try {
+				await removeMember(member.id)
+			} catch (err) {
+				console.error('[school] remove member failed:', err)
+				error.value = 'Nutzer konnte nicht entfernt werden.'
+			} finally {
+				removingMemberId.value = null
+			}
+		},
+	})
 }
 
 async function handleRevokeInvite(inviteId: string) {
@@ -146,21 +163,49 @@ function canChangeRole(member: { id: string, role: SchoolRole }) {
 	return canManageTeachers.value && member.id !== currentUser.value.id && member.role !== 'owner'
 }
 
-async function transferOwner(member: { id: string, displayName: string }) {
-	if (!isOwner.value || member.id === currentUser.value.id) return
-	const confirmed = window.confirm(`Eigentum an ${member.displayName} übertragen? Du bleibst danach Admin.`)
-	if (!confirmed) return
+function canTransferOwnership(member: { id: string, role: SchoolRole }) {
+	return isOwner.value && member.id !== currentUser.value.id && member.role !== 'owner'
+}
 
-	error.value = ''
-	transferringOwnerId.value = member.id
-	try {
-		await transferOwnership(member.id)
-	} catch (err) {
-		console.error('[school] ownership transfer failed:', err)
-		error.value = 'Eigentum konnte nicht übertragen werden.'
-	} finally {
-		transferringOwnerId.value = null
-	}
+function openTransferOwnershipDialog(member: { id: string, displayName: string, role: SchoolRole }) {
+	if (!canTransferOwnership(member)) return
+	transferOwnershipDialog.show({
+		title: 'Schule übertragen',
+		description: `${member.displayName} übernimmt die Schule. Du behältst danach Admin-Rechte.`,
+		onConfirm: async () => {
+			error.value = ''
+			transferringOwnerId.value = member.id
+			try {
+				await transferOwnership(member.id)
+			} catch (err) {
+				console.error('[school] ownership transfer failed:', err)
+				error.value = 'Schule konnte nicht übertragen werden.'
+			} finally {
+				transferringOwnerId.value = null
+			}
+		},
+	})
+}
+
+function openDeleteSchoolDialog() {
+	if (!isOwner.value || isDeletingSchool.value) return
+	deleteSchoolDialog.show({
+		title: 'Schule löschen',
+		description: 'Alle Einladungen, Schulvorlagen und Mitgliedschaften werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
+		onConfirm: async () => {
+			error.value = ''
+			isDeletingSchool.value = true
+			try {
+				await deleteSchool()
+				await navigateTo('/app')
+			} catch (err) {
+				console.error('[school] delete failed:', err)
+				error.value = 'Schule konnte nicht gelöscht werden.'
+			} finally {
+				isDeletingSchool.value = false
+			}
+		},
+	})
 }
 </script>
 
@@ -290,15 +335,16 @@ async function transferOwner(member: { id: string, displayName: string }) {
 								/>
 								<div v-else class="text-sm text-muted">{{ roleLabels[member.role] }}</div>
 								<div class="flex justify-end gap-2">
-									<UButton
-										v-if="isOwner && member.id !== currentUser.id"
-										label="Eigentum übertragen"
-										icon="i-lucide-crown"
-										color="warning"
-										variant="soft"
-										:loading="transferringOwnerId === member.id"
-										@click="transferOwner(member)"
-									/>
+									<UTooltip v-if="canTransferOwnership(member)" text="Schule übertragen">
+										<UButton
+											icon="i-lucide-crown"
+											color="warning"
+											variant="ghost"
+											aria-label="Schule übertragen"
+											:loading="transferringOwnerId === member.id"
+											@click="openTransferOwnershipDialog(member)"
+										/>
+									</UTooltip>
 									<UButton
 										v-if="canManageTeachers && member.id !== currentUser.id && member.role !== 'owner'"
 										icon="i-lucide-trash-2"
@@ -306,7 +352,7 @@ async function transferOwner(member: { id: string, displayName: string }) {
 										variant="ghost"
 										aria-label="Nutzer entfernen"
 										:loading="removingMemberId === member.id"
-										@click="handleRemoveMember(member)"
+										@click="openRemoveMemberDialog(member)"
 									/>
 								</div>
 							</div>
@@ -342,7 +388,98 @@ async function transferOwner(member: { id: string, displayName: string }) {
 					</div>
 					<p v-else class="text-sm text-muted">Keine offenen Einladungen.</p>
 				</UCard>
+
+				<UCard v-if="isOwner">
+					<template #header>
+						<h2 class="font-semibold text-error">Gefahrenbereich</h2>
+					</template>
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<p class="font-medium text-highlighted">Schule löschen</p>
+							<p class="text-sm text-muted">
+								Entfernt die Schule, offene Einladungen, Schulvorlagen und alle Mitgliedschaften.
+							</p>
+						</div>
+						<UButton
+							label="Schule löschen"
+							icon="i-lucide-trash-2"
+							color="error"
+							variant="soft"
+							@click="openDeleteSchoolDialog"
+						/>
+					</div>
+				</UCard>
 			</div>
 		</template>
 	</UDashboardPanel>
+
+	<UModal
+		v-model:open="removeMemberDialog.open.value"
+		:title="removeMemberDialog.title.value"
+		:description="removeMemberDialog.description.value"
+		:ui="{ footer: 'justify-end' }"
+	>
+		<template #footer>
+			<UButton
+				label="Abbrechen"
+				color="neutral"
+				variant="outline"
+				@click="removeMemberDialog.cancel()"
+			/>
+			<UButton
+				label="Entfernen"
+				icon="i-lucide-trash-2"
+				color="error"
+				:loading="Boolean(removingMemberId)"
+				@click="removeMemberDialog.confirm()"
+			/>
+		</template>
+	</UModal>
+
+	<UModal
+		v-model:open="transferOwnershipDialog.open.value"
+		:title="transferOwnershipDialog.title.value"
+		:description="transferOwnershipDialog.description.value"
+		:ui="{ footer: 'justify-end' }"
+	>
+		<template #footer>
+			<UButton
+				label="Abbrechen"
+				color="neutral"
+				variant="outline"
+				@click="transferOwnershipDialog.cancel()"
+			/>
+			<UButton
+				label="Schule übertragen"
+				icon="i-lucide-crown"
+				color="warning"
+				:loading="Boolean(transferringOwnerId)"
+				@click="transferOwnershipDialog.confirm()"
+			/>
+		</template>
+	</UModal>
+
+	<UModal
+		v-model:open="deleteSchoolDialog.open.value"
+		:title="deleteSchoolDialog.title.value"
+		:description="deleteSchoolDialog.description.value"
+		:ui="{ footer: 'justify-end' }"
+	>
+		<template #footer>
+			<UButton
+				label="Abbrechen"
+				color="neutral"
+				variant="outline"
+				:disabled="isDeletingSchool"
+				@click="deleteSchoolDialog.cancel()"
+			/>
+			<UButton
+				label="Schule löschen"
+				icon="i-lucide-trash-2"
+				color="error"
+				:loading="isDeletingSchool"
+				@click="deleteSchoolDialog.confirm()"
+			/>
+		</template>
+	</UModal>
 </template>

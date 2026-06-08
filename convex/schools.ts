@@ -17,6 +17,7 @@ import { buildAppUrl } from './lib/config'
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 14
 const DEFAULT_SEAT_LIMIT = 1
 const MAX_SEAT_LIMIT = 500
+const SCHOOL_CREATION_PASSWORD_ENV = 'SCHOOL_CREATION_PASSWORD'
 
 function normalizeEmail(email: string) {
 	return email.trim().toLowerCase()
@@ -53,6 +54,16 @@ function normalizeSeatLimit(value: number | undefined, minimum = DEFAULT_SEAT_LI
 	const seatLimit = Math.floor(rawSeatLimit)
 	if (seatLimit < minimum || seatLimit > MAX_SEAT_LIMIT) throw new ConvexError('Seat limit is outside the allowed range')
 	return seatLimit
+}
+
+function requireSchoolCreationPassword(accessPassword: string) {
+	const expectedPassword = process.env[SCHOOL_CREATION_PASSWORD_ENV]?.trim()
+	if (!expectedPassword) {
+		throw new ConvexError('School creation is not configured')
+	}
+	if (accessPassword.trim() !== expectedPassword) {
+		throw new ConvexError('Invalid school creation password')
+	}
 }
 
 export const current = query({
@@ -156,9 +167,11 @@ export const createSchool = mutation({
 	args: {
 		name: v.string(),
 		seatLimit: v.optional(v.number()),
+		accessPassword: v.string(),
 	},
 	handler: async (ctx, args) => {
 		const { userId } = await requireUser(ctx)
+		requireSchoolCreationPassword(args.accessPassword)
 		const existingMembership = await getActiveMembershipForUser(ctx, userId)
 		if (existingMembership) throw new ConvexError('Users can only belong to one school')
 
@@ -377,6 +390,44 @@ export const transferOwnership = mutation({
 		await ctx.db.patch(membership._id, { role: 'admin' })
 		await ctx.db.patch(newOwnerMembership._id, { role: 'owner' })
 		await ctx.db.patch(school._id, { createdBy: args.userId })
+	},
+})
+
+export const deleteSchool = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const { membership, school } = await requireOwner(ctx)
+		const schoolId = membership.schoolId
+		const now = Date.now()
+
+		const invites = await ctx.db
+			.query('invites')
+			.withIndex('by_school', (q) => q.eq('schoolId', schoolId))
+			.collect()
+		for (const invite of invites) {
+			await ctx.db.delete(invite._id)
+		}
+
+		const templateSets = await ctx.db
+			.query('templateSets')
+			.withIndex('by_school', (q) => q.eq('schoolId', schoolId))
+			.collect()
+		for (const templateSet of templateSets) {
+			await ctx.db.delete(templateSet._id)
+		}
+
+		const memberships = await ctx.db
+			.query('memberships')
+			.withIndex('by_school', (q) => q.eq('schoolId', schoolId))
+			.collect()
+		for (const row of memberships) {
+			await ctx.db.patch(row._id, {
+				status: 'removed',
+				removedAt: now,
+			})
+		}
+
+		await ctx.db.delete(school._id)
 	},
 })
 

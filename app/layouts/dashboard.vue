@@ -14,12 +14,17 @@ const roleLabels: Record<SchoolRole, string> = {
 const open = ref(false)
 const router = useRouter()
 const { students } = useStudents()
-const { currentUser, canEditTemplates } = useCurrentUser()
+const { currentUser, hasSchool, canEditTemplates } = useCurrentUser()
 const { signOut } = useConvexAuthActions()
 const { sortedSetsWithData, hasAnyTemplateSets } = useTemplateSets()
 const createStudentModalOpen = ref(false)
 
 function onAddStudent() {
+	if (!hasSchool.value) {
+		open.value = false
+		void router.push('/app/setup-school')
+		return
+	}
 	createStudentModalOpen.value = true
 	open.value = false
 }
@@ -51,9 +56,10 @@ const accountNavItem = computed<NavigationMenuItem>(() =>
 
 const links = computed<NavigationMenuItem[]>(() => {
 	const hasStudents = students.value.length > 0
-	const items: NavigationMenuItem[] = [
-		accountNavItem.value,
-		{
+	const items: NavigationMenuItem[] = [accountNavItem.value]
+
+	if (hasSchool.value) {
+		items.push({
 			label: 'Schüler',
 			icon: 'i-lucide-users',
 			to: '/app/students',
@@ -68,8 +74,8 @@ const links = computed<NavigationMenuItem[]>(() => {
 				})),
 			}),
 			slot: 'students' as const,
-		},
-	]
+		})
+	}
 
 	if (canEditTemplates.value) {
 		items.push({
@@ -175,7 +181,7 @@ const profileMenuItems = computed(() => [
 					<template #students-trailing>
 						<div class="flex items-center gap-1">
 							<UTooltip
-								v-if="hasAnyTemplateSets"
+								v-if="hasSchool && hasAnyTemplateSets"
 								text="Neuen Schüler anlegen"
 							>
 								<UButton

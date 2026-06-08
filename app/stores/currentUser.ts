@@ -38,6 +38,7 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 			currentUser.value.type === 'school' &&
 			(currentUser.value.role === 'owner' || currentUser.value.role === 'admin')
 	)
+	const hasSchool = computed(() => currentUser.value.type === 'school')
 	const canEditTemplates = computed(
 		() =>
 			currentUser.value.type === 'school' && (
@@ -80,6 +81,7 @@ export const useCurrentUserStore = defineStore('currentUser', () => {
 	return {
 		currentUser,
 		isLoaded,
+		hasSchool,
 		isAdmin,
 		canEditTemplates,
 		canManageTeachers,

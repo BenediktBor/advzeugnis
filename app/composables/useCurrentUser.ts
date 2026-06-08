@@ -52,13 +52,14 @@ export function useCurrentUser() {
 		},
 	)
 
-	const { currentUser, isLoaded, isAdmin, canEditTemplates, canManageTeachers } = storeToRefs(store)
+	const { currentUser, isLoaded, hasSchool, isAdmin, canEditTemplates, canManageTeachers } = storeToRefs(store)
 
 	return {
 		currentUser,
 		isLoaded: computed(() => isLoaded.value && !viewer.isPending.value),
 		isAuthenticated: computed(() => Boolean(viewer.data.value)),
 		authError: viewer.error,
+		hasSchool,
 		isAdmin,
 		canEditTemplates,
 		canManageTeachers,

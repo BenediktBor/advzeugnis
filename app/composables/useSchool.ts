@@ -8,7 +8,7 @@ export function useSchool() {
 	const membersQuery = useConvexQuery(api.schools.members, {}, { server: false })
 	const invitesQuery = useConvexQuery(api.schools.invites, {}, { server: false })
 
-	async function createSchool(args: { name: string, seatLimit?: number }) {
+	async function createSchool(args: { name: string, seatLimit?: number, accessPassword: string }) {
 		return await client.mutation(api.schools.createSchool, args)
 	}
 
@@ -43,6 +43,10 @@ export function useSchool() {
 		await client.mutation(api.schools.transferOwnership, { userId })
 	}
 
+	async function deleteSchool() {
+		await client.mutation(api.schools.deleteSchool, {})
+	}
+
 	return {
 		school: computed(() => schoolQuery.data.value ?? null),
 		members: computed<SchoolMember[]>(() => membersQuery.data.value ?? []),
@@ -56,5 +60,6 @@ export function useSchool() {
 		removeMember,
 		setRole,
 		transferOwnership,
+		deleteSchool,
 	}
 }

@@ -15,7 +15,7 @@ const {
 	isLoaded: templatesLoaded,
 	remoteLoadError: templatesRemoteLoadError,
 } = useTemplateSets()
-const { canEditTemplates } = useCurrentUser()
+const { hasSchool, canEditTemplates } = useCurrentUser()
 const createStudentModalOpen = ref(false)
 
 const searchQuery = ref('')
@@ -104,6 +104,10 @@ function resetFilters() {
 }
 
 function onAddStudent() {
+	if (!hasSchool.value) {
+		void navigateTo('/app/setup-school')
+		return
+	}
 	createStudentModalOpen.value = true
 }
 
@@ -128,7 +132,7 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 				<template #right>
 					<div class="flex flex-wrap items-center gap-2">
 						<UButton
-							v-if="hasAnyTemplateSets"
+							v-if="hasSchool && hasAnyTemplateSets"
 							label="Schüler anlegen"
 							icon="i-lucide-plus"
 							@click="onAddStudent"
@@ -225,6 +229,19 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 					icon="i-lucide-cloud-alert"
 					tone="error"
 				/>
+				<AppStateNotice
+					v-else-if="!hasSchool"
+					title="Schule erforderlich"
+					description="Richte zuerst deine Schule ein, bevor du Schüler anlegst oder Vorlagen verwendest."
+					icon="i-lucide-building-2"
+					tone="primary"
+				>
+					<UButton
+						label="Schule einrichten"
+						to="/app/setup-school"
+						icon="i-lucide-building-2"
+					/>
+				</AppStateNotice>
 				<AppStateNotice
 					v-else-if="!hasAnyTemplateSets"
 					title="Zuerst Satzvorlagen anlegen"
@@ -368,6 +385,7 @@ const templatesRemoteLoadErrorDescription = computed(() =>
 					<UButton
 						label="Schüler anlegen"
 						icon="i-lucide-plus"
+						:disabled="!hasSchool"
 						@click="onAddStudent"
 					/>
 				</AppStateNotice>

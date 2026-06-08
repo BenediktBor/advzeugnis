@@ -1,6 +1,18 @@
 <script setup lang="ts">
 const route = useRoute()
-const { isLoaded, canEditTemplates } = useCurrentUser()
+const { isLoaded, hasSchool, canEditTemplates } = useCurrentUser()
+
+const deniedTitle = computed(() => {
+	if (!isLoaded.value) return 'Berechtigungen werden geladen'
+	return hasSchool.value ? 'Keine Berechtigung' : 'Schule erforderlich'
+})
+
+const deniedDescription = computed(() => {
+	if (!isLoaded.value) return undefined
+	return hasSchool.value
+		? 'Nur Admins und Template Manager können die Vorlagenverwaltung öffnen.'
+		: 'Richte zuerst deine Schule ein, bevor du Vorlagen anlegst oder bearbeitest.'
+})
 
 watch(
 	[isLoaded, canEditTemplates],
@@ -20,11 +32,18 @@ watch(
 	<UDashboardPanel v-else>
 		<template #body>
 			<AppStateNotice
-				:title="isLoaded ? 'Keine Berechtigung' : 'Berechtigungen werden geladen'"
-				:description="isLoaded ? 'Nur Admins und Template Manager können die Vorlagenverwaltung öffnen.' : undefined"
+				:title="deniedTitle"
+				:description="deniedDescription"
 				:icon="isLoaded ? 'i-lucide-lock' : 'i-lucide-loader-2'"
 				:loading="!isLoaded"
-			/>
+			>
+				<UButton
+					v-if="isLoaded && !hasSchool"
+					label="Schule einrichten"
+					to="/app/setup-school"
+					icon="i-lucide-building-2"
+				/>
+			</AppStateNotice>
 		</template>
 	</UDashboardPanel>
 </template>

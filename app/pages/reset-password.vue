@@ -4,6 +4,6 @@ definePageMeta({ layout: 'default' })
 
 <template>
 	<UContainer class="flex min-h-screen items-center justify-center py-12">
-		<AuthFlowCard initial-mode="signIn" />
+		<AuthFlowCard initial-mode="reset" />
 	</UContainer>
 </template>
