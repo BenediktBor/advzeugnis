@@ -1,7 +1,28 @@
 <script setup lang="ts">
+import { landingSentenceCreateDemoSentences } from '~/data/landingDemo'
 import { landingAnchorIds, landingDemoTabs } from '~/data/landingContent'
+import { useLocalSentencePartsEditor } from '~/composables/useLocalSentencePartsEditor'
+import { provideLandingSentenceEditor } from '~/composables/useLandingSentenceEditorContext'
 
 const demoTab = ref('report')
+
+const sentenceEditor = useLocalSentencePartsEditor(landingSentenceCreateDemoSentences)
+provideLandingSentenceEditor(sentenceEditor)
+
+const {
+	addModalOpen,
+	editModalOpen,
+	partType,
+	partText,
+	partMale,
+	partFemale,
+	optionalEnabledByDefault,
+	addPartTabItems,
+	addPartHelp,
+	canConfirmPart,
+	confirmAddPart,
+	confirmEditPart,
+} = sentenceEditor
 </script>
 
 <template>
@@ -26,5 +47,57 @@ const demoTab = ref('report')
 				</template>
 			</UTabs>
 		</UCard>
+
+		<UModal
+			v-model:open="addModalOpen"
+			title="Satzbaustein hinzufügen"
+			description="Wähle den Typ und gib den Inhalt ein."
+			:ui="{ footer: 'justify-end gap-2' }"
+		>
+			<template #body>
+				<SentencePartAddModalBody
+					key="landing-add-part"
+					v-model:part-type="partType"
+					v-model:part-text="partText"
+					v-model:part-male="partMale"
+					v-model:part-female="partFemale"
+					v-model:optional-enabled-by-default="optionalEnabledByDefault"
+					:add-part-tab-items="addPartTabItems"
+					:add-part-help="addPartHelp"
+					@submit="confirmAddPart"
+				/>
+			</template>
+			<template #footer>
+				<UButton label="Abbrechen" color="neutral" variant="ghost" @click="addModalOpen = false" />
+				<UButton label="Hinzufügen" :disabled="!canConfirmPart" @click="confirmAddPart" />
+			</template>
+		</UModal>
+
+		<UModal
+			v-model:open="editModalOpen"
+			title="Satzbaustein bearbeiten"
+			:ui="{ footer: 'justify-end gap-2' }"
+		>
+			<template #body>
+				<SentencePartAddModalBody
+					key="landing-edit-part"
+					v-model:part-type="partType"
+					v-model:part-text="partText"
+					v-model:part-male="partMale"
+					v-model:part-female="partFemale"
+					v-model:optional-enabled-by-default="optionalEnabledByDefault"
+					:add-part-tab-items="addPartTabItems"
+					:add-part-help="addPartHelp"
+					:show-type-tabs="false"
+					:show-gender-presets="false"
+					:autofocus="false"
+					@submit="confirmEditPart"
+				/>
+			</template>
+			<template #footer>
+				<UButton label="Abbrechen" color="neutral" variant="ghost" @click="editModalOpen = false" />
+				<UButton label="Speichern" :disabled="!canConfirmPart" @click="confirmEditPart" />
+			</template>
+		</UModal>
 	</UPageSection>
 </template>

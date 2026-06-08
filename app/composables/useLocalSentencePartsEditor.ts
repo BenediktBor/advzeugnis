@@ -1,7 +1,10 @@
-import type { GenderVariantPreset } from '~/constants/templateEditor'
 import type { OptionalGroupChildPart, SentencePart, SentencePartPath, Variant } from '~/types/template'
+import {
+	getSentencePartEditorHelp,
+	type SentencePartEditorType,
+} from '~/utils/sentencePartEditorHelp'
 
-export type SentencePartEditorType = 'text' | 'genderVariant' | 'name' | 'optionalGroup'
+export type { SentencePartEditorType }
 
 function cloneSentenceParts(parts: SentencePart[]): SentencePart[] {
 	return JSON.parse(JSON.stringify(parts)) as SentencePart[]
@@ -37,6 +40,8 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		}
 		return items
 	})
+
+	const addPartHelp = computed(() => getSentencePartEditorHelp(partType.value))
 
 	const canConfirmPart = computed(() => {
 		if (partType.value === 'text') return partText.value.trim() !== ''
@@ -87,6 +92,13 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 	function openAddModal(groupIndex: number | null = null) {
 		targetGroupIndex.value = groupIndex
 		partType.value = 'text'
+		resetPartForm()
+		addModalOpen.value = true
+	}
+
+	function openAddModalForGenderVariant(groupIndex: number | null = null) {
+		targetGroupIndex.value = groupIndex
+		partType.value = 'genderVariant'
 		resetPartForm()
 		addModalOpen.value = true
 	}
@@ -248,12 +260,12 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		]
 	}
 
-	function applyGenderPreset(preset: GenderVariantPreset) {
+	function applyGenderVariant(value: [string, string]) {
 		sentences.value = [
 			...cloneSentenceParts(sentences.value),
 			{
 				type: 'genderVariant',
-				value: [preset.male, preset.female],
+				value,
 			},
 		]
 	}
@@ -269,8 +281,10 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		partFemale,
 		optionalEnabledByDefault,
 		addPartTabItems,
+		addPartHelp,
 		canConfirmPart,
 		openAddModal,
+		openAddModalForGenderVariant,
 		confirmAddPart,
 		openEditModal,
 		confirmEditPart,
@@ -283,7 +297,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		toggleGroupDefault,
 		addQuickNamePart,
 		addQuickOptionalGroup,
-		applyGenderPreset,
+		applyGenderVariant,
 	}
 }
 

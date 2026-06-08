@@ -7,7 +7,7 @@ import {
 	cloneClipboardItemsForPaste,
 	createTemplateClipboardPayload,
 } from '~/utils/templateClipboard'
-import { genderVariantPresets } from '~/constants/templateEditor'
+import { getSentencePartEditorHelp } from '~/utils/sentencePartEditorHelp'
 
 const props = defineProps<{
 	setId: string
@@ -61,6 +61,7 @@ const {
 	retrySync,
 } = useTemplates(computed(() => props.setId))
 const { canEditTemplates } = useCurrentUser()
+const availableGenderVariants = useAvailableGenderVariants()
 const templateClipboard = useTemplateClipboardStore()
 templateClipboard.load()
 
@@ -992,21 +993,7 @@ const addPartTabItems = computed(() => {
 	}
 	return items
 })
-const addPartHelp = computed(() => {
-	if (addPartType.value === 'text') {
-		return 'Fester Text erscheint immer genau so in der Textausgabe.'
-	}
-	if (addPartType.value === 'genderVariant') {
-		return 'Variabler Text wechselt je nach Geschlecht des Schülers.'
-	}
-	if (addPartType.value === 'name') {
-		return 'Name setzt den Schülernamen ein und kann später durch Pronomen ersetzt werden.'
-	}
-	if (addPartType.value === 'optionalGroup') {
-		return 'Optionale Gruppen bündeln mehrere Bausteine, die gemeinsam ein- oder ausgeblendet werden.'
-	}
-	return 'Optionale Gruppen können in der Satzauswahl pro Schüler ein- oder ausgeblendet werden.'
-})
+const addPartHelp = computed(() => getSentencePartEditorHelp(addPartType.value))
 
 function openAddPartModal(groupIndex: number | null = null) {
 	addPartTargetGroupIndex.value = groupIndex
@@ -1099,13 +1086,22 @@ function addQuickOptionalGroupPart() {
 	})
 }
 
-function applyGenderVariantPreset(preset: (typeof genderVariantPresets)[number]) {
+function applyGenderVariant(value: [string, string]) {
 	addPartTargetGroupIndex.value = null
 	insertSentencePart({
 		type: 'genderVariant',
-		value: [preset.male, preset.female],
+		value,
 	})
-	addPartModalOpen.value = false
+}
+
+function openAddPartModalForGenderVariant(groupIndex: number | null = null) {
+	addPartTargetGroupIndex.value = groupIndex
+	addPartType.value = 'genderVariant'
+	addPartText.value = ''
+	addPartMale.value = ''
+	addPartFemale.value = ''
+	addPartOptionalEnabledByDefault.value = true
+	addPartModalOpen.value = true
 }
 
 const editLabelModalOpen = ref(false)
@@ -1286,6 +1282,7 @@ onBeforeUnmount(() => {
 			<div class="p-4">
 				<GradeVariantEditor
 					:category="selectedCategoryData"
+					:gender-variants="availableGenderVariants"
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
 					:can-edit="canEditTemplates"
@@ -1317,7 +1314,8 @@ onBeforeUnmount(() => {
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
-					@quick-add-gender-preset="applyGenderVariantPreset"
+					@quick-add-gender-variant="applyGenderVariant"
+					@create-gender-variant="openAddPartModalForGenderVariant"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
@@ -1344,6 +1342,7 @@ onBeforeUnmount(() => {
 				</p>
 				<GradeVariantEditor
 					:category="selectedCategoryData"
+					:gender-variants="availableGenderVariants"
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
 					:can-edit="canEditTemplates"
@@ -1375,7 +1374,8 @@ onBeforeUnmount(() => {
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
-					@quick-add-gender-preset="applyGenderVariantPreset"
+					@quick-add-gender-variant="applyGenderVariant"
+					@create-gender-variant="openAddPartModalForGenderVariant"
 					@edit-sentence-part="handleEditSentencePart"
 					@delete-sentence-part="handleDeleteSentencePart"
 					@reorder-sentence-parts="handleReorderSentenceParts"
@@ -1434,58 +1434,19 @@ onBeforeUnmount(() => {
 		:ui="{ footer: 'justify-end' }"
 	>
 		<template #body>
-			<UFormField label="Typ" name="add-part-type">
-				<UTabs
-					:items="addPartTabItems"
-					:model-value="addPartType"
-					:content="false"
-					class="w-full"
-					@update:model-value="(value) => (addPartType = value as typeof addPartType)"
-				/>
-			</UFormField>
-			<p class="mt-2 text-sm text-muted">{{ addPartHelp }}</p>
-			<template v-if="addPartType === 'text'">
-				<UFormField label="Text" name="add-part-text" class="mt-3">
-					<UInput v-model="addPartText" placeholder="Text eingeben" autofocus @keydown.enter="confirmAddPart" />
-				</UFormField>
-			</template>
-			<template v-else-if="addPartType === 'genderVariant'">
-				<div class="mt-3 flex items-start gap-2">
-					<div class="flex-1">
-						<UFormField label="Männliche Form" name="add-part-male">
-							<UInput v-model="addPartMale" placeholder="z. B. Er" autofocus />
-						</UFormField>
-						<UFormField label="Weibliche Form" name="add-part-female">
-							<UInput v-model="addPartFemale" placeholder="z. B. Sie" @keydown.enter="confirmAddPart" />
-						</UFormField>
-					</div>
-					<div class="flex shrink-0 flex-col gap-1 pt-6">
-						<UButton
-							v-for="preset in genderVariantPresets"
-							:key="preset.label"
-							:label="preset.label"
-							color="neutral"
-							variant="outline"
-							size="xs"
-							@click="applyGenderVariantPreset(preset)"
-						/>
-					</div>
-				</div>
-			</template>
-			<template v-else-if="addPartType === 'name'">
-				<p class="mt-3 text-sm text-muted">Keine weitere Eingabe nötig.</p>
-			</template>
-			<template v-else-if="addPartType === 'optionalGroup'">
-				<p class="mt-3 text-sm text-muted">
-					Die Gruppe startet leer. Füge anschließend Bausteine über das Plus in der Gruppe hinzu.
-				</p>
-				<UCheckbox
-					:model-value="addPartOptionalEnabledByDefault"
-					label="Standardmäßig aktiv"
-					class="mt-3"
-					@update:model-value="addPartOptionalEnabledByDefault = Boolean($event)"
-				/>
-			</template>
+			<SentencePartAddModalBody
+				key="template-add-part"
+				v-model:part-type="addPartType"
+				v-model:part-text="addPartText"
+				v-model:part-male="addPartMale"
+				v-model:part-female="addPartFemale"
+				v-model:optional-enabled-by-default="addPartOptionalEnabledByDefault"
+				:add-part-tab-items="addPartTabItems"
+				:add-part-help="addPartHelp"
+				gender-preset-mode="insert"
+				@submit="confirmAddPart"
+				@apply-gender-preset="(value) => { applyGenderVariant(value); addPartModalOpen = false }"
+			/>
 		</template>
 		<template #footer="{ close }">
 			<UButton label="Abbrechen" color="neutral" variant="outline" @click="close()" />
