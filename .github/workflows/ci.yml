@@ -15,6 +15,10 @@ jobs:
   quality:
     runs-on: ubuntu-latest
 
+    env:
+          NUXT_PUBLIC_CONVEX_URL: ${{ vars.NUXT_PUBLIC_CONVEX_URL }}
+          NUXT_APP_BASE_URL: /
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,10 +42,7 @@ jobs:
         run: npm run typecheck
 
       - name: Generate static site
-        run: npm run generate
-        env:
-          NUXT_PUBLIC_CONVEX_URL: ${{ vars.NUXT_PUBLIC_CONVEX_URL }}
-          NUXT_APP_BASE_URL: /
+        run: npm run generate  
 
   deploy:
     needs: quality
@@ -61,6 +62,10 @@ jobs:
       group: github-pages
       cancel-in-progress: false
 
+    env:
+          NUXT_PUBLIC_CONVEX_URL: ${{ vars.NUXT_PUBLIC_CONVEX_URL }}
+          NUXT_APP_BASE_URL: /
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,9 +84,6 @@ jobs:
 
       - name: Generate static site
         run: npm run generate
-        env:
-          NUXT_PUBLIC_CONVEX_URL: ${{ vars.NUXT_PUBLIC_CONVEX_URL }}
-          NUXT_APP_BASE_URL: /
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
