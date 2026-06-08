@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values'
+import { getAuthUserId } from '@convex-dev/auth/server'
 import { mutation, query } from './_generated/server'
 import { getActiveMembershipForUser, requireTemplateManagerOrAdmin, requireUser } from './lib/auth'
 import { templateDataValidator } from './schema'
@@ -60,7 +61,8 @@ function summarizeTemplateData(data: {
 }
 
 async function getCurrentMembership(ctx: Parameters<typeof requireUser>[0]) {
-	const { userId } = await requireUser(ctx)
+	const userId = await getAuthUserId(ctx)
+	if (!userId) return null
 	return await getActiveMembershipForUser(ctx, userId)
 }
 

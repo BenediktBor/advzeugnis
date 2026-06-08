@@ -1,6 +1,19 @@
 <script setup lang="ts">
 const { currentUser, canEditTemplates } = useCurrentUser()
-const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
+const {
+	hasAnyTemplateSets,
+	isLoaded,
+	storageLoadError,
+	remoteLoadError,
+} = useTemplateSets()
+
+const remoteLoadErrorDescription = computed(() =>
+	remoteLoadError.value instanceof Error
+		? remoteLoadError.value.message
+		: remoteLoadError.value
+			? String(remoteLoadError.value)
+			: undefined
+)
 </script>
 
 <template>
@@ -20,7 +33,14 @@ const { hasAnyTemplateSets, isLoaded, loadError } = useTemplateSets()
 					icon="i-lucide-loader-2"
 					loading
 				/>
-				<StorageLoadErrorAlert v-else-if="loadError" />
+				<StorageLoadErrorAlert v-else-if="storageLoadError" />
+				<AppStateNotice
+					v-else-if="remoteLoadError"
+					title="Vorlagen konnten nicht geladen werden"
+					:description="remoteLoadErrorDescription"
+					icon="i-lucide-cloud-alert"
+					tone="error"
+				/>
 				<AppStateNotice
 					v-else-if="!hasAnyTemplateSets"
 					title="Zuerst Satzvorlagen anlegen"

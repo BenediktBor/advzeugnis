@@ -22,7 +22,7 @@ const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoadError } = useStudents()
-const { orderedIds, defaultAlphabeticalTemplateSetId, loadError: templatesLoadError } =
+const { orderedIds, defaultAlphabeticalTemplateSetId, remoteLoadError: templatesRemoteLoadError } =
 	useTemplateSets()
 const { canEditTemplates } = useCurrentUser()
 const { copyToClipboard } = useClipboardCopy()
@@ -39,7 +39,14 @@ const effectiveTemplateSetId = computed(() => {
 const { getSet } = useTemplates(
 	computed(() => effectiveTemplateSetId.value ?? '')
 )
-const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.value)
+const loadError = computed(() => studentsLoadError.value)
+const templatesRemoteLoadErrorDescription = computed(() =>
+	templatesRemoteLoadError.value instanceof Error
+		? templatesRemoteLoadError.value.message
+		: templatesRemoteLoadError.value
+			? String(templatesRemoteLoadError.value)
+			: undefined
+)
 
 const student = computed(() => students.value.find((s) => s.id === id.value))
 const isDeletingStudent = ref(false)
@@ -572,6 +579,13 @@ watch(
 				loading
 			/>
 			<StorageLoadErrorAlert v-else-if="loadError" />
+			<AppStateNotice
+				v-else-if="templatesRemoteLoadError"
+				title="Vorlagen konnten nicht geladen werden"
+				:description="templatesRemoteLoadErrorDescription"
+				icon="i-lucide-cloud-alert"
+				tone="error"
+			/>
 			<AppStateNotice
 				v-else-if="!student"
 				title="Schüler nicht gefunden"

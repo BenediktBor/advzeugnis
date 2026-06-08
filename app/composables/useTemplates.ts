@@ -257,6 +257,11 @@ function toError(value: unknown) {
 	return value instanceof Error ? value : new Error(String(value))
 }
 
+function isAuthStartupError(error: Error | null | undefined) {
+	if (!error) return false
+	return /not authenticated|unauthenticated/i.test(error.message)
+}
+
 function useOptionalConvexClient(onError?: (err: Error) => void) {
 	try {
 		return useConvexClient()
@@ -298,6 +303,10 @@ export function useTemplateSets() {
 			convexSetupError.value = err
 		},
 	)
+
+	function isConvexListReady() {
+		return !templateSetsQuery.isPending.value && templateSetsQuery.data.value !== undefined
+	}
 
 	watchEffect(() => {
 		const remoteSets = templateSetsQuery.data.value
@@ -389,7 +398,18 @@ export function useTemplateSets() {
 		() => sortedSetsWithData.value[0]?.id ?? '',
 	)
 
-	const hasAnyTemplateSets = computed(() => store.orderedIds.length > 0)
+	const hasAnyTemplateSets = computed(() => orderedIds.value.length > 0)
+	const remoteLoadError = computed(() => {
+		const queryError = templateSetsQuery.error.value
+		if (queryError && !isAuthStartupError(queryError)) return queryError
+		return convexSetupError.value
+	})
+	const storageLoadError = computed(() => {
+		if (!store.loadError) return null
+		// For school accounts, Convex is authoritative once listSummary responds.
+		if (currentUserStore.currentUser.schoolId && isConvexListReady()) return null
+		return store.loadError
+	})
 
 	function getSetLabel(setId: string): string {
 		return remoteSummaries.value?.find((row) => row.id === setId)?.label ?? store.getSetLabel(setId)
@@ -432,8 +452,13 @@ export function useTemplateSets() {
 		sortedSetsWithData,
 		defaultAlphabeticalTemplateSetId,
 		hasAnyTemplateSets,
-		isLoaded: computed(() => store.isLoaded && !templateSetsQuery.isPending.value),
-		loadError: computed(() => store.loadError ?? templateSetsQuery.error.value ?? convexSetupError.value),
+		isLoaded: computed(() =>
+			store.isLoaded &&
+			!templateSetsQuery.isPending.value,
+		),
+		storageLoadError,
+		remoteLoadError,
+		loadError: computed(() => storageLoadError.value ?? remoteLoadError.value),
 		syncStatus: computed(() => templateSyncStatus),
 		hasPendingSync: computed(() => Object.values(templateSyncStatus).some((status) => status.isPending)),
 		syncError: computed(() => Object.values(templateSyncStatus).find((status) => status.error)?.error ?? null),

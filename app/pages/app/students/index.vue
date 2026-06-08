@@ -13,7 +13,7 @@ const {
 	getSetData,
 	hasAnyTemplateSets,
 	isLoaded: templatesLoaded,
-	loadError: templatesLoadError,
+	remoteLoadError: templatesRemoteLoadError,
 } = useTemplateSets()
 const { canEditTemplates } = useCurrentUser()
 const createStudentModalOpen = ref(false)
@@ -108,7 +108,14 @@ function onAddStudent() {
 }
 
 const isLoaded = computed(() => studentsLoaded.value && templatesLoaded.value)
-const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.value)
+const loadError = computed(() => studentsLoadError.value)
+const templatesRemoteLoadErrorDescription = computed(() =>
+	templatesRemoteLoadError.value instanceof Error
+		? templatesRemoteLoadError.value.message
+		: templatesRemoteLoadError.value
+			? String(templatesRemoteLoadError.value)
+			: undefined
+)
 </script>
 
 <template>
@@ -211,6 +218,13 @@ const loadError = computed(() => studentsLoadError.value ?? templatesLoadError.v
 					/>
 				</div>
 				<StorageLoadErrorAlert v-else-if="loadError" />
+				<AppStateNotice
+					v-else-if="templatesRemoteLoadError"
+					title="Vorlagen konnten nicht geladen werden"
+					:description="templatesRemoteLoadErrorDescription"
+					icon="i-lucide-cloud-alert"
+					tone="error"
+				/>
 				<AppStateNotice
 					v-else-if="!hasAnyTemplateSets"
 					title="Zuerst Satzvorlagen anlegen"
