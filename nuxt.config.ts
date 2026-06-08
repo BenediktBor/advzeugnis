@@ -43,6 +43,15 @@ export default defineNuxtConfig({
 	ssr: false,
 	app: {
 		baseURL: env?.NUXT_APP_BASE_URL || '/',
+		head: {
+			link: [
+				{
+					rel: 'icon',
+					type: 'image/svg+xml',
+					href: `${(env?.NUXT_APP_BASE_URL || '/').replace(/\/?$/, '/')}favicon.svg`,
+				},
+			],
+		},
 	},
 	modules: ['@nuxt/ui', 'convex-nuxt'],
 	convex: {
