@@ -8,8 +8,9 @@ const props = withDefaults(
 		highlightedVariantId: string | null
 		label?: string
 		labelIcon?: string
+		showLabel?: boolean
 	}>(),
-	{ label: 'Textausgabe' },
+	{ label: 'Textausgabe', showLabel: true },
 )
 
 const outputRef = ref<HTMLElement | null>(null)
@@ -41,8 +42,8 @@ watch(
 
 <template>
 	<div class="flex min-h-0 flex-1 flex-col gap-2">
-		<div class="flex items-center justify-between gap-2">
-			<div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+		<div v-if="showLabel || $slots.actions" class="flex items-center justify-between gap-2">
+			<div v-if="showLabel" class="flex items-center gap-2 text-sm font-medium text-highlighted">
 				<UIcon v-if="labelIcon" :name="labelIcon" class="size-4 text-primary" />
 				<span>{{ label }}</span>
 			</div>

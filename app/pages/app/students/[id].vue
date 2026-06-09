@@ -655,21 +655,24 @@ watch(
 						</div>
 						<div>{{ mobileOutputStatus }}</div>
 					</div>
-					<UButton
-						v-if="selectedCategoryCount > 0"
-						label="Vorschau"
-						icon="i-lucide-file-text"
-						class="col-span-2"
-						@click="openTextOutput"
-					/>
-					<UButton
-						label="Kopieren"
-						icon="i-lucide-copy"
-						color="neutral"
-						variant="outline"
-						:disabled="!hasTextOutput"
-						@click="copyToClipboard(textOutputContent)"
-					/>
+					<div class="col-span-2 flex gap-2">
+						<UButton
+							v-if="selectedCategoryCount > 0"
+							label="Vorschau"
+							icon="i-lucide-file-text"
+							class="flex-1 justify-center"
+							@click="openTextOutput"
+						/>
+						<UButton
+							label="Kopieren"
+							icon="i-lucide-copy"
+							color="neutral"
+							variant="outline"
+							class="flex-1 justify-center"
+							:disabled="!hasTextOutput"
+							@click="copyToClipboard(textOutputContent)"
+						/>
+					</div>
 					<!--
 					<UButton
 						v-if="rewriter.isAvailable.value"
@@ -719,6 +722,7 @@ watch(
 		</template>
 		<template #body>
 			<TextOutputPanel
+				:show-label="false"
 				:segments="reportSegments"
 				:focused-category-id="focusedCategoryId"
 				:highlighted-variant-id="lastChangedVariantId"
@@ -742,32 +746,27 @@ watch(
 		</template>
 	</UModal>
 
-	<USlideover v-model:open="mobileTextOutputOpen" title="Textausgabe" class="lg:hidden">
+	<USlideover
+		v-model:open="mobileTextOutputOpen"
+		title="Textausgabe"
+		class="lg:hidden"
+		:ui="{ wrapper: 'flex-1 min-w-0', close: 'relative top-auto end-auto shrink-0' }"
+	>
+		<template #actions>
+			<UButton
+				label="Kopieren"
+				icon="i-lucide-copy"
+				color="neutral"
+				variant="ghost"
+				aria-label="Textausgabe in Zwischenablage kopieren"
+				:disabled="!hasTextOutput"
+				@click="copyToClipboard(textOutputContent)"
+			/>
+		</template>
 		<template #body>
-			<div class="flex flex-col gap-3 p-4">
-				<div class="flex gap-2 justify-end">
-					<UButton
-						label="Kopieren"
-						icon="i-lucide-copy"
-						color="neutral"
-						variant="outline"
-						size="sm"
-						:disabled="!hasTextOutput"
-						@click="copyToClipboard(textOutputContent)"
-					/>
-					<!--
-					<UButton
-						v-if="rewriter.isAvailable.value"
-						label="Mit KI verbessern"
-						icon="i-lucide-sparkles"
-						color="neutral"
-						variant="outline"
-						size="sm"
-						@click="onEnhanceWithAI"
-					/>
-					-->
-				</div>
+			<div class="p-4">
 				<TextOutputPanel
+					:show-label="false"
 					:segments="reportSegments"
 					:focused-category-id="focusedCategoryId"
 					:highlighted-variant-id="lastChangedVariantId"
