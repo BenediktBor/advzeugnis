@@ -1,10 +1,19 @@
 <script setup lang="ts">
+import { useMediaQuery } from '@vueuse/core'
 import { landingSentenceCreateDemoSentences } from '~/data/landingDemo'
 import { landingAnchorIds, landingDemoTabs } from '~/data/landingContent'
 import { useLocalSentencePartsEditor } from '~/composables/useLocalSentencePartsEditor'
 import { provideLandingSentenceEditor } from '~/composables/useLandingSentenceEditorContext'
 
 const demoTab = ref('report')
+const showTabBadges = useMediaQuery('(min-width: 640px)')
+
+const demoTabs = computed(() =>
+	landingDemoTabs.map((tab) => ({
+		...tab,
+		badge: showTabBadges.value ? tab.badge : undefined,
+	})),
+)
 
 const sentenceEditor = useLocalSentencePartsEditor(landingSentenceCreateDemoSentences)
 provideLandingSentenceEditor(sentenceEditor)
@@ -32,12 +41,16 @@ const {
 		title="Probiere es aus"
 		description="Kein Login nötig — wähle Noten und Formulierungen und sieh den Zeugnistext live entstehen."
 	>
-		<UCard variant="subtle" class="overflow-hidden">
+		<UCard variant="subtle" class="min-w-0 overflow-hidden">
 			<UTabs
 				v-model="demoTab"
-				:items="landingDemoTabs"
+				:items="demoTabs"
 				class="w-full"
-				:ui="{ list: 'border-b border-default px-4 pt-2', content: 'p-4 sm:p-6' }"
+				:ui="{
+					list: 'border-b border-default overflow-x-auto px-2 pt-2 sm:px-4',
+					trigger: 'text-xs whitespace-nowrap sm:text-sm',
+					content: 'min-w-0 p-4 sm:p-6',
+				}"
 			>
 				<template #report>
 					<LandingReportDemo />

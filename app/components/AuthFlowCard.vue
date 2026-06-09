@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { safeRedirectTarget } from '~/utils/authCallback'
-import { resolveStoredTokenRedirect } from '~/utils/authSession'
+import {
+	AUTH_POST_LOGIN_WAIT_MS,
+	AUTH_SESSION_WAIT_MS,
+	formatAuthError,
+	resolveStoredTokenRedirect,
+	waitForAuthenticatedSession,
+} from '~/utils/authSession'
 import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
 
 const props = withDefaults(defineProps<{
@@ -81,13 +87,36 @@ function handleBack() {
 	}
 }
 
-const STORED_TOKEN_REDIRECT_TIMEOUT_MS = 10_000
+async function redirectAfterAuthenticatedSession(timeoutMs = AUTH_POST_LOGIN_WAIT_MS) {
+	const confirmed = await waitForAuthenticatedSession(
+		() => ({ isAuthenticated: isAuthenticated.value, isLoaded: isLoaded.value }),
+		{ timeoutMs, pollMs: 50 },
+	)
+	if (confirmed) {
+		await router.replace(redirectTo.value)
+		return true
+	}
+	error.value = 'Anmeldung konnte nicht abgeschlossen werden.'
+	return false
+}
+
+function readAuthQueryError() {
+	if (route.query.sessionExpired === '1') {
+		error.value = 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
+		return true
+	}
+	if (route.query.authError === '1') {
+		const authMessage = route.query.authMessage
+		error.value = typeof authMessage === 'string'
+			? decodeURIComponent(authMessage)
+			: 'Anmeldung konnte nicht abgeschlossen werden.'
+		return true
+	}
+	return false
+}
 
 async function tryRedirectIfAuthenticated() {
-	if (route.query.authError === '1') {
-		error.value = 'Anmeldung konnte nicht abgeschlossen werden.'
-		return
-	}
+	if (readAuthQueryError()) return
 
 	const hasToken = Boolean(getStoredAuthToken())
 	const decision = resolveStoredTokenRedirect({
@@ -110,21 +139,23 @@ onMounted(async () => {
 
 	if (!getStoredAuthToken()) return
 
-	const deadline = Date.now() + STORED_TOKEN_REDIRECT_TIMEOUT_MS
-	while (Date.now() < deadline) {
-		const decision = resolveStoredTokenRedirect({
-			hasToken: true,
-			isLoaded: isLoaded.value,
-			isAuthenticated: isAuthenticated.value,
-		})
-		if (decision !== 'wait') {
-			await tryRedirectIfAuthenticated()
-			return
-		}
-		await new Promise((resolve) => setTimeout(resolve, 100))
+	const confirmed = await waitForAuthenticatedSession(
+		() => ({ isAuthenticated: isAuthenticated.value, isLoaded: isLoaded.value }),
+		{ timeoutMs: AUTH_SESSION_WAIT_MS, pollMs: 50 },
+	)
+	if (confirmed) {
+		await router.replace(redirectTo.value)
+		return
 	}
 
-	clearAuthTokens()
+	const decision = resolveStoredTokenRedirect({
+		hasToken: true,
+		isLoaded: isLoaded.value,
+		isAuthenticated: isAuthenticated.value,
+	})
+	if (decision === 'clear_and_stay') {
+		clearAuthTokens()
+	}
 })
 
 watch([isLoaded, isAuthenticated], () => {
@@ -178,16 +209,21 @@ async function submitPasswordAuth() {
 					password: form.password,
 				})
 		if (result.isSignedIn) {
-			await router.replace(redirectTo.value)
+			await redirectAfterAuthenticatedSession()
 			return
 		}
 		pendingVerificationEmail.value = form.email.trim()
-		message.value = 'Wir haben dir einen Bestaetigungscode per E-Mail geschickt.'
+		message.value = mode.value === 'signIn' && result.didStart
+			? 'Deine E-Mail ist noch nicht bestaetigt. Wir haben dir einen Code geschickt.'
+			: 'Wir haben dir einen Bestaetigungscode per E-Mail geschickt.'
 	} catch (err) {
 		console.error('[auth] sign-in failed:', err)
-		error.value = mode.value === 'signUp'
-			? 'Konto konnte nicht erstellt werden.'
-			: 'Anmeldung konnte nicht abgeschlossen werden.'
+		error.value = formatAuthError(
+			err,
+			mode.value === 'signUp'
+				? 'Konto konnte nicht erstellt werden.'
+				: 'Anmeldung konnte nicht abgeschlossen werden.',
+		)
 	} finally {
 		isSubmitting.value = false
 	}
@@ -199,10 +235,10 @@ async function submitEmailVerification() {
 	isSubmitting.value = true
 	try {
 		const result = await verifyEmail(pendingVerificationEmail.value, form.code.trim())
-		if (result.isSignedIn) await router.replace(redirectTo.value)
+		if (result.isSignedIn) await redirectAfterAuthenticatedSession()
 	} catch (err) {
 		console.error('[auth] email verification failed:', err)
-		error.value = 'Bestaetigungscode ist ungueltig oder abgelaufen.'
+		error.value = formatAuthError(err, 'Bestaetigungscode ist ungueltig oder abgelaufen.')
 	} finally {
 		isSubmitting.value = false
 	}
@@ -217,7 +253,7 @@ async function submitMagicLink() {
 		message.value = 'Wir haben dir einen Anmeldelink per E-Mail geschickt.'
 	} catch (err) {
 		console.error('[auth] magic link failed:', err)
-		error.value = 'Anmeldelink konnte nicht verschickt werden.'
+		error.value = formatAuthError(err, 'Anmeldelink konnte nicht verschickt werden.')
 	} finally {
 		isSubmitting.value = false
 	}
@@ -237,14 +273,14 @@ async function submitPasswordReset() {
 		if (!form.code.trim() || !form.newPassword) return
 		const result = await resetPassword(pendingResetEmail.value, form.code.trim(), form.newPassword)
 		if (result.isSignedIn) {
-			await router.replace(redirectTo.value)
+			await redirectAfterAuthenticatedSession()
 			return
 		}
 		setMode('signIn')
 		message.value = 'Passwort wurde aktualisiert. Du kannst dich jetzt anmelden.'
 	} catch (err) {
 		console.error('[auth] password reset failed:', err)
-		error.value = 'Passwort konnte nicht zurueckgesetzt werden.'
+		error.value = formatAuthError(err, 'Passwort konnte nicht zurueckgesetzt werden.')
 	} finally {
 		isSubmitting.value = false
 	}
@@ -252,7 +288,10 @@ async function submitPasswordReset() {
 </script>
 
 <template>
-	<div class="flex w-full max-w-md flex-col gap-4">
+	<div
+		class="flex w-full max-w-md flex-col gap-4"
+		:class="showSignUpPromo ? 'lg:max-w-4xl' : ''"
+	>
 		<UButton
 			v-if="backTo"
 			:to="backTo"
@@ -272,7 +311,11 @@ async function submitPasswordReset() {
 			@click="handleBack"
 		/>
 
-		<UCard class="w-full">
+		<div
+			class="flex w-full flex-col gap-4"
+			:class="showSignUpPromo ? 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-6' : ''"
+		>
+		<UCard class="w-full min-w-0">
 		<template #header>
 			<div class="space-y-1">
 				<h1 class="text-xl font-semibold text-highlighted">{{ title }}</h1>
@@ -426,7 +469,7 @@ async function submitPasswordReset() {
 		</div>
 		</UCard>
 
-		<UCard v-if="showSignUpPromo" variant="soft" class="w-full">
+		<UCard v-if="showSignUpPromo" variant="soft" class="w-full min-w-0">
 			<div class="flex flex-col gap-3">
 				<p class="text-sm font-medium text-highlighted">Neu hier?</p>
 				<p class="text-sm text-muted">
@@ -441,5 +484,6 @@ async function submitPasswordReset() {
 				</NuxtLink>
 			</div>
 		</UCard>
+		</div>
 	</div>
 </template>

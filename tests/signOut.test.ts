@@ -45,7 +45,10 @@ describe('sign out guard', () => {
 		const action = vi.fn()
 		const client = {
 			action,
-			setAuth: vi.fn((callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>) => {
+			setAuth: vi.fn((
+				callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>,
+				_onChange?: (confirmed: boolean) => void,
+			) => {
 				client.authCallback = callback
 			}),
 			authCallback: null as null | ((args: { forceRefreshToken: boolean }) => Promise<string | null>),
@@ -64,7 +67,10 @@ describe('sign out guard', () => {
 		storeAuthTokens({ token: 'access', refreshToken: 'refresh' })
 		const client = {
 			action: vi.fn(),
-			setAuth: vi.fn((callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>) => {
+			setAuth: vi.fn((
+				callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>,
+				_onChange?: (confirmed: boolean) => void,
+			) => {
 				client.authCallback = callback
 			}),
 			authCallback: null as null | ((args: { forceRefreshToken: boolean }) => Promise<string | null>),
@@ -82,6 +88,37 @@ describe('sign out guard', () => {
 		clearAuthTokens()
 		expect(getStoredAuthToken()).toBeNull()
 		expect(getStoredRefreshToken()).toBeNull()
+	})
+
+	it('retries token refresh on network errors before clearing tokens', async () => {
+		vi.useFakeTimers()
+		localStorage.setItem('advanced-zeugnis-convex-refresh-token', 'refresh')
+		const networkError = new TypeError('Failed to fetch')
+		const action = vi.fn()
+			.mockRejectedValueOnce(networkError)
+			.mockResolvedValueOnce({
+				tokens: { token: 'new-access', refreshToken: 'new-refresh' },
+			})
+		const client = {
+			action,
+			setAuth: vi.fn((
+				callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>,
+				_onChange?: (confirmed: boolean) => void,
+			) => {
+				client.authCallback = callback
+			}),
+			authCallback: null as null | ((args: { forceRefreshToken: boolean }) => Promise<string | null>),
+		}
+
+		configureConvexAuth(client as never)
+		const refreshPromise = client.authCallback!({ forceRefreshToken: true })
+		await vi.advanceTimersByTimeAsync(600)
+		const token = await refreshPromise
+
+		expect(token).toBe('new-access')
+		expect(action).toHaveBeenCalledTimes(2)
+		expect(getStoredAuthToken()).toBe('new-access')
+		vi.useRealTimers()
 	})
 })
 
@@ -110,11 +147,12 @@ describe('resolveStoredTokenRedirect', () => {
 		})).toBe('redirect')
 	})
 
-	it('clears stale tokens when loaded but unauthenticated', () => {
+	it('clears stale tokens when loaded but unauthenticated outside grace period', () => {
 		expect(resolveStoredTokenRedirect({
 			hasToken: true,
 			isLoaded: true,
 			isAuthenticated: false,
+			withinGracePeriod: false,
 		})).toBe('clear_and_stay')
 	})
 })

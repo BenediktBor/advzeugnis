@@ -360,8 +360,8 @@ function toggleCategoryBody(categoryId: string) {
 <template>
 	<div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-default bg-default/80 shadow-sm">
 		<div class="border-b border-default px-4 py-3">
-			<div class="flex items-start justify-between gap-3">
-				<div class="space-y-1">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+				<div class="min-w-0 space-y-1">
 					<div class="text-sm font-medium text-default">Satzauswahl</div>
 					<p class="text-xs leading-relaxed text-muted">
 						Wähle pro Kategorie eine Stufe und mindestens eine Variante. Die aktive Auswahl wird in der Textausgabe hervorgehoben.
@@ -412,7 +412,7 @@ function toggleCategoryBody(categoryId: string) {
 					class="rounded-lg border border-default bg-default p-4 shadow-sm transition-colors"
 					:class="focusedCategoryId === row.categoryId ? 'bg-primary/5 border-primary/30 shadow-none' : ''"
 				>
-					<div class="flex items-start justify-between gap-3">
+					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div class="flex min-w-0 flex-1 items-start gap-2">
 							<UButton
 								:icon="

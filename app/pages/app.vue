@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { useCurrentUserStore } from '~/stores/currentUser'
+import { AUTH_SESSION_WAIT_MS, resolveStoredTokenRedirect } from '~/utils/authSession'
 import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
 
 definePageMeta({ layout: 'dashboard' })
-
-const AUTH_CHECK_TIMEOUT_MS = 10_000
 
 const route = useRoute()
 const { isLoaded, isAuthenticated, authError } = useCurrentUser()
@@ -13,39 +12,61 @@ const hasStoredToken = computed(
 	() => import.meta.client && Boolean(getStoredAuthToken()),
 )
 
+const redirectDecision = computed(() => resolveStoredTokenRedirect({
+	hasToken: hasStoredToken.value,
+	isLoaded: isLoaded.value,
+	isAuthenticated: isAuthenticated.value,
+}))
+
 const isCheckingAuth = computed(() => {
 	if (!import.meta.client) return true
-	if (!hasStoredToken.value) return false
-	return !isLoaded.value
+	return redirectDecision.value === 'wait'
 })
 
-watchEffect(() => {
-	if (!import.meta.client) return
-	if (isCheckingAuth.value) return
-	if (isAuthenticated.value) return
+function redirectToSignIn(options?: { sessionExpired?: boolean }) {
 	void navigateTo({
 		path: '/sign-in',
-		query: { redirect: route.fullPath },
+		query: {
+			redirect: route.fullPath,
+			...(options?.sessionExpired ? { sessionExpired: '1' } : {}),
+		},
 	}, { replace: true })
-})
+}
 
-let authCheckTimeout: ReturnType<typeof setTimeout> | null = null
-
-watch(isCheckingAuth, (checking) => {
-	if (authCheckTimeout) {
-		clearTimeout(authCheckTimeout)
-		authCheckTimeout = null
-	}
-	if (!checking || !import.meta.client) return
-
-	authCheckTimeout = setTimeout(() => {
+watch(redirectDecision, (decision) => {
+	if (!import.meta.client) return
+	if (decision === 'clear_and_stay') {
 		clearAuthTokens()
 		useCurrentUserStore().clearUser()
-		void navigateTo({
-			path: '/sign-in',
-			query: { redirect: route.fullPath },
-		}, { replace: true })
-	}, AUTH_CHECK_TIMEOUT_MS)
+		redirectToSignIn({ sessionExpired: true })
+	}
+}, { immediate: true })
+
+let authCheckTimeout: ReturnType<typeof setTimeout> | null = null
+let authWaitDeadlineScheduled = false
+
+function scheduleMonotonicAuthDeadline() {
+	if (!import.meta.client || !hasStoredToken.value || authWaitDeadlineScheduled) return
+	authWaitDeadlineScheduled = true
+
+	authCheckTimeout = setTimeout(() => {
+		if (isAuthenticated.value) return
+		clearAuthTokens()
+		useCurrentUserStore().clearUser()
+		redirectToSignIn({ sessionExpired: true })
+	}, AUTH_SESSION_WAIT_MS)
+}
+
+watch(hasStoredToken, (hasToken) => {
+	if (!hasToken) {
+		authWaitDeadlineScheduled = false
+		if (authCheckTimeout) {
+			clearTimeout(authCheckTimeout)
+			authCheckTimeout = null
+		}
+		return
+	}
+	scheduleMonotonicAuthDeadline()
 }, { immediate: true })
 
 onUnmounted(() => {

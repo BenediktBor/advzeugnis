@@ -10,14 +10,14 @@ const coverageSummary = computed(() => demo.coverageSummary.value)
 
 <template>
 	<div class="flex flex-wrap items-end gap-3">
-		<UFormField label="Vorname" name="demo-name" class="min-w-[120px] flex-1">
+		<UFormField label="Vorname" name="demo-name" class="w-full min-w-0 flex-1 sm:min-w-[120px]">
 			<UInput
 				:model-value="student.name"
 				placeholder="Vorname"
 				@update:model-value="demo.setStudentName(String($event ?? ''))"
 			/>
 		</UFormField>
-		<UFormField label="Geschlecht" name="demo-gender" class="min-w-[140px]">
+		<UFormField label="Geschlecht" name="demo-gender" class="w-full min-w-0 sm:w-auto sm:min-w-[140px]">
 			<USelect
 				:model-value="student.gender"
 				:items="studentGenderItems"
@@ -26,6 +26,7 @@ const coverageSummary = computed(() => demo.coverageSummary.value)
 			/>
 		</UFormField>
 		<CategoryProgressCircle
+			class="basis-full sm:basis-auto"
 			:value="coverageSummary.completed"
 			:total="coverageSummary.total"
 			label="Fortschritt"

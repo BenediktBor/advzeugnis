@@ -5,11 +5,11 @@ import {
 	hasAuthCallbackParam,
 	resolvePostLoginDestination,
 } from '~/utils/authCallback'
+import { formatAuthError } from '~/utils/authSession'
 import { api } from '~/utils/convexApi'
 import {
-	configureConvexAuth,
+	applyAuthTokensAfterLogin,
 	getStoredAuthToken,
-	storeAuthTokens,
 } from '~/utils/convexAuthClient'
 
 let signingInWithCodeFromURL = false
@@ -38,10 +38,11 @@ export default defineNuxtPlugin({
 			}
 
 			if (result.tokens) {
-				storeAuthTokens(result.tokens)
-				configureConvexAuth(client)
-				await router.replace(destination)
-				return
+				const confirmed = await applyAuthTokensAfterLogin(client, result.tokens)
+				if (confirmed) {
+					await router.replace(destination)
+					return
+				}
 			}
 
 			await router.replace({
@@ -52,7 +53,13 @@ export default defineNuxtPlugin({
 			console.error('[auth] sign-in callback failed:', err)
 			await router.replace({
 				path: '/sign-in',
-				query: { authError: '1', redirect: destination },
+				query: {
+					authError: '1',
+					redirect: destination,
+					authMessage: encodeURIComponent(
+						formatAuthError(err, 'Anmeldung konnte nicht abgeschlossen werden.'),
+					),
+				},
 			})
 		} finally {
 			signingInWithCodeFromURL = false

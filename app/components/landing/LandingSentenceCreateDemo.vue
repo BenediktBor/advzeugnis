@@ -25,8 +25,8 @@ const genderVariants = computed(() => collectGenderVariantsFromTemplateSet(landi
 </script>
 
 <template>
-	<div class="grid gap-6 lg:grid-cols-2 min-h-[360px]">
-		<div class="flex flex-col gap-4">
+	<div class="flex flex-col gap-6 lg:grid lg:min-h-[360px] lg:grid-cols-2 lg:items-start">
+		<div class="flex min-w-0 flex-col gap-4">
 			<p class="text-sm text-muted">
 				Bausteine hinzufügen, verschieben und bearbeiten — die Vorschau aktualisiert sich live.
 			</p>
@@ -40,7 +40,7 @@ const genderVariants = computed(() => collectGenderVariantsFromTemplateSet(landi
 				@create-gender-variant="openAddModalForGenderVariant()"
 			/>
 
-			<UCard variant="subtle">
+			<UCard variant="subtle" class="max-h-[min(70vh,640px)] overflow-y-auto lg:max-h-none lg:overflow-visible">
 				<SortablePillList
 					:parts="sentences"
 					can-edit
@@ -58,7 +58,7 @@ const genderVariants = computed(() => collectGenderVariantsFromTemplateSet(landi
 			</UCard>
 		</div>
 
-		<div class="flex flex-col gap-3">
+		<div class="flex min-w-0 flex-col gap-3 border-t border-default pt-4 lg:border-t-0 lg:pt-0">
 			<div class="flex items-center gap-2 text-sm font-medium text-highlighted">
 				<UIcon name="i-lucide-eye" class="size-4 text-primary" />
 				Live-Vorschau

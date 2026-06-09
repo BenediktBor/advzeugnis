@@ -1,16 +1,16 @@
 import { useConvexClient } from 'convex-vue'
-import {
-	authCallbackParamsFromSearch,
-	buildMagicLinkCallbackUrl,
-} from '~/utils/authCallback'
+import isNetworkError from 'is-network-error'
+import { buildMagicLinkCallbackUrl } from '~/utils/authCallback'
 import { api } from '~/utils/convexApi'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import {
+	applyAuthTokensAfterLogin,
 	beginSignOut,
-	configureConvexAuth,
 	finalizeClientSignOut,
-	storeAuthTokens,
 } from '~/utils/convexAuthClient'
+
+const SIGN_IN_RETRY_BACKOFF_MS = [500, 2000]
+const SIGN_IN_RETRY_JITTER_MS = 100
 
 type SignInResult = {
 	redirect?: string
@@ -26,34 +26,46 @@ type PasswordCredentials = {
 	password: string
 }
 
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export function useConvexAuthActions() {
 	const client = useConvexClient()
 
-	function handleSignInResult(result: SignInResult) {
+	async function handleSignInResult(result: SignInResult) {
 		if (result.redirect) {
 			window.location.href = result.redirect
 		}
+		let isSignedIn = false
 		if (result.tokens) {
-			storeAuthTokens(result.tokens)
-			configureConvexAuth(client)
+			isSignedIn = await applyAuthTokensAfterLogin(client, result.tokens)
 		}
 		return {
 			didStart: Boolean(result.started),
-			isSignedIn: Boolean(result.tokens),
+			isSignedIn,
 		}
 	}
 
 	async function runSignIn(provider: string | undefined, params: Record<string, string>) {
 		const payload = provider ? { provider, params } : { params }
-		const result = await client.action(api.auth.signIn, payload) as SignInResult
-		return handleSignInResult(result)
-	}
+		let lastError: unknown
 
-	async function completeSignInFromUrl() {
-		const params = authCallbackParamsFromSearch(window.location.search)
-		if (Object.keys(params).length === 0) return false
-		const result = await client.action(api.auth.signIn, { params }) as SignInResult
-		return handleSignInResult(result).isSignedIn
+		for (let attempt = 0; attempt <= SIGN_IN_RETRY_BACKOFF_MS.length; attempt++) {
+			try {
+				const result = await client.action(api.auth.signIn, payload) as SignInResult
+				return await handleSignInResult(result)
+			} catch (err) {
+				lastError = err
+				if (!isNetworkError(err) || attempt === SIGN_IN_RETRY_BACKOFF_MS.length) {
+					break
+				}
+				const wait = SIGN_IN_RETRY_BACKOFF_MS[attempt]! + SIGN_IN_RETRY_JITTER_MS * Math.random()
+				await sleep(wait)
+			}
+		}
+
+		throw lastError
 	}
 
 	async function signUpWithPassword(credentials: PasswordCredentials) {
@@ -115,7 +127,6 @@ export function useConvexAuthActions() {
 	}
 
 	return {
-		completeSignInFromUrl,
 		requestMagicLink,
 		requestPasswordReset,
 		resetPassword,

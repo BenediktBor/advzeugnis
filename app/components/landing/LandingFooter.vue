@@ -11,6 +11,12 @@ const year = new Date().getFullYear()
 				© {{ year }} AdvancedZeugnis
 			</p>
 		</template>
-		<UFooterColumns :columns="landingFooterColumns" />
+		<UFooterColumns
+			:columns="landingFooterColumns"
+			:ui="{
+				center: 'items-center text-center',
+				list: 'mt-6 flex list-none flex-col items-center gap-4 space-y-0 lg:flex-row lg:items-center lg:justify-center lg:gap-x-6',
+			}"
+		/>
 	</UFooter>
 </template>

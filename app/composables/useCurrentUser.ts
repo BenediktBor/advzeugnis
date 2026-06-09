@@ -1,5 +1,6 @@
 import { storeToRefs } from 'pinia'
 import { useConvexQuery } from 'convex-vue'
+import { shouldClearStaleSession } from '~/utils/authSession'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
@@ -46,7 +47,11 @@ export function useCurrentUser() {
 		[viewer.data, viewer.isPending],
 		([data, isPending]) => {
 			if (isPending || data) return
-			if (!getStoredAuthToken()) return
+			if (!shouldClearStaleSession({
+				hasToken: Boolean(getStoredAuthToken()),
+				isLoaded: true,
+				isAuthenticated: false,
+			})) return
 			clearAuthTokens()
 			store.clearUser()
 		},
