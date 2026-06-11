@@ -90,6 +90,38 @@ describe('sign out guard', () => {
 		expect(getStoredRefreshToken()).toBeNull()
 	})
 
+	it('does not clear tokens replaced during a failed refresh', async () => {
+		storeAuthTokens({ token: 'stale-access', refreshToken: 'stale-refresh' })
+
+		let resolveRefresh: (value: { tokens: null }) => void
+		const refreshDeferred = new Promise<{ tokens: null }>((resolve) => {
+			resolveRefresh = resolve
+		})
+		const action = vi.fn(() => refreshDeferred)
+		const client = {
+			action,
+			setAuth: vi.fn((
+				callback: (args: { forceRefreshToken: boolean }) => Promise<string | null>,
+				_onChange?: (confirmed: boolean) => void,
+			) => {
+				client.authCallback = callback
+			}),
+			authCallback: null as null | ((args: { forceRefreshToken: boolean }) => Promise<string | null>),
+		}
+
+		configureConvexAuth(client as never)
+		const refreshPromise = client.authCallback!({ forceRefreshToken: true })
+
+		storeAuthTokens({ token: 'new-access', refreshToken: 'new-refresh' })
+		resolveRefresh!({ tokens: null })
+
+		const token = await refreshPromise
+
+		expect(token).toBe('new-access')
+		expect(getStoredAuthToken()).toBe('new-access')
+		expect(getStoredRefreshToken()).toBe('new-refresh')
+	})
+
 	it('retries token refresh on network errors before clearing tokens', async () => {
 		vi.useFakeTimers()
 		localStorage.setItem('advanced-zeugnis-convex-refresh-token', 'refresh')

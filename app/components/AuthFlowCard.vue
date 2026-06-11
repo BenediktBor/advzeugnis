@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { useConvexClient } from 'convex-vue'
 import { safeRedirectTarget } from '~/utils/authCallback'
 import {
 	AUTH_POST_LOGIN_WAIT_MS,
-	AUTH_SESSION_WAIT_MS,
+	clearStaleAuthSession,
 	formatAuthError,
 	resolveStoredTokenRedirect,
+	shouldClearStaleSession,
 	waitForAuthenticatedSession,
 } from '~/utils/authSession'
-import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
+import { getStoredAuthToken } from '~/utils/convexAuthClient'
 
 const props = withDefaults(defineProps<{
 	initialMode?: 'signIn' | 'signUp' | 'magic' | 'reset'
@@ -17,6 +19,7 @@ const props = withDefaults(defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const client = useConvexClient()
 const { isLoaded, isAuthenticated } = useCurrentUser()
 const {
 	requestMagicLink,
@@ -115,6 +118,17 @@ function readAuthQueryError() {
 	return false
 }
 
+function clearStaleSessionIfNeeded() {
+	if (!shouldClearStaleSession({
+		hasToken: Boolean(getStoredAuthToken()),
+		isLoaded: isLoaded.value,
+		isAuthenticated: isAuthenticated.value,
+	})) return false
+
+	clearStaleAuthSession(client)
+	return true
+}
+
 async function tryRedirectIfAuthenticated() {
 	if (readAuthQueryError()) return
 
@@ -131,35 +145,17 @@ async function tryRedirectIfAuthenticated() {
 		return
 	}
 
-	clearAuthTokens()
+	clearStaleAuthSession(client)
 }
 
 onMounted(async () => {
 	await tryRedirectIfAuthenticated()
-
-	if (!getStoredAuthToken()) return
-
-	const confirmed = await waitForAuthenticatedSession(
-		() => ({ isAuthenticated: isAuthenticated.value, isLoaded: isLoaded.value }),
-		{ timeoutMs: AUTH_SESSION_WAIT_MS, pollMs: 50 },
-	)
-	if (confirmed) {
-		await router.replace(redirectTo.value)
-		return
-	}
-
-	const decision = resolveStoredTokenRedirect({
-		hasToken: true,
-		isLoaded: isLoaded.value,
-		isAuthenticated: isAuthenticated.value,
-	})
-	if (decision === 'clear_and_stay') {
-		clearAuthTokens()
-	}
+	clearStaleSessionIfNeeded()
 })
 
 watch([isLoaded, isAuthenticated], () => {
 	void tryRedirectIfAuthenticated()
+	clearStaleSessionIfNeeded()
 })
 
 watch(
@@ -197,6 +193,7 @@ async function submitPasswordAuth() {
 		error.value = 'Bitte bestätige die Datenschutzerklärung.'
 		return
 	}
+	clearStaleSessionIfNeeded()
 	isSubmitting.value = true
 	try {
 		const result = mode.value === 'signUp'

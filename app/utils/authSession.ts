@@ -1,7 +1,10 @@
 import type { ConvexClient } from 'convex/browser'
+import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import {
+	clearAuthTokens,
 	isWithinTokenGracePeriod,
+	mutexConfigureConvexAuth,
 	waitForAuthHandshake,
 } from '~/utils/convexAuthClient'
 
@@ -26,6 +29,14 @@ export function resolveStoredTokenRedirect({
 	if (isAuthenticated) return 'redirect'
 	if (withinGracePeriod) return 'wait'
 	return 'clear_and_stay'
+}
+
+export function clearStaleAuthSession(client?: ConvexClient) {
+	clearAuthTokens()
+	useCurrentUserStore().clearUser()
+	if (client) {
+		void mutexConfigureConvexAuth(client)
+	}
 }
 
 export function shouldClearStaleSession({

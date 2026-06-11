@@ -1,9 +1,9 @@
 import { storeToRefs } from 'pinia'
 import { useConvexQuery } from 'convex-vue'
-import { shouldClearStaleSession } from '~/utils/authSession'
+import { clearStaleAuthSession, shouldClearStaleSession } from '~/utils/authSession'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
-import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
+import { getStoredAuthToken } from '~/utils/convexAuthClient'
 
 export function useCurrentUser() {
 	const store = useCurrentUserStore()
@@ -52,8 +52,7 @@ export function useCurrentUser() {
 				isLoaded: true,
 				isAuthenticated: false,
 			})) return
-			clearAuthTokens()
-			store.clearUser()
+			clearStaleAuthSession()
 		},
 	)
 

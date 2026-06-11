@@ -1,29 +1,27 @@
 <script setup lang="ts">
-import { useCurrentUserStore } from '~/stores/currentUser'
-import { AUTH_SESSION_WAIT_MS, resolveStoredTokenRedirect } from '~/utils/authSession'
-import { clearAuthTokens, getStoredAuthToken } from '~/utils/convexAuthClient'
+import { AUTH_SESSION_WAIT_MS, clearStaleAuthSession } from '~/utils/authSession'
+import { getStoredAuthToken, isWithinTokenGracePeriod } from '~/utils/convexAuthClient'
 
 definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const { isLoaded, isAuthenticated, authError } = useCurrentUser()
 
-const hasStoredToken = computed(
-	() => import.meta.client && Boolean(getStoredAuthToken()),
-)
-
-const redirectDecision = computed(() => resolveStoredTokenRedirect({
-	hasToken: hasStoredToken.value,
-	isLoaded: isLoaded.value,
-	isAuthenticated: isAuthenticated.value,
-}))
+let hasRedirectedToSignIn = false
+let authCheckTimeout: ReturnType<typeof setTimeout> | null = null
+let authWaitDeadlineScheduled = false
 
 const isCheckingAuth = computed(() => {
-	if (!import.meta.client) return true
-	return redirectDecision.value === 'wait'
+	if (!import.meta.client || hasRedirectedToSignIn) return false
+	if (isAuthenticated.value) return false
+	if (!isLoaded.value) return true
+	return isWithinTokenGracePeriod()
 })
 
 function redirectToSignIn(options?: { sessionExpired?: boolean }) {
+	if (hasRedirectedToSignIn) return
+	hasRedirectedToSignIn = true
+
 	void navigateTo({
 		path: '/sign-in',
 		query: {
@@ -33,37 +31,41 @@ function redirectToSignIn(options?: { sessionExpired?: boolean }) {
 	}, { replace: true })
 }
 
-watch(redirectDecision, (decision) => {
-	if (!import.meta.client) return
-	if (decision === 'clear_and_stay') {
-		clearAuthTokens()
-		useCurrentUserStore().clearUser()
-		redirectToSignIn({ sessionExpired: true })
-	}
-}, { immediate: true })
+function handleUnauthenticatedSession() {
+	if (!import.meta.client || hasRedirectedToSignIn) return
+	if (!isLoaded.value || isAuthenticated.value) return
+	if (isWithinTokenGracePeriod()) return
 
-let authCheckTimeout: ReturnType<typeof setTimeout> | null = null
-let authWaitDeadlineScheduled = false
+	const hadToken = Boolean(getStoredAuthToken())
+	clearStaleAuthSession()
+	redirectToSignIn({ sessionExpired: hadToken })
+}
 
 function scheduleMonotonicAuthDeadline() {
-	if (!import.meta.client || !hasStoredToken.value || authWaitDeadlineScheduled) return
-	authWaitDeadlineScheduled = true
+	if (!import.meta.client || authWaitDeadlineScheduled || hasRedirectedToSignIn) return
+	if (isLoaded.value) return
 
+	authWaitDeadlineScheduled = true
 	authCheckTimeout = setTimeout(() => {
-		if (isAuthenticated.value) return
-		clearAuthTokens()
-		useCurrentUserStore().clearUser()
-		redirectToSignIn({ sessionExpired: true })
+		if (isAuthenticated.value || hasRedirectedToSignIn) return
+
+		const hadToken = Boolean(getStoredAuthToken())
+		clearStaleAuthSession()
+		redirectToSignIn({ sessionExpired: hadToken })
 	}, AUTH_SESSION_WAIT_MS)
 }
 
-watch(hasStoredToken, (hasToken) => {
-	if (!hasToken) {
-		authWaitDeadlineScheduled = false
+watch([isLoaded, isAuthenticated], () => {
+	handleUnauthenticatedSession()
+}, { immediate: true })
+
+watch(isLoaded, (loaded) => {
+	if (loaded || isAuthenticated.value) {
 		if (authCheckTimeout) {
 			clearTimeout(authCheckTimeout)
 			authCheckTimeout = null
 		}
+		authWaitDeadlineScheduled = false
 		return
 	}
 	scheduleMonotonicAuthDeadline()

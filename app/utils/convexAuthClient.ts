@@ -66,13 +66,16 @@ export function isServerAuthConfirmed() {
 
 function notifyAuthHandshake(confirmed: boolean) {
 	serverAuthConfirmed = confirmed
-	if (!confirmed) return
 
 	const resolvers = pendingHandshakeResolvers
 	pendingHandshakeResolvers = []
 	for (const resolve of resolvers) {
-		resolve(true)
+		resolve(confirmed)
 	}
+}
+
+function accessTokenChangedDuringRefresh(tokenBeforeLock: string | null) {
+	return tokenBeforeLock !== currentAccessToken && currentAccessToken !== null
 }
 
 export function waitForAuthHandshake(timeoutMs = AUTH_HANDSHAKE_WAIT_MS): Promise<boolean> {
@@ -231,7 +234,7 @@ async function manualMutex<T>(key: string, callback: () => Promise<T>): Promise<
 	})
 }
 
-function mutexConfigureConvexAuth(client: ConvexClient): Promise<void> {
+export function mutexConfigureConvexAuth(client: ConvexClient): Promise<void> {
 	const run = authConfigMutex.then(() => {
 		configureConvexAuth(client)
 	})
@@ -250,12 +253,18 @@ export function configureConvexAuth(client: ConvexClient) {
 				const tokenBeforeLock = currentAccessToken
 				const refreshToken = getStoredRefreshToken()
 				if (!refreshToken) {
+					if (accessTokenChangedDuringRefresh(tokenBeforeLock)) {
+						return currentAccessToken
+					}
 					clearAuthTokens()
 					return null
 				}
 
 				const tokens = await refreshAuthTokens(client, refreshToken)
 				if (!tokens) {
+					if (accessTokenChangedDuringRefresh(tokenBeforeLock)) {
+						return currentAccessToken
+					}
 					clearAuthTokens()
 					return null
 				}

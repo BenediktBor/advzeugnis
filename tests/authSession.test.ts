@@ -1,5 +1,9 @@
+import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed, ref } from 'vue'
+import { useCurrentUserStore } from '~/stores/currentUser'
 import {
+	clearStaleAuthSession,
 	formatAuthError,
 	resolveStoredTokenRedirect,
 	shouldClearStaleSession,
@@ -278,6 +282,49 @@ describe('waitForAuthHandshake', () => {
 		onAuthChange!(true)
 
 		await expect(waitPromise).resolves.toBe(true)
+	})
+
+	it('resolves false when configureConvexAuth onChange rejects auth', async () => {
+		let onAuthChange: ((confirmed: boolean) => void) | undefined
+		const client = {
+			action: vi.fn(),
+			setAuth: vi.fn((_callback, onChange: (confirmed: boolean) => void) => {
+				onAuthChange = onChange
+			}),
+		}
+
+		configureConvexAuth(client as never)
+		const waitPromise = waitForAuthHandshake(5_000)
+		onAuthChange!(false)
+
+		await expect(waitPromise).resolves.toBe(false)
+	})
+})
+
+describe('clearStaleAuthSession', () => {
+	beforeEach(() => {
+		;(globalThis as { ref?: typeof ref; computed?: typeof computed }).ref = ref
+		;(globalThis as { ref?: typeof ref; computed?: typeof computed }).computed = computed
+		vi.stubGlobal('localStorage', createLocalStorageMock())
+		vi.stubGlobal('window', { localStorage })
+		setActivePinia(createPinia())
+		resetSignOutStateForTests()
+	})
+
+	it('clears stored tokens and resets the current user store', () => {
+		storeAuthTokens({ token: 'access', refreshToken: 'refresh' })
+		const store = useCurrentUserStore()
+		store.setStubUser({
+			id: 'user-1',
+			displayName: 'Test User',
+			email: 'test@example.com',
+			type: 'solo',
+		})
+
+		clearStaleAuthSession()
+
+		expect(getCurrentAccessToken()).toBeNull()
+		expect(store.currentUser.displayName).toBe('Demo Benutzer')
 	})
 })
 
