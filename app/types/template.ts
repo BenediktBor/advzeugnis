@@ -35,12 +35,16 @@ export interface Subject {
 	id: string
 	label: string
 	categories: Category[]
+	/** When true, subject is only visible to template editors. */
+	hidden?: boolean
 }
 
 export interface TemplateSet {
 	id: string
 	label: string
 	subjects: Subject[]
+	/** When true, entire set is only visible to template editors. */
+	hidden?: boolean
 }
 
 export type TemplateClipboardKind = 'subject' | 'category' | 'grade' | 'variant' | 'sentencePart'

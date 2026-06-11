@@ -9,11 +9,11 @@ export interface CreateStudentInput {
 
 export function useCreateStudentFlow() {
 	const router = useRouter()
-	const { orderedIds, getSetData, loadSetData, defaultAlphabeticalTemplateSetId } = useTemplateSets()
+	const { getSetData, loadSetData, defaultAlphabeticalTemplateSetId, hasAnyTemplateSets } = useTemplateSets()
 	const { addStudent } = useStudents()
 	const { hasSchool } = useCurrentUser()
 
-	const canCreateStudent = computed(() => hasSchool.value && orderedIds.value.length > 0)
+	const canCreateStudent = computed(() => hasSchool.value && hasAnyTemplateSets.value)
 
 	async function createStudentAndOpen(input: CreateStudentInput) {
 		if (!hasSchool.value) {

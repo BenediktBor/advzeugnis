@@ -9,56 +9,12 @@ import {
 	validateTemplateSetLimit,
 } from './lib/templateValidation'
 import { migrateLegacyTemplateData } from './lib/templateMigration'
-
-function summarizeTemplateData(data: {
-	subjects: Array<{
-		label: string
-		categories: Array<{
-			grades: Array<{
-				variants: unknown[]
-			}>
-		}>
-	}>
-}) {
-	const subjectLabels = data.subjects.map((subject) => subject.label)
-	const categoryCount = data.subjects.reduce(
-		(total, subject) => total + subject.categories.length,
-		0,
-	)
-	const gradeCount = data.subjects.reduce(
-		(total, subject) =>
-			total +
-			subject.categories.reduce(
-				(categoryTotal, category) => categoryTotal + category.grades.length,
-				0,
-			),
-		0,
-	)
-	const variantCount = data.subjects.reduce(
-		(total, subject) =>
-			total +
-			subject.categories.reduce(
-				(categoryTotal, category) =>
-					categoryTotal +
-					category.grades.reduce(
-						(gradeTotal, grade) => gradeTotal + grade.variants.length,
-						0,
-					),
-				0,
-			),
-		0,
-	)
-
-	return {
-		subjects: subjectLabels,
-		subjectPreview: subjectLabels.slice(0, 4),
-		remainingSubjectCount: Math.max(0, subjectLabels.length - 4),
-		subjectCount: subjectLabels.length,
-		categoryCount,
-		gradeCount,
-		variantCount,
-	}
-}
+import {
+	canSeeHiddenTemplates,
+	filterTemplateSetForRole,
+	summarizeVisibleSubjects,
+	type TemplateSetData,
+} from './lib/templateVisibility'
 
 async function getCurrentMembership(ctx: Parameters<typeof requireUser>[0]) {
 	const userId = await getAuthUserId(ctx)
@@ -77,15 +33,18 @@ export const listSummary = query({
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
 			.collect()
 
+		const role = membership.role
 		return rows
 			.sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }))
+			.filter((row) => canSeeHiddenTemplates(role) || !row.data.hidden)
 			.map((row) => ({
 				id: row.templateId,
 				label: row.label,
 				sortOrder: row.sortOrder,
 				updatedAt: row.updatedAt,
 				updatedBy: row.updatedBy,
-				...summarizeTemplateData(row.data),
+				...(canSeeHiddenTemplates(role) ? { hidden: Boolean(row.data.hidden) } : {}),
+				...summarizeVisibleSubjects(row.data as TemplateSetData, role),
 			}))
 	},
 })
@@ -101,10 +60,12 @@ export const get = query({
 			.withIndex('by_school_template', (q) => q.eq('schoolId', membership.schoolId).eq('templateId', args.templateId))
 			.unique()
 		if (!row) return null
+		const filteredData = filterTemplateSetForRole(row.data as TemplateSetData, membership.role)
+		if (!filteredData) return null
 		return {
 			id: row.templateId,
 			label: row.label,
-			data: row.data,
+			data: filteredData,
 			sortOrder: row.sortOrder,
 			updatedAt: row.updatedAt,
 			updatedBy: row.updatedBy,
@@ -123,16 +84,22 @@ export const list = query({
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
 			.collect()
 
+		const role = membership.role
 		return rows
 			.sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }))
-			.map((row) => ({
-				id: row.templateId,
-				label: row.label,
-				data: row.data,
-				sortOrder: row.sortOrder,
-				updatedAt: row.updatedAt,
-				updatedBy: row.updatedBy,
-			}))
+			.map((row) => {
+				const filteredData = filterTemplateSetForRole(row.data as TemplateSetData, role)
+				if (!filteredData) return null
+				return {
+					id: row.templateId,
+					label: row.label,
+					data: filteredData,
+					sortOrder: row.sortOrder,
+					updatedAt: row.updatedAt,
+					updatedBy: row.updatedBy,
+				}
+			})
+			.filter((row): row is NonNullable<typeof row> => row !== null)
 	},
 })
 

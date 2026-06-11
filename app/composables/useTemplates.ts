@@ -7,6 +7,7 @@ import { useTemplatesStore } from '~/stores/templates'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import { randomId } from '~/utils/randomId'
+import { summarizeVisibleTemplateSet } from '~/utils/templateVisibility'
 import type {
 	Category,
 	Grade,
@@ -21,6 +22,7 @@ import type {
 export type SetWithData = {
 	id: string
 	label: string
+	hidden?: boolean
 	subjects: string[]
 	subjectPreview: string[]
 	remainingSubjectCount: number
@@ -326,11 +328,13 @@ export function useTemplateSets() {
 	})
 
 	const orderedIds = computed(() => remoteSummaries.value?.map((row) => row.id) ?? store.orderedIds)
+	const canSeeHiddenTemplates = computed(() => currentUserStore.canEditTemplates)
 
 	const setsWithData = computed<SetWithData[]>(() =>
 		remoteSummaries.value?.map((row) => ({
 			id: row.id,
 			label: row.label,
+			hidden: row.hidden,
 			subjects: row.subjects,
 			subjectPreview: row.subjectPreview,
 			remainingSubjectCount: row.remainingSubjectCount,
@@ -341,49 +345,26 @@ export function useTemplateSets() {
 		})) ??
 		store.orderedIds.map((setId) => {
 			const setData = store.getSetData(setId)
-			const subjects = (setData?.subjects ?? []).filter(
-				(s): s is Subject => s != null,
-			)
-			const subjectLabels = subjects.map((s) => s.label)
-			const categoryCount = subjects.reduce(
-				(total, subject) => total + subject.categories.length,
-				0,
-			)
-			const gradeCount = subjects.reduce(
-				(total, subject) =>
-					total +
-					subject.categories.reduce(
-						(categoryTotal, category) => categoryTotal + category.grades.length,
-						0,
-					),
-				0,
-			)
-			const variantCount = subjects.reduce(
-				(total, subject) =>
-					total +
-					subject.categories.reduce(
-						(categoryTotal, category) =>
-							categoryTotal +
-							category.grades.reduce(
-								(gradeTotal, grade) => gradeTotal + grade.variants.length,
-								0,
-							),
-						0,
-					),
-				0,
-			)
-			const subjectPreview = subjectLabels.slice(0, 4)
+			if (!setData) {
+				return {
+					id: setId,
+					label: '',
+					subjects: [],
+					subjectPreview: [],
+					remainingSubjectCount: 0,
+					subjectCount: 0,
+					categoryCount: 0,
+					gradeCount: 0,
+					variantCount: 0,
+				}
+			}
+			const summary = summarizeVisibleTemplateSet(setData, canSeeHiddenTemplates.value)
 
 			return {
 				id: setId,
-				label: setData?.label ?? '',
-				subjects: subjectLabels,
-				subjectPreview,
-				remainingSubjectCount: Math.max(0, subjectLabels.length - subjectPreview.length),
-				subjectCount: subjectLabels.length,
-				categoryCount,
-				gradeCount,
-				variantCount,
+				label: setData.label,
+				hidden: setData.hidden,
+				...summary,
 			}
 		})
 	)
@@ -394,11 +375,21 @@ export function useTemplateSets() {
 		),
 	)
 
+	const visibleSortedSetsWithData = computed<SetWithData[]>(() => {
+		const sets = canSeeHiddenTemplates.value
+			? sortedSetsWithData.value
+			: sortedSetsWithData.value.filter((setItem) => !setItem.hidden)
+		return sets
+	})
+
 	const defaultAlphabeticalTemplateSetId = computed(
-		() => sortedSetsWithData.value[0]?.id ?? '',
+		() => visibleSortedSetsWithData.value[0]?.id ?? '',
 	)
 
-	const hasAnyTemplateSets = computed(() => orderedIds.value.length > 0)
+	const hasAnyTemplateSets = computed(() => {
+		if (canSeeHiddenTemplates.value) return orderedIds.value.length > 0
+		return visibleSortedSetsWithData.value.length > 0
+	})
 	const remoteLoadError = computed(() => {
 		const queryError = templateSetsQuery.error.value
 		if (queryError && !isAuthStartupError(queryError)) return queryError
@@ -446,10 +437,21 @@ export function useTemplateSets() {
 		return await loadRemoteTemplateSet(client, store, setId, currentUserStore.currentUser.schoolId)
 	}
 
+	async function toggleSetHidden(setId: string) {
+		const data = getSetData(setId) ?? await loadSetData(setId)
+		if (!data) return
+		const updated = produce(data, (draft) => {
+			draft.hidden = !draft.hidden
+		})
+		store.saveSetData(setId, updated)
+		syncSet(setId)
+	}
+
 	return {
 		orderedIds,
 		setsWithData,
 		sortedSetsWithData,
+		visibleSortedSetsWithData,
 		defaultAlphabeticalTemplateSetId,
 		hasAnyTemplateSets,
 		isLoaded: computed(() =>
@@ -466,6 +468,7 @@ export function useTemplateSets() {
 		loadSetData,
 		addSet,
 		removeSet,
+		toggleSetHidden,
 		getSetLabel,
 		getSetData,
 	}
@@ -567,6 +570,13 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		updateSet((draft) => {
 			const removed = draft.subjects.splice(oldIndex, 1)[0]
 			if (removed) draft.subjects.splice(newIndex, 0, removed)
+		})
+	}
+
+	function toggleSubjectHidden(subjectId: string) {
+		updateSet((draft) => {
+			const subject = draft.subjects.find((s) => s.id === subjectId)
+			if (subject) subject.hidden = !subject.hidden
 		})
 	}
 
@@ -991,6 +1001,7 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		deleteSubjects,
 		updateSubjectLabel,
 		reorderSubject,
+		toggleSubjectHidden,
 		addCategory,
 		deleteCategory,
 		insertCategories,

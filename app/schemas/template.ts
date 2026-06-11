@@ -58,12 +58,14 @@ export const SubjectSchema: z.ZodType<Subject, z.ZodTypeDef, unknown> = z.prepro
 	id: z.string().uuid(),
 	label: z.string(),
 	categories: z.array(CategorySchema),
+	hidden: z.boolean().optional(),
 }))
 
 export const TemplateSetSchema: z.ZodType<TemplateSet, z.ZodTypeDef, unknown> = z.preprocess(migrateLegacyOptionalTextInput, z.object({
 	id: z.string().uuid(),
 	label: z.string(),
 	subjects: z.array(SubjectSchema),
+	hidden: z.boolean().optional(),
 	_schemaVersion: z.number().optional(),
 }))
 

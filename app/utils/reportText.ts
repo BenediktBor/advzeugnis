@@ -9,9 +9,19 @@ import type {
 	Grade,
 	OptionalGroupChildPart,
 	SentencePart,
+	Subject,
 	TemplateSet,
 	Variant,
 } from '~/types/template'
+
+export type ReportTextOptions = {
+	excludeHiddenSubjects?: boolean
+}
+
+function getReportSubjects(templateSet: TemplateSet, options?: ReportTextOptions): Subject[] {
+	if (!options?.excludeHiddenSubjects) return templateSet.subjects
+	return templateSet.subjects.filter((subject) => !subject.hidden)
+}
 
 export interface ReportSegment {
 	categoryId: string
@@ -356,13 +366,14 @@ export function getEffectiveCategoryEntry(
 
 export function buildReportSegments(
 	student: Student,
-	templateSet: TemplateSet
+	templateSet: TemplateSet,
+	options?: ReportTextOptions,
 ): ReportSegment[] {
 	const firstName = student.name?.trim() ?? ''
 	const gender = student.gender
 	const segments: ReportSegment[] = []
 
-	for (const subject of templateSet.subjects) {
+	for (const subject of getReportSubjects(templateSet, options)) {
 		for (const category of subject.categories) {
 			const effective = getEffectiveCategoryEntry(student, category)
 			if (!effective || effective.variantIds.length === 0) continue
@@ -397,9 +408,10 @@ export function buildReportSegments(
 
 export function buildReportPlainText(
 	student: Student,
-	templateSet: TemplateSet
+	templateSet: TemplateSet,
+	options?: ReportTextOptions,
 ): string {
-	return buildReportSegments(student, templateSet)
+	return buildReportSegments(student, templateSet, options)
 		.map((s) => s.text)
 		.filter(Boolean)
 		.join(' ')
@@ -407,9 +419,11 @@ export function buildReportPlainText(
 
 export function buildSelectionCoverageSummary(
 	student: Student,
-	templateSet: TemplateSet
+	templateSet: TemplateSet,
+	options?: ReportTextOptions,
 ): SelectionCoverageSummary {
-	const total = templateSet.subjects.reduce(
+	const subjects = getReportSubjects(templateSet, options)
+	const total = subjects.reduce(
 		(sum, subject) => sum + subject.categories.length,
 		0
 	)
@@ -418,7 +432,7 @@ export function buildSelectionCoverageSummary(
 	}
 
 	let completed = 0
-	for (const subject of templateSet.subjects) {
+	for (const subject of subjects) {
 		for (const category of subject.categories) {
 			if (getEffectiveCategoryEntry(student, category)) completed += 1
 		}
@@ -447,9 +461,11 @@ export function buildDeactivatedReportSelection(templateSet: TemplateSet): Repor
 
 export function buildReportTextCoverageSummary(
 	student: Student,
-	templateSet: TemplateSet
+	templateSet: TemplateSet,
+	options?: ReportTextOptions,
 ): ReportTextCoverageSummary {
-	const total = templateSet.subjects.reduce(
+	const subjects = getReportSubjects(templateSet, options)
+	const total = subjects.reduce(
 		(sum, subject) => sum + subject.categories.length,
 		0
 	)
@@ -458,7 +474,7 @@ export function buildReportTextCoverageSummary(
 	}
 
 	const completedCategoryIds = new Set(
-		buildReportSegments(student, templateSet).map((segment) => segment.categoryId)
+		buildReportSegments(student, templateSet, options).map((segment) => segment.categoryId)
 	)
 	const completed = completedCategoryIds.size
 	return {

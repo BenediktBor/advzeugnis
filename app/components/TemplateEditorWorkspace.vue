@@ -15,7 +15,7 @@ const props = defineProps<{
 }>()
 
 const templatesStore = useTemplatesStore()
-const { removeSet } = useTemplateSets()
+const { removeSet, toggleSetHidden } = useTemplateSets()
 const deleteDialog = useConfirmDialog()
 const {
 	addSubject,
@@ -23,6 +23,7 @@ const {
 	insertSubjects,
 	deleteSubjects,
 	reorderSubject,
+	toggleSubjectHidden,
 	addCategory,
 	deleteCategory,
 	insertCategories,
@@ -1249,6 +1250,8 @@ onBeforeUnmount(() => {
 		:update-subject-label="updateSubjectLabel"
 		:update-category-label="updateCategoryLabel"
 		:remove-set="removeSet"
+		:toggle-set-hidden="() => toggleSetHidden(setId)"
+		:toggle-subject-hidden="toggleSubjectHidden"
 		@select-subject="handleSelectSubject"
 		@select-tree-category="handleSelectTreeCategory"
 		@context-action-subject="handleSubjectContextAction"

@@ -59,6 +59,17 @@ describe('Convex template validation', () => {
 		})).not.toThrow()
 	})
 
+	it('accepts optional hidden flags on template sets and subjects', () => {
+		const data = validTemplate()
+		data.hidden = true
+		data.subjects[0].hidden = true
+		expect(() => validateTemplateInput({
+			templateId,
+			label: 'Klasse 5',
+			data,
+		})).not.toThrow()
+	})
+
 	it('requires the document id to match the template id', () => {
 		const data = validTemplate()
 		data.id = '77777777-7777-4777-8777-777777777777'

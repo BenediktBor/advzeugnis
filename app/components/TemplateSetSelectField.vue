@@ -9,10 +9,10 @@ const emit = defineEmits<{
 	'update:modelValue': [value: string]
 }>()
 
-const { sortedSetsWithData } = useTemplateSets()
+const { visibleSortedSetsWithData } = useTemplateSets()
 
 const items = computed(() =>
-	sortedSetsWithData.value.map((setItem) => ({
+	visibleSortedSetsWithData.value.map((setItem) => ({
 		label: setItem.label,
 		value: setItem.id,
 	})),

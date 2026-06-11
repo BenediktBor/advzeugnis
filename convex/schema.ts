@@ -65,12 +65,14 @@ export const subjectValidator = v.object({
 	id: v.string(),
 	label: v.string(),
 	categories: v.array(categoryValidator),
+	hidden: v.optional(v.boolean()),
 })
 
 export const templateDataValidator = v.object({
 	id: v.string(),
 	label: v.string(),
 	subjects: v.array(subjectValidator),
+	hidden: v.optional(v.boolean()),
 	_schemaVersion: v.optional(v.number()),
 })
 

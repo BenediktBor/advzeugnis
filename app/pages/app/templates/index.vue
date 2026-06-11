@@ -9,6 +9,7 @@ const router = useRouter()
 const {
 	sortedSetsWithData,
 	addSet,
+	toggleSetHidden,
 	isLoaded,
 	storageLoadError,
 	remoteLoadError,
@@ -37,6 +38,16 @@ function confirmAddSet() {
 	addModalOpen.value = false
 	const newId = addSet(label)
 	if (newId) router.push(`/app/templates/${newId}`)
+}
+
+function setActionItems(item: { id: string, label: string, hidden?: boolean }) {
+	return [[
+		{
+			label: item.hidden ? 'Für Lehrkräfte einblenden' : 'Für Lehrkräfte ausblenden',
+			icon: item.hidden ? 'i-lucide-eye' : 'i-lucide-eye-off',
+			onSelect: () => void toggleSetHidden(item.id),
+		},
+	]]
 }
 
 function consumeCreateQuery() {
@@ -126,15 +137,19 @@ watch(
 					v-else
 					class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
 				>
-					<ULink
+					<div
 						v-for="item in sortedSetsWithData"
 						:key="item.id"
+						class="group relative"
+					>
+					<ULink
 						:to="`/app/templates/${item.id}`"
-						class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
+						class="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl"
 					>
 						<UCard
 							variant="soft"
 							class="h-full overflow-hidden border border-default bg-default/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+							:class="item.hidden ? 'opacity-80' : ''"
 						>
 							<template #header>
 								<div class="flex items-start justify-between gap-3">
@@ -146,19 +161,45 @@ watch(
 											<UIcon name="i-lucide-files" class="size-5" />
 										</div>
 										<div class="min-w-0">
-											<div class="truncate font-semibold text-highlighted">
-												{{ item.label }}
+											<div class="flex min-w-0 items-center gap-2">
+												<div class="truncate font-semibold text-highlighted">
+													{{ item.label }}
+												</div>
+												<UBadge
+													v-if="item.hidden"
+													color="neutral"
+													variant="subtle"
+													label="Ausgeblendet"
+												/>
 											</div>
 											<div class="mt-1 text-xs text-muted">
 												Vorlagensatz bearbeiten
 											</div>
 										</div>
 									</div>
-									<UIcon
-										name="i-lucide-arrow-right"
-										class="mt-1 size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
-										aria-hidden="true"
-									/>
+									<div class="flex items-center gap-1">
+										<UDropdownMenu
+											v-if="canEdit"
+											:items="setActionItems(item)"
+											:content="{ align: 'end' }"
+											:ui="{ content: 'w-56' }"
+											size="sm"
+										>
+											<UButton
+												icon="i-lucide-more-horizontal"
+												color="neutral"
+												variant="ghost"
+												size="xs"
+												aria-label="Vorlagensatz-Aktionen öffnen"
+												@click.stop.prevent
+											/>
+										</UDropdownMenu>
+										<UIcon
+											name="i-lucide-arrow-right"
+											class="mt-1 size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+											aria-hidden="true"
+										/>
+									</div>
 								</div>
 							</template>
 							<div class="flex flex-col gap-4 text-sm">
@@ -221,6 +262,7 @@ watch(
 							</div>
 						</UCard>
 					</ULink>
+					</div>
 				</div>
 			</div>
 		</template>

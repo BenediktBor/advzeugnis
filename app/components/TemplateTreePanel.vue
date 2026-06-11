@@ -46,6 +46,8 @@ const props = defineProps<{
 	updateSubjectLabel: (subjectId: string, label: string) => void
 	updateCategoryLabel: (subjectId: string, categoryId: string, label: string) => void
 	removeSet: (setId: string) => void
+	toggleSetHidden: () => void
+	toggleSubjectHidden: (subjectId: string) => void
 }>()
 
 const emit = defineEmits<{
@@ -446,6 +448,15 @@ function subjectActionItems(subjectId: string): TemplateActionMenuItem[] {
 		},
 		{ type: 'separator' },
 		{
+			label: getSubject(subjectId)?.hidden
+				? 'Für Lehrkräfte einblenden'
+				: 'Für Lehrkräfte ausblenden',
+			icon: getSubject(subjectId)?.hidden ? 'i-lucide-eye' : 'i-lucide-eye-off',
+			color: 'neutral',
+			onSelect: () => props.toggleSubjectHidden(subjectId),
+		},
+		{ type: 'separator' },
+		{
 			label: 'Fach löschen',
 			icon: 'i-lucide-trash-2',
 			color: 'error',
@@ -510,6 +521,40 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 	)
 	return items
 }
+
+function setHeaderActionItems(): TemplateActionMenuItem[] {
+	return [
+		{
+			label: props.templateSet.hidden
+				? 'Für Lehrkräfte einblenden'
+				: 'Für Lehrkräfte ausblenden',
+			icon: props.templateSet.hidden ? 'i-lucide-eye' : 'i-lucide-eye-off',
+			color: 'neutral',
+			onSelect: () => props.toggleSetHidden(),
+		},
+		{
+			label: 'Exportieren',
+			icon: 'i-lucide-download',
+			color: 'neutral',
+			onSelect: () => onDownloadAzsetForSet(props.setId),
+		},
+		{ type: 'separator' },
+		{
+			label: 'Löschen',
+			icon: 'i-lucide-trash-2',
+			color: 'error',
+			onSelect: () =>
+				deleteDialog.show({
+					title: 'Vorlage löschen?',
+					description: confirmDeleteLabel(props.templateSet.label),
+					onConfirm: () => {
+						props.removeSet(props.setId)
+						router.push('/app/templates')
+					},
+				}),
+		},
+	]
+}
 </script>
 
 <template>
@@ -520,32 +565,31 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 					<UDashboardSidebarCollapse />
 				</template>
 				<template #right>
-					<div v-if="setId && canEdit" class="flex items-center gap-1">
-						<UButton
-							label="Exportieren"
-							icon="i-lucide-download"
-							color="neutral"
-							variant="ghost"
-							aria-label="Vorlagensatz exportieren"
-							@click="onDownloadAzsetForSet(setId)"
-						/>
-						<UButton
-							label="Löschen"
-							icon="i-lucide-trash-2"
-							color="error"
-							variant="ghost"
-							aria-label="Vorlage löschen"
-							@click="
-								deleteDialog.show({
-									title: 'Vorlage löschen?',
-									description: confirmDeleteLabel(templateSet.label),
-									onConfirm: () => {
-										removeSet(setId)
-										router.push('/app/templates')
-									},
-								})
-							"
-						/>
+					<div v-if="setId && canEdit" class="flex shrink-0 items-center gap-1">
+						<UTooltip
+							v-if="templateSet.hidden"
+							text="Für Lehrkräfte ausgeblendet"
+						>
+							<UIcon
+								name="i-lucide-eye-off"
+								class="size-4 text-muted"
+								aria-hidden="true"
+							/>
+						</UTooltip>
+						<UDropdownMenu
+							:items="[setHeaderActionItems()]"
+							:content="{ align: 'end' }"
+							:ui="{ content: 'w-56' }"
+							size="sm"
+						>
+							<UButton
+								icon="i-lucide-more-horizontal"
+								color="neutral"
+								variant="ghost"
+								size="sm"
+								aria-label="Vorlagensatz-Aktionen öffnen"
+							/>
+						</UDropdownMenu>
 					</div>
 				</template>
 			</UDashboardNavbar>
@@ -599,7 +643,9 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 											: 'hover:bg-elevated/70 pl-6'
 										: isSelectedSubjectRow(descriptor.subjectId)
 											? 'bg-primary/10 text-default'
-											: 'hover:bg-elevated/70'
+											: getSubject(descriptor.subjectId)?.hidden
+												? 'text-muted opacity-70'
+												: 'hover:bg-elevated/70'
 								"
 							>
 								<template v-if="descriptor.type === 'subject'">
@@ -629,7 +675,17 @@ function categoryActionItems(subjectId: string, categoryId: string): TemplateAct
 										class="min-w-0 flex-1 truncate text-left text-sm font-medium text-default"
 										@click="emit('select-subject', descriptor.subjectId, $event)"
 									>
-										{{ getSubject(descriptor.subjectId)?.label || 'Unbenannt' }}
+										<span class="inline-flex min-w-0 items-center gap-1.5">
+											<UIcon
+												v-if="getSubject(descriptor.subjectId)?.hidden"
+												name="i-lucide-eye-off"
+												class="size-3.5 shrink-0 text-muted"
+												aria-label="Für Lehrkräfte ausgeblendet"
+											/>
+											<span class="truncate">
+												{{ getSubject(descriptor.subjectId)?.label || 'Unbenannt' }}
+											</span>
+										</span>
 									</button>
 									<div
 										v-if="canEdit"

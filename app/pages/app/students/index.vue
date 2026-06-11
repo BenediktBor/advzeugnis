@@ -13,7 +13,7 @@ useAppSeo({
 
 const { students, isLoaded: studentsLoaded, loadError: studentsLoadError } = useStudents()
 const {
-	sortedSetsWithData,
+	visibleSortedSetsWithData,
 	getSetLabel,
 	getSetData,
 	hasAnyTemplateSets,
@@ -30,7 +30,7 @@ const filterStatus = ref<'finished' | 'unfinished' | null>(null)
 
 const templateSetItems = computed(() => [
 	{ label: 'Alle Vorlagen', value: null as string | null },
-	...sortedSetsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id })),
+	...visibleSortedSetsWithData.value.map((setItem) => ({ label: setItem.label, value: setItem.id })),
 ])
 
 const genderItems = [

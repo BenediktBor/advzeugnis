@@ -17,6 +17,7 @@ import type * as lib_config from "../lib/config.js";
 import type * as lib_emails from "../lib/emails.js";
 import type * as lib_templateMigration from "../lib/templateMigration.js";
 import type * as lib_templateValidation from "../lib/templateValidation.js";
+import type * as lib_templateVisibility from "../lib/templateVisibility.js";
 import type * as schools from "../schools.js";
 import type * as templates from "../templates.js";
 import type * as users from "../users.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emails": typeof lib_emails;
   "lib/templateMigration": typeof lib_templateMigration;
   "lib/templateValidation": typeof lib_templateValidation;
+  "lib/templateVisibility": typeof lib_templateVisibility;
   schools: typeof schools;
   templates: typeof templates;
   users: typeof users;

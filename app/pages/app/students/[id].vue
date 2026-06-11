@@ -17,24 +17,34 @@ import {
 import { useLoadedMissingRedirect } from '~/composables/useLoadedMissingRedirect'
 import type { SubjectGroup, CategoryRow } from '~/components/SentenceSelector.vue'
 import { studentFullName } from '~/utils/student'
+import { getVisibleSubjects } from '~/utils/templateVisibility'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoadError } = useStudents()
-const { orderedIds, defaultAlphabeticalTemplateSetId, remoteLoadError: templatesRemoteLoadError } =
-	useTemplateSets()
+const {
+	orderedIds,
+	defaultAlphabeticalTemplateSetId,
+	remoteLoadError: templatesRemoteLoadError,
+	isLoaded: templatesLoaded,
+} = useTemplateSets()
 const { canEditTemplates } = useCurrentUser()
 const { copyToClipboard } = useClipboardCopy()
 const rewriter = useAiRewriter()
 
 const effectiveTemplateSetId = computed(() => {
 	const s = students.value.find((st) => st.id === id.value)
-	if (!s) return null
+	if (!s?.templateSetId) return null
+	if (!canEditTemplates.value) return s.templateSetId
 	return orderedIds.value.includes(s.templateSetId)
 		? s.templateSetId
 		: defaultAlphabeticalTemplateSetId.value || null
 })
+
+const reportTextOptions = computed(() => ({
+	excludeHiddenSubjects: !canEditTemplates.value,
+}))
 
 const { getSet } = useTemplates(
 	computed(() => effectiveTemplateSetId.value ?? '')
@@ -73,18 +83,28 @@ const templateSetForReport = computed(() => {
 	return getSet()
 })
 
+const isTemplateSetUnavailable = computed(() =>
+	Boolean(
+		student.value?.templateSetId &&
+		effectiveTemplateSetId.value &&
+		templatesLoaded.value &&
+		!templatesRemoteLoadError.value &&
+		templateSetForReport.value === null,
+	),
+)
+
 const reportSegments = computed<ReportSegment[]>(() => {
 	const s = student.value
 	const set = templateSetForReport.value
 	if (!s || !set) return []
-	return buildReportSegments(s, set)
+	return buildReportSegments(s, set, reportTextOptions.value)
 })
 
 const textOutputContent = computed(() => {
 	const s = student.value
 	const set = templateSetForReport.value
 	if (!s || !set) return ''
-	return buildReportPlainText(s, set)
+	return buildReportPlainText(s, set, reportTextOptions.value)
 })
 
 const gradeAverageSummary = computed(() => {
@@ -358,7 +378,7 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 	const set = templateSetForReport.value
 	const s = student.value
 	if (!set || !s) return []
-	return set.subjects.map((subject) => {
+	return getVisibleSubjects(set, canEditTemplates.value).map((subject) => {
 		const categories: CategoryRow[] = subject.categories.map((category) => {
 			const entry = getCategoryEntry(category)
 			const grade = entry.gradeId
@@ -613,6 +633,21 @@ watch(
 					title="Keine passende Vorlage gefunden"
 					description="Öffne Stammdaten über das Stiftsymbol neben dem Namen oder lege zuerst neue Vorlagen an."
 					icon="i-lucide-file-text"
+					tone="primary"
+				>
+					<UButton
+						v-if="canEditTemplates"
+						label="Zu Vorlagen"
+						to="/app/templates"
+						icon="i-lucide-file-text"
+					/>
+				</AppStateNotice>
+				<AppStateNotice
+					v-else-if="isTemplateSetUnavailable"
+					class="shrink-0"
+					title="Vorlagensatz nicht verfügbar"
+					description="Der zugewiesene Vorlagensatz ist für Lehrkräfte nicht zugänglich. Bitte wende dich an einen Template Manager."
+					icon="i-lucide-eye-off"
 					tone="primary"
 				>
 					<UButton
