@@ -1,14 +1,63 @@
 import { storeToRefs } from 'pinia'
-import { useConvexQuery } from 'convex-vue'
-import { clearStaleAuthSession, shouldClearStaleSession } from '~/utils/authSession'
+import { useConvexClient, useConvexQuery } from 'convex-vue'
+import {
+	AUTH_SESSION_WAIT_MS,
+	clearStaleAuthSession,
+	shouldClearStaleSession,
+	shouldClearStaleSessionEagerly,
+} from '~/utils/authSession'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
-import { getStoredAuthToken } from '~/utils/convexAuthClient'
+import { getStoredAuthToken, isStoredAccessTokenExpired } from '~/utils/convexAuthClient'
 
 export function useCurrentUser() {
+	const client = useConvexClient()
 	const store = useCurrentUserStore()
 	store.load()
 	const viewer = useConvexQuery(api.users.viewer, {}, { server: false })
+	let pendingWatchdog: ReturnType<typeof setTimeout> | null = null
+
+	function clearPendingWatchdog() {
+		if (!pendingWatchdog) return
+		clearTimeout(pendingWatchdog)
+		pendingWatchdog = null
+	}
+
+	function maybeClearStaleSession(options?: { pendingTooLong?: boolean }) {
+		if (viewer.data.value) return
+		if (!shouldClearStaleSessionEagerly({
+			hasToken: Boolean(getStoredAuthToken()),
+			isAuthenticated: false,
+			tokenExpired: isStoredAccessTokenExpired(),
+			pendingTooLong: options?.pendingTooLong,
+		})) return
+		clearStaleAuthSession(client)
+	}
+
+	watch(
+		() => viewer.isPending.value,
+		(isPending) => {
+			clearPendingWatchdog()
+			if (!isPending || viewer.data.value) return
+
+			if (getStoredAuthToken()) {
+				maybeClearStaleSession()
+			}
+
+			if (!getStoredAuthToken()) return
+
+			pendingWatchdog = setTimeout(() => {
+				pendingWatchdog = null
+				if (viewer.data.value) return
+				maybeClearStaleSession({ pendingTooLong: true })
+			}, AUTH_SESSION_WAIT_MS)
+		},
+		{ immediate: true },
+	)
+
+	if (import.meta.client) {
+		onScopeDispose(clearPendingWatchdog)
+	}
 
 	watch(
 		[viewer.data, viewer.isPending],

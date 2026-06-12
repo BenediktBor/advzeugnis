@@ -1,6 +1,7 @@
 import { useConvexClient } from 'convex-vue'
 import isNetworkError from 'is-network-error'
 import { buildMagicLinkCallbackUrl } from '~/utils/authCallback'
+import { clearStaleAuthSession } from '~/utils/authSession'
 import { api } from '~/utils/convexApi'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import {
@@ -11,6 +12,8 @@ import {
 
 const SIGN_IN_RETRY_BACKOFF_MS = [500, 2000]
 const SIGN_IN_RETRY_JITTER_MS = 100
+export const SIGN_IN_TIMEOUT_MS = 20_000
+export const SIGN_IN_TIMEOUT_MESSAGE = 'Anmeldung hat zu lange gedauert. Bitte erneut versuchen.'
 
 type SignInResult = {
 	redirect?: string
@@ -28,6 +31,31 @@ type PasswordCredentials = {
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+class SignInTimeoutError extends Error {
+	constructor() {
+		super(SIGN_IN_TIMEOUT_MESSAGE)
+		this.name = 'SignInTimeoutError'
+	}
+}
+
+async function runSignInAction(
+	client: ReturnType<typeof useConvexClient>,
+	payload: Record<string, unknown>,
+): Promise<SignInResult> {
+	let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+	try {
+		return await Promise.race([
+			client.action(api.auth.signIn, payload) as Promise<SignInResult>,
+			new Promise<SignInResult>((_, reject) => {
+				timeoutId = setTimeout(() => reject(new SignInTimeoutError()), SIGN_IN_TIMEOUT_MS)
+			}),
+		])
+	} finally {
+		if (timeoutId) clearTimeout(timeoutId)
+	}
 }
 
 export function useConvexAuthActions() {
@@ -53,10 +81,14 @@ export function useConvexAuthActions() {
 
 		for (let attempt = 0; attempt <= SIGN_IN_RETRY_BACKOFF_MS.length; attempt++) {
 			try {
-				const result = await client.action(api.auth.signIn, payload) as SignInResult
+				const result = await runSignInAction(client, payload)
 				return await handleSignInResult(result)
 			} catch (err) {
 				lastError = err
+				if (err instanceof SignInTimeoutError) {
+					clearStaleAuthSession(client)
+					break
+				}
 				if (!isNetworkError(err) || attempt === SIGN_IN_RETRY_BACKOFF_MS.length) {
 					break
 				}

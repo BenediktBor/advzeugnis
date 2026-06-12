@@ -7,9 +7,10 @@ import {
 	formatAuthError,
 	resolveStoredTokenRedirect,
 	shouldClearStaleSession,
+	shouldClearStaleSessionEagerly,
 	waitForAuthenticatedSession,
 } from '~/utils/authSession'
-import { getStoredAuthToken } from '~/utils/convexAuthClient'
+import { getStoredAuthToken, isStoredAccessTokenExpired } from '~/utils/convexAuthClient'
 
 const props = withDefaults(defineProps<{
 	initialMode?: 'signIn' | 'signUp' | 'magic' | 'reset'
@@ -131,6 +132,22 @@ function clearStaleSessionIfNeeded() {
 	return true
 }
 
+function clearStaleSessionEagerlyIfNeeded() {
+	if (!shouldClearStaleSessionEagerly({
+		hasToken: Boolean(getStoredAuthToken()),
+		isAuthenticated: isAuthenticated.value,
+		tokenExpired: isStoredAccessTokenExpired(),
+	})) return false
+
+	clearStaleAuthSession(client)
+	return true
+}
+
+function clearStaleSessionBeforeAuth() {
+	if (isAuthenticated.value) return
+	clearStaleAuthSession(client)
+}
+
 async function tryRedirectIfAuthenticated() {
 	if (readAuthQueryError()) return
 
@@ -151,6 +168,7 @@ async function tryRedirectIfAuthenticated() {
 }
 
 onMounted(async () => {
+	clearStaleSessionEagerlyIfNeeded()
 	await tryRedirectIfAuthenticated()
 	clearStaleSessionIfNeeded()
 })
@@ -195,7 +213,7 @@ async function submitPasswordAuth() {
 		error.value = 'Bitte bestätige die Datenschutzerklärung.'
 		return
 	}
-	clearStaleSessionIfNeeded()
+	clearStaleSessionBeforeAuth()
 	isSubmitting.value = true
 	try {
 		const result = mode.value === 'signUp'
@@ -231,6 +249,7 @@ async function submitPasswordAuth() {
 async function submitEmailVerification() {
 	resetStatus()
 	if (!pendingVerificationEmail.value || !form.code.trim()) return
+	clearStaleSessionBeforeAuth()
 	isSubmitting.value = true
 	try {
 		const result = await verifyEmail(pendingVerificationEmail.value, form.code.trim())
@@ -246,6 +265,7 @@ async function submitEmailVerification() {
 async function submitMagicLink() {
 	resetStatus()
 	if (!form.email.trim()) return
+	clearStaleSessionBeforeAuth()
 	isSubmitting.value = true
 	try {
 		await requestMagicLink(form.email.trim(), redirectTo.value)
@@ -260,6 +280,7 @@ async function submitMagicLink() {
 
 async function submitPasswordReset() {
 	resetStatus()
+	clearStaleSessionBeforeAuth()
 	isSubmitting.value = true
 	try {
 		if (!pendingResetEmail.value) {

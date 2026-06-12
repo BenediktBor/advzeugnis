@@ -7,15 +7,20 @@ import {
 	formatAuthError,
 	resolveStoredTokenRedirect,
 	shouldClearStaleSession,
+	shouldClearStaleSessionEagerly,
 	waitForAuthenticatedSession,
 	waitForAuthenticatedSessionWithClient,
 } from '~/utils/authSession'
 import {
 	applyAuthTokensAfterLogin,
 	AUTH_TOKEN_GRACE_MS,
+	AUTH_TOKEN_EXPIRY_LEEWAY_SEC,
 	configureConvexAuth,
+	decodeJwtPayload,
 	getCurrentAccessToken,
 	getLastTokenStoredAt,
+	isAccessTokenExpired,
+	isStoredAccessTokenExpired,
 	isWithinTokenGracePeriod,
 	resetSignOutStateForTests,
 	storeAuthTokens,
@@ -36,6 +41,13 @@ function createLocalStorageMock() {
 			storage.clear()
 		},
 	}
+}
+
+function makeTestJwt(exp: number) {
+	const encode = (value: Record<string, unknown>) =>
+		Buffer.from(JSON.stringify(value)).toString('base64url')
+
+	return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ exp })}.signature`
 }
 
 describe('resolveStoredTokenRedirect grace period', () => {
@@ -75,6 +87,78 @@ describe('shouldClearStaleSession', () => {
 			isAuthenticated: false,
 			withinGracePeriod: false,
 		})).toBe(true)
+	})
+})
+
+describe('shouldClearStaleSessionEagerly', () => {
+	it('clears expired tokens without waiting for isLoaded', () => {
+		expect(shouldClearStaleSessionEagerly({
+			hasToken: true,
+			isAuthenticated: false,
+			tokenExpired: true,
+		})).toBe(true)
+	})
+
+	it('clears when auth has been pending too long', () => {
+		expect(shouldClearStaleSessionEagerly({
+			hasToken: true,
+			isAuthenticated: false,
+			tokenExpired: false,
+			pendingTooLong: true,
+		})).toBe(true)
+	})
+
+	it('does not clear during the post-login grace period', () => {
+		expect(shouldClearStaleSessionEagerly({
+			hasToken: true,
+			isAuthenticated: false,
+			tokenExpired: true,
+			withinGracePeriod: true,
+		})).toBe(false)
+	})
+
+	it('does nothing when already authenticated', () => {
+		expect(shouldClearStaleSessionEagerly({
+			hasToken: true,
+			isAuthenticated: true,
+			tokenExpired: true,
+		})).toBe(false)
+	})
+})
+
+describe('jwt expiry helpers', () => {
+	beforeEach(() => {
+		vi.stubGlobal('localStorage', createLocalStorageMock())
+		vi.stubGlobal('window', { localStorage })
+		resetSignOutStateForTests()
+	})
+
+	it('decodes jwt payload', () => {
+		const token = makeTestJwt(1_900_000_000)
+		expect(decodeJwtPayload(token)).toEqual({ exp: 1_900_000_000 })
+	})
+
+	it('treats expired access tokens as expired', () => {
+		const expiredToken = makeTestJwt(1)
+		const validToken = makeTestJwt(Math.floor(Date.now() / 1000) + 3600)
+
+		expect(isAccessTokenExpired(expiredToken)).toBe(true)
+		expect(isAccessTokenExpired(validToken)).toBe(false)
+		expect(isAccessTokenExpired(null)).toBe(true)
+	})
+
+	it('detects expired stored access tokens', () => {
+		storeAuthTokens({
+			token: makeTestJwt(1),
+			refreshToken: 'refresh',
+		})
+
+		expect(isStoredAccessTokenExpired()).toBe(true)
+	})
+
+	it('respects expiry leeway for nearly expired tokens', () => {
+		const almostExpired = makeTestJwt(Math.floor(Date.now() / 1000) + AUTH_TOKEN_EXPIRY_LEEWAY_SEC - 5)
+		expect(isAccessTokenExpired(almostExpired)).toBe(true)
 	})
 })
 
@@ -339,5 +423,12 @@ describe('formatAuthError', () => {
 		expect(formatAuthError(new Error('network down'), 'Anmeldung fehlgeschlagen.')).toBe(
 			'Anmeldung fehlgeschlagen.',
 		)
+	})
+
+	it('returns timeout message unchanged', () => {
+		expect(formatAuthError(
+			new Error('Anmeldung hat zu lange gedauert. Bitte erneut versuchen.'),
+			'fallback',
+		)).toBe('Anmeldung hat zu lange gedauert. Bitte erneut versuchen.')
 	})
 })

@@ -3,6 +3,7 @@ import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import {
 	clearAuthTokens,
+	isStoredAccessTokenExpired,
 	isWithinTokenGracePeriod,
 	mutexConfigureConvexAuth,
 	waitForAuthHandshake,
@@ -53,6 +54,24 @@ export function shouldClearStaleSession({
 	if (!hasToken || !isLoaded || isAuthenticated) return false
 	if (withinGracePeriod) return false
 	return true
+}
+
+export function shouldClearStaleSessionEagerly({
+	hasToken,
+	isAuthenticated,
+	tokenExpired = isStoredAccessTokenExpired(),
+	pendingTooLong = false,
+	withinGracePeriod = isWithinTokenGracePeriod(),
+}: {
+	hasToken: boolean
+	isAuthenticated: boolean
+	tokenExpired?: boolean
+	pendingTooLong?: boolean
+	withinGracePeriod?: boolean
+}): boolean {
+	if (!hasToken || isAuthenticated) return false
+	if (withinGracePeriod) return false
+	return tokenExpired || pendingTooLong
 }
 
 export async function waitForAuthenticatedSession(
@@ -130,6 +149,9 @@ export function formatAuthError(err: unknown, fallback: string): string {
 	}
 	if (lower.includes('email is required')) {
 		return 'Bitte gib deine E-Mail-Adresse ein.'
+	}
+	if (lower.includes('zu lange gedauert')) {
+		return message
 	}
 
 	return fallback

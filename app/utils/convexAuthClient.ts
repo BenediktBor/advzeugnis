@@ -6,6 +6,8 @@ const TOKEN_KEY = 'advanced-zeugnis-convex-token'
 const REFRESH_TOKEN_KEY = 'advanced-zeugnis-convex-refresh-token'
 export const AUTH_TOKEN_GRACE_MS = 3_000
 export const AUTH_HANDSHAKE_WAIT_MS = 15_000
+export const AUTH_REFRESH_TIMEOUT_MS = 10_000
+export const AUTH_TOKEN_EXPIRY_LEEWAY_SEC = 30
 
 const REFRESH_RETRY_BACKOFF_MS = [500, 2000]
 const REFRESH_RETRY_JITTER_MS = 100
@@ -24,6 +26,47 @@ let authConfigMutex: Promise<void> = Promise.resolve()
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+	return Promise.race([
+		promise,
+		new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+	])
+}
+
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
+	const parts = token.split('.')
+	if (parts.length !== 3) return null
+
+	try {
+		const base64 = parts[1]!.replace(/-/g, '+').replace(/_/g, '/')
+		const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
+		const json = atob(padded)
+		const payload = JSON.parse(json)
+		return payload && typeof payload === 'object' ? payload as Record<string, unknown> : null
+	} catch {
+		return null
+	}
+}
+
+export function isAccessTokenExpired(
+	token: string | null | undefined,
+	nowSec = Math.floor(Date.now() / 1000),
+): boolean {
+	if (!token) return true
+
+	const payload = decodeJwtPayload(token)
+	if (!payload) return true
+
+	const exp = payload.exp
+	if (typeof exp !== 'number') return false
+
+	return exp <= nowSec + AUTH_TOKEN_EXPIRY_LEEWAY_SEC
+}
+
+export function isStoredAccessTokenExpired(): boolean {
+	return isAccessTokenExpired(getStoredAuthToken())
 }
 
 function syncInMemoryTokenFromStorage() {
@@ -138,8 +181,13 @@ async function refreshAuthTokens(client: ConvexClient, refreshToken: string): Pr
 
 	for (let attempt = 0; attempt <= REFRESH_RETRY_BACKOFF_MS.length; attempt++) {
 		try {
-			const result = await client.action(api.auth.signIn, { refreshToken }) as {
-				tokens?: AuthTokens | null
+			const result = await withTimeout(
+				client.action(api.auth.signIn, { refreshToken }) as Promise<{ tokens?: AuthTokens | null }>,
+				AUTH_REFRESH_TIMEOUT_MS,
+			)
+			if (!result) {
+				console.error('[auth] token refresh timed out')
+				return null
 			}
 			if (!result.tokens) return null
 			return result.tokens

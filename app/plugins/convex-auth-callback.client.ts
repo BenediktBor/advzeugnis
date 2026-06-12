@@ -10,6 +10,7 @@ import { api } from '~/utils/convexApi'
 import {
 	applyAuthTokensAfterLogin,
 	getStoredAuthToken,
+	isStoredAccessTokenExpired,
 } from '~/utils/convexAuthClient'
 
 let signingInWithCodeFromURL = false
@@ -22,7 +23,8 @@ export default defineNuxtPlugin({
 		if (!import.meta.client) return
 
 		const search = window.location.search
-		if (!hasAuthCallbackParam(search) || getStoredAuthToken() || signingInWithCodeFromURL) {
+		const hasValidStoredToken = Boolean(getStoredAuthToken()) && !isStoredAccessTokenExpired()
+		if (!hasAuthCallbackParam(search) || hasValidStoredToken || signingInWithCodeFromURL) {
 			return
 		}
 
