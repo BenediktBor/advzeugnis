@@ -26,6 +26,9 @@ const { students, updateStudent, deleteStudent, isLoaded, loadError: studentsLoa
 const {
 	orderedIds,
 	defaultAlphabeticalTemplateSetId,
+	hasAnyTemplateSets,
+	getSetData,
+	loadSetData,
 	remoteLoadError: templatesRemoteLoadError,
 	isLoaded: templatesLoaded,
 } = useTemplateSets()
@@ -514,6 +517,15 @@ const enhanceModalOpen = ref(false)
 const mobileTextOutputOpen = ref(false)
 const studentEditModalOpen = ref(false)
 
+function onToolbarTemplateSetChange(nextTemplateSetId: string) {
+	if (!id.value || !student.value || !nextTemplateSetId) return
+	if (nextTemplateSetId === effectiveTemplateSetId.value) return
+	updateStudent(id.value, { templateSetId: nextTemplateSetId })
+	if (!getSetData(nextTemplateSetId)) {
+		void loadSetData(nextTemplateSetId)
+	}
+}
+
 function onEnhanceWithAI() {
 	enhanceModalOpen.value = true
 	rewriter.enhance(textOutputContent.value)
@@ -585,15 +597,23 @@ watch(
 					<span v-else>Schüler bearbeiten</span>
 				</template>
 				<template #right>
-					<UButton
-						v-if="student"
-						label="Löschen"
-						icon="i-lucide-trash-2"
-						color="error"
-						variant="ghost"
-						aria-label="Schüler löschen"
-						@click="deleteModalOpen = true"
-					/>
+					<div v-if="student" class="flex min-w-0 items-center gap-2">
+						<div v-if="hasAnyTemplateSets" class="hidden min-w-0 lg:block">
+							<TemplateSetSelectField
+								:model-value="effectiveTemplateSetId ?? ''"
+								inline
+								@update:model-value="onToolbarTemplateSetChange"
+							/>
+						</div>
+						<UButton
+							label="Löschen"
+							icon="i-lucide-trash-2"
+							color="error"
+							variant="ghost"
+							aria-label="Schüler löschen"
+							@click="deleteModalOpen = true"
+						/>
+					</div>
 				</template>
 			</UDashboardNavbar>
 		</template>
