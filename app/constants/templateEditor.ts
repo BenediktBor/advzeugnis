@@ -11,3 +11,8 @@ export const studentGenderItems = [
 	{ label: 'Männlich', value: 'male' as const },
 	{ label: 'Weiblich', value: 'female' as const },
 ]
+
+export const sentencePartModalUi = {
+	content: 'w-full sm:max-w-xl',
+	footer: 'justify-end gap-2',
+}

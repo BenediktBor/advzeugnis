@@ -2,6 +2,7 @@
 import { useMediaQuery } from '@vueuse/core'
 import { landingSentenceCreateDemoSentences } from '~/data/landingDemo'
 import { landingAnchorIds, landingDemoTabs } from '~/data/landingContent'
+import { sentencePartModalUi } from '~/constants/templateEditor'
 import { useLocalSentencePartsEditor } from '~/composables/useLocalSentencePartsEditor'
 import { provideLandingSentenceEditor } from '~/composables/useLandingSentenceEditorContext'
 
@@ -68,7 +69,7 @@ const {
 			v-model:open="addModalOpen"
 			title="Satzbaustein hinzufügen"
 			description="Wähle den Typ und gib den Inhalt ein."
-			:ui="{ footer: 'justify-end gap-2' }"
+			:ui="sentencePartModalUi"
 		>
 			<template #body>
 				<SentencePartAddModalBody
@@ -95,7 +96,7 @@ const {
 		<UModal
 			v-model:open="editModalOpen"
 			title="Satzbaustein bearbeiten"
-			:ui="{ footer: 'justify-end gap-2' }"
+			:ui="sentencePartModalUi"
 		>
 			<template #body>
 				<SentencePartAddModalBody

@@ -7,6 +7,7 @@ import {
 	cloneClipboardItemsForPaste,
 	createTemplateClipboardPayload,
 } from '~/utils/templateClipboard'
+import { sentencePartModalUi } from '~/constants/templateEditor'
 import {
 	formatSelectOptionsText,
 	getSentencePartEditorHelp,
@@ -1525,7 +1526,7 @@ onBeforeUnmount(() => {
 		v-model:open="addPartModalOpen"
 		title="Satzbaustein hinzufügen"
 		description="Wähle den Typ und gib den Inhalt ein."
-		:ui="{ footer: 'justify-end' }"
+		:ui="sentencePartModalUi"
 	>
 		<template #body>
 			<SentencePartAddModalBody
@@ -1551,7 +1552,7 @@ onBeforeUnmount(() => {
 		</template>
 	</UModal>
 
-	<UModal v-model:open="editPartModalOpen" title="Satzbaustein bearbeiten" :ui="{ footer: 'justify-end' }">
+	<UModal v-model:open="editPartModalOpen" title="Satzbaustein bearbeiten" :ui="sentencePartModalUi">
 		<template #body>
 			<template v-if="editPartType === 'text'">
 				<UFormField label="Text" name="edit-part-text">

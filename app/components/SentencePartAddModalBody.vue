@@ -46,22 +46,28 @@ function onGenderPresetClick(male: string, female: string) {
 </script>
 
 <template>
-	<div>
-		<div v-if="props.showTypeTabs">
+	<div class="space-y-4">
+		<div v-if="props.showTypeTabs" class="space-y-2">
 			<UFormField label="Typ" name="sentence-part-type">
-				<UTabs
-					:items="props.addPartTabItems"
-					:model-value="partType"
-					:content="false"
-					class="w-full"
-					@update:model-value="selectPartType"
-				/>
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+					<UButton
+						v-for="item in props.addPartTabItems"
+						:key="item.value"
+						:label="item.label"
+						size="sm"
+						block
+						:variant="partType === item.value ? 'solid' : 'outline'"
+						:color="partType === item.value ? 'primary' : 'neutral'"
+						@click="selectPartType(item.value)"
+					/>
+				</div>
 			</UFormField>
-			<p class="mt-2 text-sm text-muted">{{ props.addPartHelp }}</p>
+			<p class="min-h-10 text-sm text-muted">{{ props.addPartHelp }}</p>
 		</div>
 
+		<div class="min-h-56">
 		<template v-if="partType === 'text'">
-			<UFormField label="Text" name="sentence-part-text" class="mt-3">
+			<UFormField label="Text" name="sentence-part-text">
 				<SentencePartTextInput
 					v-model="partText"
 					placeholder="Text eingeben"
@@ -72,7 +78,7 @@ function onGenderPresetClick(male: string, female: string) {
 		</template>
 
 		<template v-else-if="partType === 'genderVariant'">
-			<div class="mt-3 flex items-start gap-2">
+			<div class="flex items-start gap-2">
 				<div class="flex-1">
 					<UFormField label="Männliche Form" name="sentence-part-male">
 						<SentencePartTextInput
@@ -108,11 +114,11 @@ function onGenderPresetClick(male: string, female: string) {
 		</template>
 
 		<template v-else-if="partType === 'name'">
-			<p class="mt-3 text-sm text-muted">Keine weitere Eingabe nötig.</p>
+			<p class="text-sm text-muted">Keine weitere Eingabe nötig.</p>
 		</template>
 
 		<template v-else-if="partType === 'input'">
-			<UFormField label="Platzhalter (optional)" name="sentence-part-input-placeholder" class="mt-3">
+			<UFormField label="Platzhalter (optional)" name="sentence-part-input-placeholder">
 				<UInput
 					v-model="partInputPlaceholder"
 					placeholder="z. B. Projektname"
@@ -127,7 +133,6 @@ function onGenderPresetClick(male: string, female: string) {
 				label="Auswahloptionen"
 				name="sentence-part-select-options"
 				description="Eine Option pro Zeile"
-				class="mt-3"
 			>
 				<UTextarea
 					v-model="partSelectOptions"
@@ -146,7 +151,7 @@ function onGenderPresetClick(male: string, female: string) {
 		</template>
 
 		<template v-else-if="partType === 'optionalGroup'">
-			<p class="mt-3 text-sm text-muted">
+			<p class="text-sm text-muted">
 				Die Gruppe startet leer. Füge anschließend Bausteine über das Plus in der Gruppe hinzu.
 			</p>
 			<UCheckbox
@@ -155,5 +160,6 @@ function onGenderPresetClick(male: string, female: string) {
 				class="mt-3"
 			/>
 		</template>
+		</div>
 	</div>
 </template>
