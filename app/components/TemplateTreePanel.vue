@@ -596,6 +596,9 @@ function setHeaderActionItems(): TemplateActionMenuItem[] {
 		</template>
 		<template #body>
 			<div class="flex flex-col gap-2">
+				<div v-if="$slots.notices" class="flex flex-col gap-2 px-2 pt-2">
+					<slot name="notices" />
+				</div>
 				<div class="border-default pt-2">
 					<div class="flex items-center justify-between gap-1 px-2">
 						<span class="text-xs font-medium text-muted">Fächer</span>

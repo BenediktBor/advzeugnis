@@ -134,4 +134,11 @@ export default defineSchema({
 		updatedAt: v.number(),
 	}).index('by_school', ['schoolId'])
 		.index('by_school_template', ['schoolId', 'templateId']),
+	templateEditorPresence: defineTable({
+		schoolId: v.id('schools'),
+		templateId: v.string(),
+		userId: v.id('users'),
+		lastSeenAt: v.number(),
+	}).index('by_school_template', ['schoolId', 'templateId'])
+		.index('by_school_template_user', ['schoolId', 'templateId', 'userId']),
 })

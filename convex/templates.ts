@@ -103,12 +103,28 @@ export const list = query({
 	},
 })
 
+function assertNoTemplateConflict(
+	existing: { updatedAt: number },
+	expectedUpdatedAt: number | undefined,
+	force: boolean | undefined,
+) {
+	if (
+		!force &&
+		expectedUpdatedAt !== undefined &&
+		existing.updatedAt !== expectedUpdatedAt
+	) {
+		throw new ConvexError('TEMPLATE_CONFLICT')
+	}
+}
+
 export const upsert = mutation({
 	args: {
 		templateId: v.string(),
 		label: v.string(),
 		data: templateDataValidator,
 		sortOrder: v.optional(v.number()),
+		expectedUpdatedAt: v.optional(v.number()),
+		force: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const { userId, membership } = await requireTemplateManagerOrAdmin(ctx)
@@ -120,6 +136,7 @@ export const upsert = mutation({
 
 		const now = Date.now()
 		if (existing) {
+			assertNoTemplateConflict(existing, args.expectedUpdatedAt, args.force)
 			await ctx.db.patch(existing._id, {
 				label: args.label,
 				data: args.data,
@@ -127,7 +144,11 @@ export const upsert = mutation({
 				updatedBy: userId,
 				updatedAt: now,
 			})
-			return existing._id
+			return {
+				templateId: args.templateId,
+				updatedAt: now,
+				updatedBy: userId,
+			}
 		}
 
 		const current = await ctx.db
@@ -135,7 +156,7 @@ export const upsert = mutation({
 			.withIndex('by_school', (q) => q.eq('schoolId', membership.schoolId))
 			.collect()
 		validateTemplateSetLimit(current.length + 1)
-		return await ctx.db.insert('templateSets', {
+		await ctx.db.insert('templateSets', {
 			schoolId: membership.schoolId,
 			templateId: args.templateId,
 			label: args.label,
@@ -144,6 +165,11 @@ export const upsert = mutation({
 			updatedBy: userId,
 			updatedAt: now,
 		})
+		return {
+			templateId: args.templateId,
+			updatedAt: now,
+			updatedBy: userId,
+		}
 	},
 })
 
@@ -154,7 +180,9 @@ export const upsertMany = mutation({
 			label: v.string(),
 			data: templateDataValidator,
 			sortOrder: v.number(),
+			expectedUpdatedAt: v.optional(v.number()),
 		})),
+		force: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const { userId, membership } = await requireTemplateManagerOrAdmin(ctx)
@@ -176,6 +204,7 @@ export const upsertMany = mutation({
 		for (const set of args.sets) {
 			const existing = existingByTemplateId.get(set.templateId)
 			if (existing) {
+				assertNoTemplateConflict(existing, set.expectedUpdatedAt, args.force)
 				await ctx.db.patch(existing._id, {
 					label: set.label,
 					data: set.data,

@@ -59,9 +59,15 @@ const {
 	deleteSentenceParts,
 	isSyncPending,
 	syncError,
+	hasUnresolvedConflict,
+	activeEditors,
+	acceptRemoteVersion,
+	forceOverwrite,
 	retrySync,
 } = useTemplates(computed(() => props.setId))
 const { canEditTemplates } = useCurrentUser()
+const canEditTemplateSet = computed(() => canEditTemplates.value && !hasUnresolvedConflict.value)
+
 const availableGenderVariants = useAvailableGenderVariants()
 const templateClipboard = useTemplateClipboardStore()
 templateClipboard.load()
@@ -590,11 +596,11 @@ function selectedGradeData() {
 	return category.grades.find((item) => item.id === selectedGradeId.value) ?? null
 }
 
-const canPasteSubjects = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'subject')
-const canPasteCategories = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'category')
-const canPasteGrades = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'grade')
-const canPasteVariants = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'variant')
-const canPasteSentenceParts = computed(() => canEditTemplates.value && templateClipboard.payload?.kind === 'sentencePart')
+const canPasteSubjects = computed(() => canEditTemplateSet.value && templateClipboard.payload?.kind === 'subject')
+const canPasteCategories = computed(() => canEditTemplateSet.value && templateClipboard.payload?.kind === 'category')
+const canPasteGrades = computed(() => canEditTemplateSet.value && templateClipboard.payload?.kind === 'grade')
+const canPasteVariants = computed(() => canEditTemplateSet.value && templateClipboard.payload?.kind === 'variant')
+const canPasteSentenceParts = computed(() => canEditTemplateSet.value && templateClipboard.payload?.kind === 'sentencePart')
 
 const selectedSubjectIdsForTree = computed(() => selectedChipIds('subject', subjectScopeKey()))
 const selectedCategoryIdsForTree = computed(() => {
@@ -760,7 +766,7 @@ async function copySelection(kind = chipSelection.value?.kind) {
 }
 
 async function cutSelection(kind = chipSelection.value?.kind) {
-	if (!canEditTemplates.value || !kind) return
+	if (!canEditTemplateSet.value || !kind) return
 	await copySelection(kind)
 	if (kind === 'subject') {
 		deleteSubjects(selectedChipIds('subject', subjectScopeKey()))
@@ -965,11 +971,11 @@ function handleTemplateClipboardKeydown(event: KeyboardEvent) {
 		event.preventDefault()
 		void copySelection()
 	} else if (shortcutKey === 'x') {
-		if (!chipSelection.value || !canEditTemplates.value) return
+		if (!chipSelection.value || !canEditTemplateSet.value) return
 		event.preventDefault()
 		void cutSelection()
 	} else if (shortcutKey === 'v') {
-		if (!canEditTemplates.value || !templateClipboard.payload) return
+		if (!canEditTemplateSet.value || !templateClipboard.payload) return
 		event.preventDefault()
 		pasteIntoActiveList()
 	}
@@ -1236,7 +1242,7 @@ onBeforeUnmount(() => {
 		@update:selected-category="selectCategory"
 		:set-id="setId"
 		:template-set="templateSet"
-		:can-edit="canEditTemplates"
+		:can-edit="canEditTemplateSet"
 		:selected-subject-ids="selectedSubjectIdsForTree"
 		:selected-category-ids="selectedCategoryIdsForTree"
 		:can-paste-subjects="canPasteSubjects"
@@ -1258,26 +1264,37 @@ onBeforeUnmount(() => {
 		@context-action-category="handleCategoryContextAction"
 		@paste-subjects="pasteSubjectsFromClipboard"
 		@paste-categories="pasteCategoriesFromClipboard"
-	/>
-
-	<UAlert
-		v-if="syncError"
-		class="fixed bottom-4 left-4 right-4 z-50 lg:left-[22rem] lg:right-4"
-		color="error"
-		variant="solid"
-		title="Vorlage konnte nicht synchronisiert werden"
-		:description="syncError"
 	>
-		<template #actions>
-			<UButton
-				label="Erneut versuchen"
-				color="neutral"
-				variant="outline"
-				:loading="isSyncPending"
-				@click="retrySync"
+		<template #notices>
+			<TemplateEditorPresenceNotice
+				v-if="activeEditors.length > 0 || hasUnresolvedConflict"
+				:editors="activeEditors"
+				:has-conflict="hasUnresolvedConflict"
+				:is-sync-pending="isSyncPending"
+				@accept-remote="acceptRemoteVersion"
+				@force-overwrite="forceOverwrite"
 			/>
+			<UAlert
+				v-if="syncError"
+				color="error"
+				variant="soft"
+				icon="i-lucide-cloud-off"
+				title="Vorlage konnte nicht synchronisiert werden"
+				:description="syncError"
+			>
+				<template #actions>
+					<UButton
+						label="Erneut versuchen"
+						color="neutral"
+						variant="outline"
+						size="sm"
+						:loading="isSyncPending"
+						@click="retrySync"
+					/>
+				</template>
+			</UAlert>
 		</template>
-	</UAlert>
+	</TemplateTreePanel>
 
 	<USlideover
 		v-if="isMobile && selectedCategory && selectedCategoryData"
@@ -1291,7 +1308,7 @@ onBeforeUnmount(() => {
 					:gender-variants="availableGenderVariants"
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
-					:can-edit="canEditTemplates"
+					:can-edit="canEditTemplateSet"
 					:selected-grade-ids="selectedGradeIdsForEditor"
 					:selected-variant-ids="selectedVariantIdsForEditor"
 					:selected-sentence-part-ids="selectedSentencePartIdsForEditor"
@@ -1351,7 +1368,7 @@ onBeforeUnmount(() => {
 					:gender-variants="availableGenderVariants"
 					:selected-grade-id="selectedGradeId"
 					:selected-variant-id="selectedVariantId"
-					:can-edit="canEditTemplates"
+					:can-edit="canEditTemplateSet"
 					:selected-grade-ids="selectedGradeIdsForEditor"
 					:selected-variant-ids="selectedVariantIdsForEditor"
 					:selected-sentence-part-ids="selectedSentencePartIdsForEditor"
@@ -1414,7 +1431,7 @@ onBeforeUnmount(() => {
 					<p class="mt-3 text-xs text-muted">
 						Struktur: Fach -> Kategorie -> Stufe -> Variante -> Satzbausteine.
 					</p>
-					<div v-if="canEditTemplates" class="mt-4 flex justify-center">
+					<div v-if="canEditTemplateSet" class="mt-4 flex justify-center">
 						<UButton
 							v-if="hasSubjects"
 							label="Erste Kategorie anlegen"

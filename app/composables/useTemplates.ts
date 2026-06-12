@@ -1,12 +1,13 @@
 import { produce } from 'immer'
 import { useConvexClient, useConvexQuery } from 'convex-vue'
 import type { MaybeRefOrGetter, Ref } from 'vue'
-import { reactive, ref, toRaw, toValue, watch, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, toRaw, toValue, watch, watchEffect } from 'vue'
 import { TemplateSetSchema } from '~/schemas/template'
 import { useTemplatesStore } from '~/stores/templates'
 import { useCurrentUserStore } from '~/stores/currentUser'
 import { api } from '~/utils/convexApi'
 import { randomId } from '~/utils/randomId'
+import { isTemplateConflictError, shouldApplyRemoteRevision } from '~/utils/templateSyncRevision'
 import { summarizeVisibleTemplateSet } from '~/utils/templateVisibility'
 import type {
 	Category,
@@ -38,12 +39,31 @@ type RemoteTemplateSummary = SetWithData & {
 	updatedBy: string
 }
 
+type RemoteTemplateRow = {
+	id: string
+	label: string
+	data: unknown
+	sortOrder: number
+	updatedAt: number
+	updatedBy: string
+}
+
+type TemplateRevisionState = {
+	syncedUpdatedAt: number | null
+	syncedUpdatedBy: string | null
+	remoteConflict: {
+		serverUpdatedAt: number
+		serverUpdatedBy: string
+	} | null
+}
+
 type TemplateSyncUpsertOperation = {
 	kind: 'upsert'
 	templateId: string
 	label: string
 	data: TemplateSet
 	sortOrder: number
+	force?: boolean
 }
 
 type TemplateSyncRemoveOperation = {
@@ -61,10 +81,42 @@ type TemplateSyncQueue = {
 }
 
 const TEMPLATE_SYNC_DEBOUNCE_MS = 800
+const TEMPLATE_PRESENCE_HEARTBEAT_MS = 20_000
 const LOCAL_TEMPLATE_MIGRATION_STATUS_ID = '__local_template_migration__'
 const templateSyncQueues = new Map<string, TemplateSyncQueue>()
 const templateSyncStatus = reactive<Record<string, { isPending: boolean, error: string | null }>>({})
+const templateRevisionState = reactive<Record<string, TemplateRevisionState>>({})
 const localTemplateMigrationBySchoolId = new Map<string, Promise<void> | 'done'>()
+
+function getTemplateRevisionState(templateId: string): TemplateRevisionState {
+	if (!templateRevisionState[templateId]) {
+		templateRevisionState[templateId] = {
+			syncedUpdatedAt: null,
+			syncedUpdatedBy: null,
+			remoteConflict: null,
+		}
+	}
+	return templateRevisionState[templateId]
+}
+
+function setSyncedRevision(templateId: string, updatedAt: number, updatedBy: string) {
+	const state = getTemplateRevisionState(templateId)
+	state.syncedUpdatedAt = updatedAt
+	state.syncedUpdatedBy = updatedBy
+}
+
+function setRemoteConflict(
+	templateId: string,
+	conflict: { serverUpdatedAt: number, serverUpdatedBy: string } | null,
+) {
+	getTemplateRevisionState(templateId).remoteConflict = conflict
+}
+
+function hasPendingTemplateSync(templateId: string) {
+	const queue = templateSyncQueues.get(templateId)
+	if (!queue) return false
+	return Boolean(queue.timer || queue.inFlight || queue.latest)
+}
 
 function getTemplateSyncQueue(templateId: string) {
 	let queue = templateSyncQueues.get(templateId)
@@ -99,12 +151,17 @@ async function runTemplateSyncOperation(client: ReturnType<typeof useConvexClien
 		await client.mutation(api.templates.remove, { templateId: operation.templateId })
 		return
 	}
-	await client.mutation(api.templates.upsert, {
+	const revision = getTemplateRevisionState(operation.templateId)
+	const result = await client.mutation(api.templates.upsert, {
 		templateId: operation.templateId,
 		label: operation.label,
 		data: JSON.parse(JSON.stringify(operation.data)),
 		sortOrder: operation.sortOrder,
-	})
+		expectedUpdatedAt: operation.force ? undefined : revision.syncedUpdatedAt ?? undefined,
+		force: operation.force,
+	}) as { templateId: string, updatedAt: number, updatedBy: string }
+	setSyncedRevision(operation.templateId, result.updatedAt, result.updatedBy)
+	setRemoteConflict(operation.templateId, null)
 }
 
 function flushTemplateSync(client: ReturnType<typeof useConvexClient>, templateId: string) {
@@ -125,6 +182,18 @@ function flushTemplateSync(client: ReturnType<typeof useConvexClient>, templateI
 		.catch((err) => {
 			console.error('[templates] Convex sync failed:', err)
 			queue.failed = operation
+			if (isTemplateConflictError(err) && operation.kind === 'upsert') {
+				void client.query(api.templates.get, { templateId }).then((row) => {
+					const remoteRow = row as RemoteTemplateRow | null
+					if (!remoteRow) return
+					setRemoteConflict(templateId, {
+						serverUpdatedAt: remoteRow.updatedAt,
+						serverUpdatedBy: remoteRow.updatedBy,
+					})
+				})
+				setTemplateSyncStatus(templateId, { isPending: false, error: null })
+				return
+			}
 			setTemplateSyncStatus(templateId, { isPending: false, error: getErrorMessage(err) })
 		})
 		.finally(() => {
@@ -219,6 +288,29 @@ function repairLegacyRemoteTemplates(client: ReturnType<typeof useConvexClient> 
 		})
 }
 
+function parseRemoteTemplateRow(
+	row: RemoteTemplateRow,
+	client: ReturnType<typeof useConvexClient> | null,
+	schoolId: string | undefined,
+): TemplateSet | null {
+	const parsed = TemplateSetSchema.safeParse(row.data)
+	if (!parsed.success) {
+		console.warn(`[templates] Dropping invalid Convex template set "${row.id}":`, parsed.error.issues)
+		repairLegacyRemoteTemplates(client, schoolId)
+		return null
+	}
+	return parsed.data as TemplateSet
+}
+
+function applyRemoteTemplateRow(
+	store: ReturnType<typeof useTemplatesStore>,
+	row: RemoteTemplateRow,
+	data: TemplateSet,
+) {
+	store.saveSetData(row.id, data)
+	setSyncedRevision(row.id, row.updatedAt, row.updatedBy)
+}
+
 async function loadRemoteTemplateSet(
 	client: ReturnType<typeof useConvexClient> | null,
 	store: ReturnType<typeof useTemplatesStore>,
@@ -226,9 +318,9 @@ async function loadRemoteTemplateSet(
 	schoolId?: string,
 ) {
 	if (!templateId) return null
-	const cached = store.getSetData(templateId)
-	if (cached) return cached
 	if (!client) {
+		const cached = store.getSetData(templateId)
+		if (cached) return cached
 		setTemplateSyncStatus(templateId, {
 			isPending: false,
 			error: 'Convex-Verbindung ist nicht verfügbar.',
@@ -236,23 +328,86 @@ async function loadRemoteTemplateSet(
 		return null
 	}
 
+	if (!schoolId) {
+		const cached = store.getSetData(templateId)
+		if (cached) return cached
+	}
+
 	try {
-		const row = await client.query(api.templates.get, { templateId }) as { id: string, label: string, data: unknown } | null
+		const row = await client.query(api.templates.get, { templateId }) as RemoteTemplateRow | null
 		if (!row) return null
-		const parsed = TemplateSetSchema.safeParse(row.data)
-		if (!parsed.success) {
-			console.warn(`[templates] Dropping invalid Convex template set "${row.id}":`, parsed.error.issues)
-			repairLegacyRemoteTemplates(client, schoolId)
-			return null
-		}
-		const data = parsed.data as TemplateSet
-		store.saveSetData(row.id, data)
+		const data = parseRemoteTemplateRow(row, client, schoolId)
+		if (!data) return null
+		applyRemoteTemplateRow(store, row, data)
 		return data
 	} catch (err) {
 		console.error('[templates] template load failed:', err)
 		setTemplateSyncStatus(templateId, { isPending: false, error: getErrorMessage(err) })
 		return null
 	}
+}
+
+async function acceptRemoteTemplateVersion(
+	client: ReturnType<typeof useConvexClient> | null,
+	store: ReturnType<typeof useTemplatesStore>,
+	templateId: string,
+	remoteRow?: RemoteTemplateRow | null,
+) {
+	if (!client || !templateId) return null
+	const row = remoteRow ?? await client.query(api.templates.get, { templateId }) as RemoteTemplateRow | null
+	if (!row) return null
+	const data = parseRemoteTemplateRow(row, client, undefined)
+	if (!data) return null
+
+	const queue = getTemplateSyncQueue(templateId)
+	if (queue.timer) clearTimeout(queue.timer)
+	queue.timer = null
+	queue.latest = null
+	queue.failed = null
+	queue.inFlight = null
+
+	applyRemoteTemplateRow(store, row, data)
+	setRemoteConflict(templateId, null)
+	setTemplateSyncStatus(templateId, { isPending: false, error: null })
+	return data
+}
+
+function forceOverwriteTemplate(
+	client: ReturnType<typeof useConvexClient> | null,
+	store: ReturnType<typeof useTemplatesStore>,
+	templateId: string,
+) {
+	if (!client || !templateId) return
+	const setData = store.getSetData(templateId)
+	if (!setData) return
+
+	const queue = getTemplateSyncQueue(templateId)
+	if (queue.timer) clearTimeout(queue.timer)
+	queue.timer = null
+	queue.latest = null
+	queue.failed = null
+
+	setRemoteConflict(templateId, null)
+	setTemplateSyncStatus(templateId, { isPending: true, error: null })
+	queue.inFlight = runTemplateSyncOperation(client, {
+		kind: 'upsert',
+		templateId,
+		label: setData.label,
+		data: setData,
+		sortOrder: store.orderedIds.indexOf(templateId),
+		force: true,
+	})
+		.then(() => {
+			if (!queue.latest) setTemplateSyncStatus(templateId, { isPending: false, error: null })
+		})
+		.catch((err) => {
+			console.error('[templates] Convex force overwrite failed:', err)
+			setTemplateSyncStatus(templateId, { isPending: false, error: getErrorMessage(err) })
+		})
+		.finally(() => {
+			queue.inFlight = null
+			if (queue.latest) flushTemplateSync(client, templateId)
+		})
 }
 
 function toError(value: unknown) {
@@ -485,17 +640,86 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 	currentUserStore.load()
 
 	const setId = computed(() => toValue(setIdRef))
+	const schoolId = computed(() => currentUserStore.currentUser.schoolId)
 
 	const setRef = computed<TemplateSet | null>(() => store.getSetData(setId.value))
+
+	const templateQuery = useOptionalConvexQuery(
+		() => useConvexQuery(
+			api.templates.get,
+			{ templateId: setId.value },
+			{ server: false },
+		),
+		(err) => {
+			convexSetupError.value = err
+		},
+	)
+
+	const presenceQuery = useOptionalConvexQuery(
+		() => useConvexQuery(
+			api.templatePresence.listActive,
+			{ templateId: setId.value },
+			{ server: false },
+		),
+		(err) => {
+			convexSetupError.value = err
+		},
+	)
 
 	watch(
 		setId,
 		(nextSetId) => {
 			if (!nextSetId) return
-			void loadRemoteTemplateSet(client, store, nextSetId, currentUserStore.currentUser.schoolId)
+			void loadRemoteTemplateSet(client, store, nextSetId, schoolId.value)
 		},
 		{ immediate: true },
 	)
+
+	watch(
+		() => templateQuery.data.value,
+		(remoteRow) => {
+			if (!remoteRow || !setId.value || !schoolId.value) return
+			const row = remoteRow as RemoteTemplateRow
+			const revision = getTemplateRevisionState(setId.value)
+			if (revision.syncedUpdatedAt === null) return
+
+			const action = shouldApplyRemoteRevision(
+				revision.syncedUpdatedAt,
+				row.updatedAt,
+				hasPendingTemplateSync(setId.value),
+			)
+			if (action === 'ignore') return
+
+			if (action === 'conflict') {
+				setRemoteConflict(setId.value, {
+					serverUpdatedAt: row.updatedAt,
+					serverUpdatedBy: row.updatedBy,
+				})
+				return
+			}
+
+			const data = parseRemoteTemplateRow(row, client, schoolId.value)
+			if (!data) return
+			applyRemoteTemplateRow(store, row, data)
+			setRemoteConflict(setId.value, null)
+		},
+	)
+
+	let presenceHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+
+	function sendPresenceHeartbeat() {
+		if (!client || !setId.value || !schoolId.value) return
+		void client.mutation(api.templatePresence.heartbeat, { templateId: setId.value })
+	}
+
+	onMounted(() => {
+		sendPresenceHeartbeat()
+		presenceHeartbeatTimer = setInterval(sendPresenceHeartbeat, TEMPLATE_PRESENCE_HEARTBEAT_MS)
+	})
+
+	onUnmounted(() => {
+		if (presenceHeartbeatTimer) clearInterval(presenceHeartbeatTimer)
+	})
 
 	function getSet(): TemplateSet | null {
 		return setRef.value
@@ -986,6 +1210,19 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		})
 	}
 
+	const remoteConflict = computed(() => getTemplateRevisionState(setId.value).remoteConflict)
+	const hasUnresolvedConflict = computed(() => remoteConflict.value !== null)
+	const activeEditors = computed(() => presenceQuery.data.value ?? [])
+
+	function acceptRemoteVersion() {
+		const remoteRow = templateQuery.data.value as RemoteTemplateRow | undefined
+		void acceptRemoteTemplateVersion(client, store, setId.value, remoteRow)
+	}
+
+	function forceOverwrite() {
+		forceOverwriteTemplate(client, store, setId.value)
+	}
+
 	return {
 		setRef,
 		getSet,
@@ -993,6 +1230,11 @@ export function useTemplates(setIdRef: MaybeRefOrGetter<string>) {
 		loadError: computed(() => store.loadError),
 		isSyncPending: computed(() => templateSyncStatus[setId.value]?.isPending ?? false),
 		syncError: computed(() => templateSyncStatus[setId.value]?.error ?? convexSetupError.value?.message ?? null),
+		remoteConflict,
+		hasUnresolvedConflict,
+		activeEditors,
+		acceptRemoteVersion,
+		forceOverwrite,
 		retrySync: () => retryTemplateSync(client, setId.value),
 		save,
 		addSubject,
