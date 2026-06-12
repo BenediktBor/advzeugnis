@@ -10,6 +10,7 @@ const MAX_GRADES_PER_CATEGORY = 30
 const MAX_VARIANTS_PER_GRADE = 30
 const MAX_SENTENCE_PARTS_PER_VARIANT = 500
 const MAX_OPTIONAL_GROUP_PARTS = 100
+const MAX_SELECT_OPTIONS = 30
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -42,6 +43,7 @@ type SentencePart =
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
 	| { type: 'input', placeholder?: string }
+	| { type: 'select', options: string[], placeholder?: string }
 	| { type: 'optionalGroup', id: string, enabledByDefault: boolean, parts: OptionalGroupChildPart[] }
 
 type OptionalGroupChildPart =
@@ -49,6 +51,7 @@ type OptionalGroupChildPart =
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
 	| { type: 'input', placeholder?: string }
+	| { type: 'select', options: string[], placeholder?: string }
 
 function assertUuid(value: string, field: string) {
 	if (!uuidPattern.test(value)) throw new ConvexError(`${field} must be a UUID`)
@@ -90,6 +93,13 @@ function validateChildPart(part: OptionalGroupChildPart, field: string) {
 		return
 	}
 	if (part.type === 'input') {
+		assertText(part.placeholder, `${field}.placeholder`)
+		return
+	}
+	if (part.type === 'select') {
+		assertArrayLimit(part.options, MAX_SELECT_OPTIONS, `${field}.options`)
+		if (part.options.length === 0) throw new ConvexError(`${field}.options must contain at least one option`)
+		part.options.forEach((option, index) => assertText(option, `${field}.options[${index}]`))
 		assertText(part.placeholder, `${field}.placeholder`)
 		return
 	}

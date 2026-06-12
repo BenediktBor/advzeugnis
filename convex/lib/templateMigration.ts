@@ -29,6 +29,7 @@ type SentencePart =
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
 	| { type: 'input', placeholder?: string }
+	| { type: 'select', options: string[], placeholder?: string }
 	| { type: 'optionalGroup', id: string, enabledByDefault: boolean, parts: OptionalGroupChildPart[] }
 
 type OptionalGroupChildPart =
@@ -36,6 +37,7 @@ type OptionalGroupChildPart =
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
 	| { type: 'input', placeholder?: string }
+	| { type: 'select', options: string[], placeholder?: string }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -70,6 +72,19 @@ function migrateChildPart(part: unknown): OptionalGroupChildPart {
 		return typeof part.placeholder === 'string'
 			? { type: 'input', placeholder: part.placeholder }
 			: { type: 'input' }
+	}
+	if (part.type === 'select') {
+		const options = Array.isArray(part.options)
+			? part.options.map((option) => stringOr(option, '')).filter(Boolean)
+			: []
+		const migrated: { type: 'select', options: string[], placeholder?: string } = {
+			type: 'select',
+			options,
+		}
+		if (typeof part.placeholder === 'string' && part.placeholder.trim()) {
+			migrated.placeholder = part.placeholder
+		}
+		return migrated
 	}
 	return { type: 'text', value: stringOr(part.value, '') }
 }

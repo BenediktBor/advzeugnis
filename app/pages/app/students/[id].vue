@@ -148,6 +148,10 @@ function getInputPartOverrides(categoryId: string) {
 	return getStoredCategoryEntry(categoryId)?.inputPartOverrides ?? {}
 }
 
+function getSelectPartOverrides(categoryId: string) {
+	return getStoredCategoryEntry(categoryId)?.selectPartOverrides ?? {}
+}
+
 function getSelectedSubjectId() {
 	return student.value?.reportSelection?.selectedSubjectId ?? null
 }
@@ -204,6 +208,7 @@ function setGrade(categoryId: string, category: Category, grade: Grade) {
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -239,6 +244,7 @@ function toggleVariant(categoryId: string, category: Category, variantId: string
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -267,6 +273,7 @@ function selectVariants(categoryId: string, category: Category, variantIds: stri
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -305,6 +312,7 @@ function disableCategory(categoryId: string) {
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -340,6 +348,7 @@ function toggleOptionalPart(
 			},
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -374,6 +383,7 @@ function setNamePartReplacement(
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: nextNamePartOverrides,
 			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: getSelectPartOverrides(categoryId),
 		},
 	}
 	updateStudent(id.value, {
@@ -409,6 +419,43 @@ function setInputPartValue(
 			optionalPartOverrides: getOptionalPartOverrides(categoryId),
 			namePartOverrides: getNamePartOverrides(categoryId),
 			inputPartOverrides: nextInputPartOverrides,
+			selectPartOverrides: getSelectPartOverrides(categoryId),
+		},
+	}
+	updateStudent(id.value, {
+		reportSelection: { ...student.value.reportSelection, categories: nextCategories },
+	})
+	focusedCategoryId.value = categoryId
+	lastChangedVariantId.value = variantId
+}
+
+function setSelectPartValue(
+	categoryId: string,
+	category: Category,
+	variantId: string,
+	partPath: string,
+	value: string
+) {
+	if (!id.value || !student.value) return
+	const entry = getCategoryEntry(category)
+	if (!entry.gradeId) return
+	const nextSelectPartOverrides = { ...getSelectPartOverrides(categoryId) }
+	const key = namePartOverrideKey(variantId, partPath)
+	const trimmed = value.trim()
+	if (trimmed) {
+		nextSelectPartOverrides[key] = trimmed
+	} else {
+		delete nextSelectPartOverrides[key]
+	}
+	const nextCategories = {
+		...student.value.reportSelection?.categories,
+		[categoryId]: {
+			gradeId: entry.gradeId,
+			variantIds: entry.variantIds,
+			optionalPartOverrides: getOptionalPartOverrides(categoryId),
+			namePartOverrides: getNamePartOverrides(categoryId),
+			inputPartOverrides: getInputPartOverrides(categoryId),
+			selectPartOverrides: nextSelectPartOverrides,
 		},
 	}
 	updateStudent(id.value, {
@@ -438,6 +485,7 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 			const optionalPartOverrides = getOptionalPartOverrides(category.id)
 			const namePartOverrides = getNamePartOverrides(category.id)
 			const inputPartOverrides = getInputPartOverrides(category.id)
+			const selectPartOverrides = getSelectPartOverrides(category.id)
 			return {
 				subjectLabel: subject.label || 'Unbenannt',
 				categoryId: category.id,
@@ -449,13 +497,15 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 				optionalPartOverrides,
 				namePartOverrides,
 				inputPartOverrides,
+				selectPartOverrides,
 				variants: grade?.variants ?? [],
 				selectedPreviewText: buildVariantsPreviewText(
 					s,
 					selectedVariants,
 					optionalPartOverrides,
 					namePartOverrides,
-					inputPartOverrides
+					inputPartOverrides,
+					selectPartOverrides
 				),
 				variantPreviewById: Object.fromEntries(
 					(grade?.variants ?? []).map((variant) => [
@@ -465,7 +515,8 @@ const subjectGroups = computed<SubjectGroup[]>(() => {
 							variant,
 							optionalPartOverrides,
 							namePartOverrides,
-							inputPartOverrides
+							inputPartOverrides,
+							selectPartOverrides
 						),
 					])
 				),
@@ -744,6 +795,7 @@ watch(
 					@toggle-optional-part="toggleOptionalPart"
 					@set-name-part-replacement="setNamePartReplacement"
 					@set-input-part-value="setInputPartValue"
+					@set-select-part-value="setSelectPartValue"
 					@select-all-variants="selectAllVariants"
 					@clear-all-variants="clearAllVariants"
 					@update:selected-subject-id="setSelectedSubjectId"

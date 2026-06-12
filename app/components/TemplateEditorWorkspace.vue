@@ -7,7 +7,11 @@ import {
 	cloneClipboardItemsForPaste,
 	createTemplateClipboardPayload,
 } from '~/utils/templateClipboard'
-import { getSentencePartEditorHelp } from '~/utils/sentencePartEditorHelp'
+import {
+	formatSelectOptionsText,
+	getSentencePartEditorHelp,
+	parseSelectOptionsText,
+} from '~/utils/sentencePartEditorHelp'
 
 const props = defineProps<{
 	setId: string
@@ -982,13 +986,15 @@ function handleTemplateClipboardKeydown(event: KeyboardEvent) {
 }
 
 const addPartModalOpen = ref(false)
-type AddPartType = 'text' | 'genderVariant' | 'name' | 'input' | 'optionalGroup'
+type AddPartType = 'text' | 'genderVariant' | 'name' | 'input' | 'select' | 'optionalGroup'
 const addPartType = ref<AddPartType>('text')
 const addPartTargetGroupIndex = ref<number | null>(null)
 const addPartText = ref('')
 const addPartMale = ref('')
 const addPartFemale = ref('')
 const addPartInputPlaceholder = ref('')
+const addPartSelectOptions = ref('')
+const addPartSelectPlaceholder = ref('')
 const addPartOptionalEnabledByDefault = ref(true)
 const addPartTabItems = computed(() => {
 	const items: Array<{ value: AddPartType; label: string }> = [
@@ -996,6 +1002,7 @@ const addPartTabItems = computed(() => {
 		{ value: 'genderVariant' as const, label: 'Variabler Text' },
 		{ value: 'name' as const, label: 'Name' },
 		{ value: 'input' as const, label: 'Eingabe' },
+		{ value: 'select' as const, label: 'Auswahl' },
 	]
 	if (addPartTargetGroupIndex.value === null) {
 		items.push({ value: 'optionalGroup' as const, label: 'Optionale Gruppe' })
@@ -1011,6 +1018,8 @@ function openAddPartModal(groupIndex: number | null = null) {
 	addPartMale.value = ''
 	addPartFemale.value = ''
 	addPartInputPlaceholder.value = ''
+	addPartSelectOptions.value = ''
+	addPartSelectPlaceholder.value = ''
 	addPartOptionalEnabledByDefault.value = true
 	addPartModalOpen.value = true
 }
@@ -1019,6 +1028,9 @@ const canConfirmAddPart = computed(() => {
 	if (addPartType.value === 'text') return addPartText.value.trim() !== ''
 	if (addPartType.value === 'genderVariant') {
 		return addPartMale.value.trim() !== '' && addPartFemale.value.trim() !== ''
+	}
+	if (addPartType.value === 'select') {
+		return parseSelectOptionsText(addPartSelectOptions.value).length > 0
 	}
 	return true
 })
@@ -1043,6 +1055,15 @@ function confirmAddPart() {
 		case 'input': {
 			const placeholder = addPartInputPlaceholder.value.trim()
 			part = placeholder ? { type: 'input', placeholder } : { type: 'input' }
+			break
+		}
+		case 'select': {
+			const options = parseSelectOptionsText(addPartSelectOptions.value)
+			if (options.length === 0) return
+			const placeholder = addPartSelectPlaceholder.value.trim()
+			part = placeholder
+				? { type: 'select', options, placeholder }
+				: { type: 'select', options }
 			break
 		}
 		case 'optionalGroup':
@@ -1094,6 +1115,19 @@ function addQuickNamePart() {
 function addQuickInputPart() {
 	addPartTargetGroupIndex.value = null
 	insertSentencePart({ type: 'input' })
+}
+
+function openAddPartModalForSelect(groupIndex: number | null = null) {
+	addPartTargetGroupIndex.value = groupIndex
+	addPartType.value = 'select'
+	addPartText.value = ''
+	addPartMale.value = ''
+	addPartFemale.value = ''
+	addPartInputPlaceholder.value = ''
+	addPartSelectOptions.value = ''
+	addPartSelectPlaceholder.value = ''
+	addPartOptionalEnabledByDefault.value = true
+	addPartModalOpen.value = true
 }
 
 function addQuickOptionalGroupPart() {
@@ -1177,11 +1211,13 @@ function confirmEditLabel() {
 }
 
 const editPartModalOpen = ref(false)
-const editPartType = ref<'text' | 'genderVariant' | 'input'>('text')
+const editPartType = ref<'text' | 'genderVariant' | 'input' | 'select'>('text')
 const editPartText = ref('')
 const editPartMale = ref('')
 const editPartFemale = ref('')
 const editPartInputPlaceholder = ref('')
+const editPartSelectOptions = ref('')
+const editPartSelectPlaceholder = ref('')
 const editPartSaveCallback = ref<((part: OptionalGroupChildPart) => void) | null>(null)
 
 function openEditPartModal(part: SentencePart | OptionalGroupChildPart, onSave: (part: OptionalGroupChildPart) => void) {
@@ -1196,6 +1232,10 @@ function openEditPartModal(part: SentencePart | OptionalGroupChildPart, onSave: 
 	} else if (part.type === 'input') {
 		editPartType.value = 'input'
 		editPartInputPlaceholder.value = part.placeholder ?? ''
+	} else if (part.type === 'select') {
+		editPartType.value = 'select'
+		editPartSelectOptions.value = formatSelectOptionsText(part.options)
+		editPartSelectPlaceholder.value = part.placeholder ?? ''
 	} else {
 		return
 	}
@@ -1210,6 +1250,13 @@ function confirmEditPart() {
 	} else if (editPartType.value === 'input') {
 		const placeholder = editPartInputPlaceholder.value.trim()
 		part = placeholder ? { type: 'input', placeholder } : { type: 'input' }
+	} else if (editPartType.value === 'select') {
+		const options = parseSelectOptionsText(editPartSelectOptions.value)
+		if (options.length === 0) return
+		const placeholder = editPartSelectPlaceholder.value.trim()
+		part = placeholder
+			? { type: 'select', options, placeholder }
+			: { type: 'select', options }
 	} else {
 		part = {
 			type: 'genderVariant',
@@ -1357,6 +1404,7 @@ onBeforeUnmount(() => {
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
 					@quick-add-input="addQuickInputPart"
+					@quick-add-select="openAddPartModalForSelect"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
 					@quick-add-gender-variant="applyGenderVariant"
 					@create-gender-variant="openAddPartModalForGenderVariant"
@@ -1418,6 +1466,7 @@ onBeforeUnmount(() => {
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
 					@quick-add-input="addQuickInputPart"
+					@quick-add-select="openAddPartModalForSelect"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
 					@quick-add-gender-variant="applyGenderVariant"
 					@create-gender-variant="openAddPartModalForGenderVariant"
@@ -1486,6 +1535,8 @@ onBeforeUnmount(() => {
 				v-model:part-male="addPartMale"
 				v-model:part-female="addPartFemale"
 				v-model:part-input-placeholder="addPartInputPlaceholder"
+				v-model:part-select-options="addPartSelectOptions"
+				v-model:part-select-placeholder="addPartSelectPlaceholder"
 				v-model:optional-enabled-by-default="addPartOptionalEnabledByDefault"
 				:add-part-tab-items="addPartTabItems"
 				:add-part-help="addPartHelp"
@@ -1535,6 +1586,27 @@ onBeforeUnmount(() => {
 						v-model="editPartInputPlaceholder"
 						placeholder="z. B. Projektname"
 						autofocus
+						@keydown.enter="confirmEditPart"
+					/>
+				</UFormField>
+			</template>
+			<template v-else-if="editPartType === 'select'">
+				<UFormField
+					label="Auswahloptionen"
+					name="edit-part-select-options"
+					description="Eine Option pro Zeile"
+				>
+					<UTextarea
+						v-model="editPartSelectOptions"
+						placeholder="z. B. gut&#10;sehr gut&#10;ausgezeichnet"
+						:rows="4"
+						autofocus
+					/>
+				</UFormField>
+				<UFormField label="Platzhalter (optional)" name="edit-part-select-placeholder" class="mt-3">
+					<UInput
+						v-model="editPartSelectPlaceholder"
+						placeholder="z. B. Leistung wählen"
 						@keydown.enter="confirmEditPart"
 					/>
 				</UFormField>

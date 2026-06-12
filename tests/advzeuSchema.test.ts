@@ -311,6 +311,16 @@ describe('SentencePartSchema', () => {
 		expect(result.success).toBe(true)
 	})
 
+	it('accepts select sentence parts', () => {
+		const result = SentencePartSchema.safeParse({
+			type: 'select',
+			options: ['gut', 'sehr gut'],
+			placeholder: 'Leistung wählen',
+		})
+
+		expect(result.success).toBe(true)
+	})
+
 	it('rejects nested optional group sentence parts', () => {
 		const result = SentencePartSchema.safeParse({
 			type: 'optionalGroup',
@@ -392,6 +402,29 @@ describe('StudentSchema', () => {
 						variantIds: ['variant-1'],
 						namePartOverrides: {
 							'variant-1:0': 'erSie',
+						},
+					},
+				},
+			},
+		})
+
+		expect(result.success).toBe(true)
+	})
+
+	it('accepts select part overrides', () => {
+		const result = StudentSchema.safeParse({
+			id: 'student-1',
+			name: 'Max',
+			surname: 'Müller',
+			gender: 'male',
+			templateSetId: 'set-1',
+			reportSelection: {
+				categories: {
+					'category-1': {
+						gradeId: 'grade-1',
+						variantIds: ['variant-1'],
+						selectPartOverrides: {
+							'variant-1:1': 'sehr gut',
 						},
 					},
 				},

@@ -1255,6 +1255,23 @@ describe('preview helpers', () => {
 		})).toBe('Projekt: Mathematik abgeschlossen.')
 	})
 
+	it('resolves select parts from overrides and omits empty values', () => {
+		const student = makeStudent()
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'text' as const, value: 'Leistung:' },
+				{ type: 'select' as const, options: ['gut', 'sehr gut'] },
+			],
+		}
+
+		expect(buildVariantPreviewText(student, variant)).toBe('Leistung:.')
+		expect(buildVariantPreviewText(student, variant, {}, {}, {}, {
+			[namePartOverrideKey('v1', 1)]: 'sehr gut',
+		})).toBe('Leistung: sehr gut.')
+	})
+
 	it('resolves input parts inside optional groups', () => {
 		const student = makeStudent()
 		const variant = {

@@ -14,6 +14,7 @@ const props = withDefaults(
 		previewGender: 'male' | 'female'
 		namePartSelections?: Record<string, NameSelectionValue>
 		inputPartValues?: Record<string, string>
+		selectPartValues?: Record<string, string>
 		optionalPartEnabledMap?: Record<string, boolean>
 		showNameReplacementSelect?: boolean
 		canEditOptional?: boolean
@@ -22,6 +23,7 @@ const props = withDefaults(
 	{
 		namePartSelections: () => ({}),
 		inputPartValues: () => ({}),
+		selectPartValues: () => ({}),
 		optionalPartEnabledMap: () => ({}),
 		showNameReplacementSelect: true,
 		canEditOptional: true,
@@ -33,6 +35,7 @@ const emit = defineEmits<{
 	toggleOptionalGroup: [partId: string, enabled: boolean]
 	setNamePartSelection: [partPath: string, value: NameSelectionValue]
 	setInputPartValue: [partPath: string, value: string]
+	setSelectPartValue: [partPath: string, value: string]
 }>()
 
 function isOptionalEnabled(part: Extract<SentencePart, { type: 'optionalGroup' }>): boolean {
@@ -65,6 +68,18 @@ function inputPartValue(partPath: string): string {
 
 function inputPlaceholder(part: Extract<InlinePart, { type: 'input' }>): string {
 	return part.placeholder?.trim() || 'Eingabe…'
+}
+
+function selectPartValue(partPath: string): string {
+	return props.selectPartValues[partPath] ?? ''
+}
+
+function selectMenuItems(part: Extract<InlinePart, { type: 'select' }>) {
+	return part.options.map((option) => ({ label: option, value: option }))
+}
+
+function selectPlaceholder(part: Extract<InlinePart, { type: 'select' }>): string {
+	return part.placeholder?.trim() || 'Auswahl…'
 }
 
 function isSentenceStart(partsBefore: string[]): boolean {
@@ -125,6 +140,8 @@ function resolveInlinePart(part: InlinePart, partPath: string, partsBefore: stri
 		}
 		case 'input':
 			return inputPartValue(partPath).trim()
+		case 'select':
+			return selectPartValue(partPath).trim()
 		default:
 			return ''
 	}
@@ -153,8 +170,20 @@ const previewSuffix = computed(() => {
 			v-for="(part, partIndex) in variant.sentences"
 			:key="`${variant.id}-${partIndex}`"
 		>
+			<USelectMenu
+				v-if="part.type === 'select'"
+				:model-value="selectPartValue(String(partIndex)) || undefined"
+				:items="selectMenuItems(part)"
+				:placeholder="selectPlaceholder(part)"
+				value-key="value"
+				size="xs"
+				class="mr-1.5 inline-block w-auto min-w-24 align-baseline"
+				@click.stop
+				@keydown.stop
+				@update:model-value="emit('setSelectPartValue', String(partIndex), String($event ?? ''))"
+			/>
 			<UInput
-				v-if="part.type === 'input'"
+				v-else-if="part.type === 'input'"
 				:model-value="inputPartValue(String(partIndex))"
 				:placeholder="inputPlaceholder(part)"
 				size="xs"
@@ -201,8 +230,20 @@ const previewSuffix = computed(() => {
 						v-for="(childPart, childIndex) in optionalGroupParts(part)"
 						:key="`${variant.id}-${partIndex}-${childIndex}`"
 					>
+						<USelectMenu
+							v-if="childPart.type === 'select' && optionalGroupEnabled(part)"
+							:model-value="selectPartValue(`${partIndex}.${childIndex}`) || undefined"
+							:items="selectMenuItems(childPart)"
+							:placeholder="selectPlaceholder(childPart)"
+							value-key="value"
+							size="xs"
+							class="inline-block w-auto min-w-24 align-baseline"
+							@click.stop
+							@keydown.stop
+							@update:model-value="emit('setSelectPartValue', `${partIndex}.${childIndex}`, String($event ?? ''))"
+						/>
 						<UInput
-							v-if="childPart.type === 'input' && optionalGroupEnabled(part)"
+							v-else-if="childPart.type === 'input' && optionalGroupEnabled(part)"
 							:model-value="inputPartValue(`${partIndex}.${childIndex}`)"
 							:placeholder="inputPlaceholder(childPart)"
 							size="xs"

@@ -17,6 +17,7 @@ const emit = defineEmits<{
 	addText: []
 	addName: []
 	addInput: []
+	addSelect: []
 	addOptionalGroup: []
 	addGenderVariant: [value: [string, string]]
 	createGenderVariant: []
@@ -68,6 +69,14 @@ const genderVariantMenuItems = computed(() => {
 			variant="soft"
 			color="neutral"
 			@click="emit('addInput')"
+		/>
+		<UButton
+			label="Auswahl"
+			icon="i-lucide-list"
+			size="sm"
+			variant="soft"
+			color="neutral"
+			@click="emit('addSelect')"
 		/>
 		<UButton
 			v-if="showOptionalGroup"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Sortable from 'sortablejs'
 import type { OptionalGroupChildPart, SentencePart, SentencePartPath } from '~/types/template'
+import { selectPartPillLabel } from '~/utils/sentencePartEditorHelp'
 
 type PillContextMenuAction = 'copy' | 'cut' | 'paste'
 type SentencePartSortableEvent = {
@@ -69,6 +70,9 @@ function defaultPartLabel(part: SentencePart | OptionalGroupChildPart): string {
 	}
 	if (part.type === 'input') {
 		return part.placeholder?.trim() ? `Eingabe (${part.placeholder.trim()})` : 'Eingabe'
+	}
+	if (part.type === 'select') {
+		return selectPartPillLabel(part.options)
 	}
 	return 'Name'
 }
@@ -214,7 +218,7 @@ function partPathId(path: SentencePartPath): string {
 }
 
 function canEditPart(part: SentencePart | OptionalGroupChildPart): boolean {
-	return part.type === 'text' || part.type === 'genderVariant' || part.type === 'input'
+	return part.type === 'text' || part.type === 'genderVariant' || part.type === 'input' || part.type === 'select'
 }
 
 const partsSignature = computed(() =>

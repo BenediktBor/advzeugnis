@@ -8,6 +8,7 @@ const {
 	variant,
 	openAddModal,
 	openAddModalForGenderVariant,
+	openAddModalForSelect,
 	openEditModal,
 	deletePart,
 	reorderParts,
@@ -37,6 +38,7 @@ const genderVariants = computed(() => collectGenderVariantsFromTemplateSet(landi
 				@add-text="openAddModal()"
 				@add-name="addQuickNamePart"
 				@add-input="addQuickInputPart"
+				@add-select="openAddModalForSelect"
 				@add-optional-group="addQuickOptionalGroup"
 				@add-gender-variant="applyGenderVariant"
 				@create-gender-variant="openAddModalForGenderVariant()"

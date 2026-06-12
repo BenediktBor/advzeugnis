@@ -9,6 +9,7 @@ export const ReportSelectionSchema = z.object({
 			optionalPartOverrides: z.record(z.string(), z.boolean()).optional(),
 			namePartOverrides: z.record(z.string(), z.enum(['erSie'])).optional(),
 			inputPartOverrides: z.record(z.string(), z.string()).optional(),
+			selectPartOverrides: z.record(z.string(), z.string()).optional(),
 		})
 	),
 	selectedSubjectId: z.string().optional(),

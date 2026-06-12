@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Category, OptionalGroupChildPart, SentencePart, SentencePartPath, Variant } from '~/types/template'
 import type { GenderVariantOption } from '~/utils/collectGenderVariants'
+import { selectPartPillLabel } from '~/utils/sentencePartEditorHelp'
 
 const props = defineProps<{
 	category: Category
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 	addSentencePartToGroup: [groupIndex: number]
 	quickAddName: []
 	quickAddInput: []
+	quickAddSelect: []
 	quickAddOptionalGroup: []
 	quickAddGenderVariant: [value: [string, string]]
 	createGenderVariant: []
@@ -80,6 +82,8 @@ function sentencePartLabel(part: SentencePart | OptionalGroupChildPart): string 
 		case 'name': return 'Name'
 		case 'input':
 			return part.placeholder?.trim() ? `Eingabe (${part.placeholder.trim()})` : 'Eingabe'
+		case 'select':
+			return selectPartPillLabel(part.options)
 		case 'optionalGroup':
 			return `Optionale Gruppe (${part.enabledByDefault ? 'aktiv' : 'inaktiv'})`
 		default: return ''
@@ -264,6 +268,7 @@ function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGrou
 				@add-text="emit('addSentencePart')"
 				@add-name="emit('quickAddName')"
 				@add-input="emit('quickAddInput')"
+				@add-select="emit('quickAddSelect')"
 				@add-optional-group="emit('quickAddOptionalGroup')"
 				@add-gender-variant="emit('quickAddGenderVariant', $event)"
 				@create-gender-variant="emit('createGenderVariant')"
@@ -319,7 +324,7 @@ function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGrou
 				</template>
 				<template #actions="{ part, partIndex }">
 					<UButton
-						v-if="part.type === 'text' || part.type === 'genderVariant' || part.type === 'input'"
+						v-if="part.type === 'text' || part.type === 'genderVariant' || part.type === 'input' || part.type === 'select'"
 						icon="i-lucide-pencil"
 						color="neutral"
 						variant="ghost"

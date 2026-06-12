@@ -1,6 +1,8 @@
 import type { OptionalGroupChildPart, SentencePart, SentencePartPath, Variant } from '~/types/template'
 import {
+	formatSelectOptionsText,
 	getSentencePartEditorHelp,
+	parseSelectOptionsText,
 	type SentencePartEditorType,
 } from '~/utils/sentencePartEditorHelp'
 
@@ -26,6 +28,8 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 	const partMale = ref('')
 	const partFemale = ref('')
 	const partInputPlaceholder = ref('')
+	const partSelectOptions = ref('')
+	const partSelectPlaceholder = ref('')
 	const optionalEnabledByDefault = ref(true)
 
 	const addPartTabItems = computed(() => {
@@ -34,6 +38,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			{ value: 'genderVariant', label: 'Variabler Text' },
 			{ value: 'name', label: 'Name' },
 			{ value: 'input', label: 'Eingabe' },
+			{ value: 'select', label: 'Auswahl' },
 		]
 		if (targetGroupIndex.value === null) {
 			items.push({ value: 'optionalGroup', label: 'Optionale Gruppe' })
@@ -47,6 +52,9 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		if (partType.value === 'text') return partText.value.trim() !== ''
 		if (partType.value === 'genderVariant') {
 			return partMale.value.trim() !== '' && partFemale.value.trim() !== ''
+		}
+		if (partType.value === 'select') {
+			return parseSelectOptionsText(partSelectOptions.value).length > 0
 		}
 		return true
 	})
@@ -64,6 +72,8 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		partMale.value = ''
 		partFemale.value = ''
 		partInputPlaceholder.value = ''
+		partSelectOptions.value = ''
+		partSelectPlaceholder.value = ''
 		optionalEnabledByDefault.value = true
 	}
 
@@ -81,6 +91,14 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			case 'input': {
 				const placeholder = partInputPlaceholder.value.trim()
 				return placeholder ? { type: 'input', placeholder } : { type: 'input' }
+			}
+			case 'select': {
+				const options = parseSelectOptionsText(partSelectOptions.value)
+				if (options.length === 0) return null
+				const placeholder = partSelectPlaceholder.value.trim()
+				return placeholder
+					? { type: 'select', options, placeholder }
+					: { type: 'select', options }
 			}
 			case 'optionalGroup':
 				return {
@@ -108,6 +126,13 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		addModalOpen.value = true
 	}
 
+	function openAddModalForSelect(groupIndex: number | null = null) {
+		targetGroupIndex.value = groupIndex
+		partType.value = 'select'
+		resetPartForm()
+		addModalOpen.value = true
+	}
+
 	function confirmAddPart() {
 		const part = buildPartFromForm()
 		if (!part) return
@@ -125,7 +150,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 
 	function openEditModal(path: SentencePartPath) {
 		const part = partAtPath(path)
-		if (!part || (part.type !== 'text' && part.type !== 'genderVariant' && part.type !== 'input')) return
+		if (!part || (part.type !== 'text' && part.type !== 'genderVariant' && part.type !== 'input' && part.type !== 'select')) return
 		editPath.value = path
 		partType.value = part.type
 		if (part.type === 'text') {
@@ -133,16 +158,29 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			partMale.value = ''
 			partFemale.value = ''
 			partInputPlaceholder.value = ''
+			partSelectOptions.value = ''
+			partSelectPlaceholder.value = ''
 		} else if (part.type === 'genderVariant') {
 			partText.value = ''
 			partMale.value = part.value[0] ?? ''
 			partFemale.value = part.value[1] ?? ''
 			partInputPlaceholder.value = ''
-		} else {
+			partSelectOptions.value = ''
+			partSelectPlaceholder.value = ''
+		} else if (part.type === 'input') {
 			partText.value = ''
 			partMale.value = ''
 			partFemale.value = ''
 			partInputPlaceholder.value = part.placeholder ?? ''
+			partSelectOptions.value = ''
+			partSelectPlaceholder.value = ''
+		} else {
+			partText.value = ''
+			partMale.value = ''
+			partFemale.value = ''
+			partInputPlaceholder.value = ''
+			partSelectOptions.value = formatSelectOptionsText(part.options)
+			partSelectPlaceholder.value = part.placeholder ?? ''
 		}
 		editModalOpen.value = true
 	}
@@ -165,6 +203,16 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			part.value = [partMale.value.trim(), partFemale.value.trim()]
 		} else if (partType.value === 'input' && part.type === 'input') {
 			const placeholder = partInputPlaceholder.value.trim()
+			if (placeholder) {
+				part.placeholder = placeholder
+			} else {
+				delete part.placeholder
+			}
+		} else if (partType.value === 'select' && part.type === 'select') {
+			const options = parseSelectOptionsText(partSelectOptions.value)
+			if (options.length === 0) return
+			part.options = options
+			const placeholder = partSelectPlaceholder.value.trim()
 			if (placeholder) {
 				part.placeholder = placeholder
 			} else {
@@ -305,12 +353,15 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		partMale,
 		partFemale,
 		partInputPlaceholder,
+		partSelectOptions,
+		partSelectPlaceholder,
 		optionalEnabledByDefault,
 		addPartTabItems,
 		addPartHelp,
 		canConfirmPart,
 		openAddModal,
 		openAddModalForGenderVariant,
+		openAddModalForSelect,
 		confirmAddPart,
 		openEditModal,
 		confirmEditPart,

@@ -59,6 +59,20 @@ describe('Convex template validation', () => {
 		})).not.toThrow()
 	})
 
+	it('accepts select sentence parts with options', () => {
+		const data = validTemplate()
+		data.subjects[0].categories[0].grades[0].variants[0].sentences.push({
+			type: 'select' as const,
+			options: ['gut', 'sehr gut'],
+			placeholder: 'Leistung wählen',
+		})
+		expect(() => validateTemplateInput({
+			templateId,
+			label: 'Klasse 5',
+			data,
+		})).not.toThrow()
+	})
+
 	it('accepts input sentence parts with optional placeholder', () => {
 		const data = validTemplate()
 		data.subjects[0].categories[0].grades[0].variants[0].sentences.push({

@@ -7,6 +7,8 @@ const partText = defineModel<string>('partText', { required: true })
 const partMale = defineModel<string>('partMale', { required: true })
 const partFemale = defineModel<string>('partFemale', { required: true })
 const partInputPlaceholder = defineModel<string>('partInputPlaceholder', { required: true })
+const partSelectOptions = defineModel<string>('partSelectOptions', { required: true })
+const partSelectPlaceholder = defineModel<string>('partSelectPlaceholder', { required: true })
 const optionalEnabledByDefault = defineModel<boolean>('optionalEnabledByDefault', { required: true })
 
 const props = withDefaults(
@@ -115,6 +117,29 @@ function onGenderPresetClick(male: string, female: string) {
 					v-model="partInputPlaceholder"
 					placeholder="z. B. Projektname"
 					:autofocus="props.autofocus !== false"
+					@keydown.enter="emit('submit')"
+				/>
+			</UFormField>
+		</template>
+
+		<template v-else-if="partType === 'select'">
+			<UFormField
+				label="Auswahloptionen"
+				name="sentence-part-select-options"
+				description="Eine Option pro Zeile"
+				class="mt-3"
+			>
+				<UTextarea
+					v-model="partSelectOptions"
+					placeholder="z. B. gut&#10;sehr gut&#10;ausgezeichnet"
+					:rows="4"
+					:autofocus="props.autofocus !== false"
+				/>
+			</UFormField>
+			<UFormField label="Platzhalter (optional)" name="sentence-part-select-placeholder" class="mt-3">
+				<UInput
+					v-model="partSelectPlaceholder"
+					placeholder="z. B. Leistung wählen"
 					@keydown.enter="emit('submit')"
 				/>
 			</UFormField>

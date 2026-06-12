@@ -4,7 +4,7 @@ import {
 	isOptionalPartEnabled,
 	namePartOverrideKey,
 } from '~/utils/reportText'
-import type { InputPartOverrides, NamePartOverrides, NamePartReplacementKey } from '~/types/student'
+import type { InputPartOverrides, NamePartOverrides, NamePartReplacementKey, SelectPartOverrides } from '~/types/student'
 import type { Category, Grade, SentencePart, Variant } from '~/types/template'
 
 type OptionalPart = Extract<SentencePart, { type: 'optionalGroup' }>
@@ -21,6 +21,7 @@ export interface CategoryRow {
 	optionalPartOverrides: Record<string, boolean>
 	namePartOverrides: NamePartOverrides
 	inputPartOverrides: InputPartOverrides
+	selectPartOverrides: SelectPartOverrides
 	variants: Variant[]
 	selectedPreviewText: string
 	variantPreviewById: Record<string, string>
@@ -62,6 +63,13 @@ const emit = defineEmits<{
 		replacementKey: NamePartReplacementKey | null,
 	]
 	setInputPartValue: [
+		categoryId: string,
+		category: Category,
+		variantId: string,
+		partPath: string,
+		value: string,
+	]
+	setSelectPartValue: [
 		categoryId: string,
 		category: Category,
 		variantId: string,
@@ -214,6 +222,48 @@ function inputPartValuesForVariant(row: CategoryRow, variant: Variant): Record<s
 				if (childPart.type !== 'input') continue
 				const partPath = `${partIndex}.${childIndex}`
 				values[partPath] = inputPartValue(row, variant.id, partPath)
+			}
+		}
+	}
+	return values
+}
+
+function selectPartValue(
+	row: CategoryRow,
+	variantId: string,
+	partPath: string
+): string {
+	return row.selectPartOverrides[namePartOverrideKey(variantId, partPath)] ?? ''
+}
+
+function setSelectPartValue(
+	row: CategoryRow,
+	variant: Variant,
+	partPath: string,
+	value: string
+) {
+	emit(
+		'setSelectPartValue',
+		row.categoryId,
+		row.category,
+		variant.id,
+		partPath,
+		value
+	)
+}
+
+function selectPartValuesForVariant(row: CategoryRow, variant: Variant): Record<string, string> {
+	const values: Record<string, string> = {}
+	for (const [partIndex, part] of variant.sentences.entries()) {
+		if (part.type === 'select') {
+			const partPath = String(partIndex)
+			values[partPath] = selectPartValue(row, variant.id, partPath)
+		}
+		if (part.type === 'optionalGroup') {
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				if (childPart.type !== 'select') continue
+				const partPath = `${partIndex}.${childIndex}`
+				values[partPath] = selectPartValue(row, variant.id, partPath)
 			}
 		}
 	}
@@ -582,6 +632,7 @@ function toggleCategoryBody(categoryId: string) {
 										:preview-gender="studentGender"
 										:name-part-selections="namePartSelectionsForVariant(row, variant)"
 										:input-part-values="inputPartValuesForVariant(row, variant)"
+										:select-part-values="selectPartValuesForVariant(row, variant)"
 										:optional-part-enabled-map="row.optionalPartOverrides"
 										:text-class="'text-xs text-default'"
 										@toggle-optional-group="
@@ -597,6 +648,10 @@ function toggleCategoryBody(categoryId: string) {
 										@set-input-part-value="
 											(partIndex, value) =>
 												setInputPartValue(row, variant, partIndex, value)
+										"
+										@set-select-part-value="
+											(partIndex, value) =>
+												setSelectPartValue(row, variant, partIndex, value)
 										"
 									/>
 								</div>
@@ -675,6 +730,7 @@ function toggleCategoryBody(categoryId: string) {
 												:preview-gender="studentGender"
 												:name-part-selections="namePartSelectionsForVariant(row, variant)"
 												:input-part-values="inputPartValuesForVariant(row, variant)"
+												:select-part-values="selectPartValuesForVariant(row, variant)"
 												:optional-part-enabled-map="row.optionalPartOverrides"
 												:text-class="'text-sm text-muted'"
 												@toggle-optional-group="
@@ -690,6 +746,10 @@ function toggleCategoryBody(categoryId: string) {
 												@set-input-part-value="
 													(partIndex, value) =>
 														setInputPartValue(row, variant, partIndex, value)
+												"
+												@set-select-part-value="
+													(partIndex, value) =>
+														setSelectPartValue(row, variant, partIndex, value)
 												"
 											/>
 										</div>

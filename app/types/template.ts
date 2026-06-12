@@ -3,6 +3,7 @@ export type OptionalGroupChildPart =
 	| { type: 'genderVariant'; value: [string, string] }
 	| { type: 'name'; value?: string }
 	| { type: 'input'; placeholder?: string }
+	| { type: 'select'; options: string[]; placeholder?: string }
 
 export type SentencePart =
 	| OptionalGroupChildPart
