@@ -41,12 +41,14 @@ type SentencePart =
 	| { type: 'text', value: string }
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
+	| { type: 'input', placeholder?: string }
 	| { type: 'optionalGroup', id: string, enabledByDefault: boolean, parts: OptionalGroupChildPart[] }
 
 type OptionalGroupChildPart =
 	| { type: 'text', value: string }
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
+	| { type: 'input', placeholder?: string }
 
 function assertUuid(value: string, field: string) {
 	if (!uuidPattern.test(value)) throw new ConvexError(`${field} must be a UUID`)
@@ -85,6 +87,10 @@ function validateChildPart(part: OptionalGroupChildPart, field: string) {
 	}
 	if (part.type === 'genderVariant') {
 		assertGenderVariantValue(part.value, `${field}.value`)
+		return
+	}
+	if (part.type === 'input') {
+		assertText(part.placeholder, `${field}.placeholder`)
 		return
 	}
 	assertText(part.value, `${field}.value`)

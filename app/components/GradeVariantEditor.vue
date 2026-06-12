@@ -40,6 +40,7 @@ const emit = defineEmits<{
 	addSentencePart: []
 	addSentencePartToGroup: [groupIndex: number]
 	quickAddName: []
+	quickAddInput: []
 	quickAddOptionalGroup: []
 	quickAddGenderVariant: [value: [string, string]]
 	createGenderVariant: []
@@ -77,6 +78,8 @@ function sentencePartLabel(part: SentencePart | OptionalGroupChildPart): string 
 		case 'text': return part.value || '(leer)'
 		case 'genderVariant': return `${part.value[0] ?? ''}/${part.value[1] ?? ''}`
 		case 'name': return 'Name'
+		case 'input':
+			return part.placeholder?.trim() ? `Eingabe (${part.placeholder.trim()})` : 'Eingabe'
 		case 'optionalGroup':
 			return `Optionale Gruppe (${part.enabledByDefault ? 'aktiv' : 'inaktiv'})`
 		default: return ''
@@ -260,6 +263,7 @@ function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGrou
 				:gender-variants="genderVariants"
 				@add-text="emit('addSentencePart')"
 				@add-name="emit('quickAddName')"
+				@add-input="emit('quickAddInput')"
 				@add-optional-group="emit('quickAddOptionalGroup')"
 				@add-gender-variant="emit('quickAddGenderVariant', $event)"
 				@create-gender-variant="emit('createGenderVariant')"
@@ -315,7 +319,7 @@ function sentencePartAtPath(path: SentencePartPath): SentencePart | OptionalGrou
 				</template>
 				<template #actions="{ part, partIndex }">
 					<UButton
-						v-if="part.type === 'text' || part.type === 'genderVariant'"
+						v-if="part.type === 'text' || part.type === 'genderVariant' || part.type === 'input'"
 						icon="i-lucide-pencil"
 						color="neutral"
 						variant="ghost"

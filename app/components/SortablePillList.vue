@@ -67,6 +67,9 @@ function defaultPartLabel(part: SentencePart | OptionalGroupChildPart): string {
 	if (part.type === 'optionalGroup') {
 		return `Optionale Gruppe (${part.enabledByDefault ? 'aktiv' : 'inaktiv'})`
 	}
+	if (part.type === 'input') {
+		return part.placeholder?.trim() ? `Eingabe (${part.placeholder.trim()})` : 'Eingabe'
+	}
 	return 'Name'
 }
 
@@ -211,7 +214,7 @@ function partPathId(path: SentencePartPath): string {
 }
 
 function canEditPart(part: SentencePart | OptionalGroupChildPart): boolean {
-	return part.type === 'text' || part.type === 'genderVariant'
+	return part.type === 'text' || part.type === 'genderVariant' || part.type === 'input'
 }
 
 const partsSignature = computed(() =>

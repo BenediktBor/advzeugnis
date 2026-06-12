@@ -1,5 +1,6 @@
 export type NamePartReplacementKey = 'erSie'
 export type NamePartOverrides = Record<string, NamePartReplacementKey>
+export type InputPartOverrides = Record<string, string>
 
 export interface ReportSelection {
 	categories: Record<string, {
@@ -7,6 +8,7 @@ export interface ReportSelection {
 		variantIds: string[]
 		optionalPartOverrides?: Record<string, boolean>
 		namePartOverrides?: NamePartOverrides
+		inputPartOverrides?: InputPartOverrides
 	}>
 	selectedSubjectId?: string
 	expandedCategoryIds?: string[]

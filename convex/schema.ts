@@ -28,12 +28,14 @@ export const optionalGroupChildPartValidator = v.union(
 	v.object({ type: v.literal('text'), value: v.string() }),
 	v.object({ type: v.literal('genderVariant'), value: v.array(v.string()) }),
 	v.object({ type: v.literal('name'), value: v.optional(v.string()) }),
+	v.object({ type: v.literal('input'), placeholder: v.optional(v.string()) }),
 )
 
 export const sentencePartValidator = v.union(
 	v.object({ type: v.literal('text'), value: v.string() }),
 	v.object({ type: v.literal('genderVariant'), value: v.array(v.string()) }),
 	v.object({ type: v.literal('name'), value: v.optional(v.string()) }),
+	v.object({ type: v.literal('input'), placeholder: v.optional(v.string()) }),
 	v.object({
 		type: v.literal('optionalGroup'),
 		id: v.string(),

@@ -6,6 +6,7 @@ const partType = defineModel<SentencePartEditorType>('partType', { required: tru
 const partText = defineModel<string>('partText', { required: true })
 const partMale = defineModel<string>('partMale', { required: true })
 const partFemale = defineModel<string>('partFemale', { required: true })
+const partInputPlaceholder = defineModel<string>('partInputPlaceholder', { required: true })
 const optionalEnabledByDefault = defineModel<boolean>('optionalEnabledByDefault', { required: true })
 
 const props = withDefaults(
@@ -106,6 +107,17 @@ function onGenderPresetClick(male: string, female: string) {
 
 		<template v-else-if="partType === 'name'">
 			<p class="mt-3 text-sm text-muted">Keine weitere Eingabe nötig.</p>
+		</template>
+
+		<template v-else-if="partType === 'input'">
+			<UFormField label="Platzhalter (optional)" name="sentence-part-input-placeholder" class="mt-3">
+				<UInput
+					v-model="partInputPlaceholder"
+					placeholder="z. B. Projektname"
+					:autofocus="props.autofocus !== false"
+					@keydown.enter="emit('submit')"
+				/>
+			</UFormField>
 		</template>
 
 		<template v-else-if="partType === 'optionalGroup'">

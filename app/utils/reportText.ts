@@ -1,4 +1,5 @@
 import type {
+	InputPartOverrides,
 	NamePartOverrides,
 	NamePartReplacementKey,
 	ReportSelection,
@@ -200,6 +201,7 @@ function resolveSentencePart(
 	gender: Gender,
 	optionalPartOverrides: OptionalPartOverrides = {},
 	namePartOverrides: NamePartOverrides = {},
+	inputPartOverrides: InputPartOverrides = {},
 	isSentenceStart = false,
 	resolvedPartsBefore: string[] = []
 ): string {
@@ -217,6 +219,8 @@ function resolveSentencePart(
 			// When `value` is missing, fall back to the student's first name.
 			return part.value?.trim() ?? firstName
 		}
+		case 'input':
+			return inputPartOverrides[namePartOverrideKey(variantId, partPath)]?.trim() ?? ''
 		case 'optionalGroup': {
 			if (!isOptionalPartEnabled(part, optionalPartOverrides)) return ''
 			const groupResolvedParts: string[] = []
@@ -230,6 +234,7 @@ function resolveSentencePart(
 					gender,
 					optionalPartOverrides,
 					namePartOverrides,
+					inputPartOverrides,
 					isNextResolvedPartSentenceStart(resolvedParts),
 					resolvedParts
 				).trim()
@@ -262,7 +267,8 @@ function resolveVariantToText(
 	firstName: string,
 	gender: Gender,
 	optionalPartOverrides: OptionalPartOverrides = {},
-	namePartOverrides: NamePartOverrides = {}
+	namePartOverrides: NamePartOverrides = {},
+	inputPartOverrides: InputPartOverrides = {}
 ): string {
 	const resolvedParts: string[] = []
 	for (const [partIndex, part] of variant.sentences.entries()) {
@@ -274,6 +280,7 @@ function resolveVariantToText(
 			gender,
 			optionalPartOverrides,
 			namePartOverrides,
+			inputPartOverrides,
 			isNextResolvedPartSentenceStart(resolvedParts),
 			resolvedParts
 		).trim()
@@ -287,7 +294,8 @@ export function buildVariantPreviewText(
 	student: Pick<Student, 'name' | 'gender'>,
 	variant: Variant,
 	optionalPartOverrides: OptionalPartOverrides = {},
-	namePartOverrides: NamePartOverrides = {}
+	namePartOverrides: NamePartOverrides = {},
+	inputPartOverrides: InputPartOverrides = {}
 ): string {
 	const firstName = student.name?.trim() ?? ''
 	return resolveVariantToText(
@@ -295,7 +303,8 @@ export function buildVariantPreviewText(
 		firstName,
 		student.gender,
 		optionalPartOverrides,
-		namePartOverrides
+		namePartOverrides,
+		inputPartOverrides
 	)
 }
 
@@ -303,11 +312,12 @@ export function buildVariantsPreviewText(
 	student: Pick<Student, 'name' | 'gender'>,
 	variants: Variant[],
 	optionalPartOverrides: OptionalPartOverrides = {},
-	namePartOverrides: NamePartOverrides = {}
+	namePartOverrides: NamePartOverrides = {},
+	inputPartOverrides: InputPartOverrides = {}
 ): string {
 	return variants
 		.map((variant) =>
-			buildVariantPreviewText(student, variant, optionalPartOverrides, namePartOverrides)
+			buildVariantPreviewText(student, variant, optionalPartOverrides, namePartOverrides, inputPartOverrides)
 		)
 		.filter(Boolean)
 		.join(' ')
@@ -318,6 +328,7 @@ export interface EffectiveCategoryEntry {
 	variantIds: string[]
 	optionalPartOverrides?: OptionalPartOverrides
 	namePartOverrides?: NamePartOverrides
+	inputPartOverrides?: InputPartOverrides
 }
 
 /**
@@ -361,6 +372,9 @@ export function getEffectiveCategoryEntry(
 	if (entry?.namePartOverrides) {
 		result.namePartOverrides = entry.namePartOverrides
 	}
+	if (entry?.inputPartOverrides) {
+		result.inputPartOverrides = entry.inputPartOverrides
+	}
 	return result
 }
 
@@ -390,7 +404,8 @@ export function buildReportSegments(
 					{ name: firstName, gender },
 					variant,
 					effective.optionalPartOverrides,
-					effective.namePartOverrides
+					effective.namePartOverrides,
+					effective.inputPartOverrides
 				)
 				if (!text) continue
 				segments.push({

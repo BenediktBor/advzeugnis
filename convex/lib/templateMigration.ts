@@ -28,12 +28,14 @@ type SentencePart =
 	| { type: 'text', value: string }
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
+	| { type: 'input', placeholder?: string }
 	| { type: 'optionalGroup', id: string, enabledByDefault: boolean, parts: OptionalGroupChildPart[] }
 
 type OptionalGroupChildPart =
 	| { type: 'text', value: string }
 	| { type: 'genderVariant', value: string[] }
 	| { type: 'name', value?: string }
+	| { type: 'input', placeholder?: string }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -63,6 +65,11 @@ function migrateChildPart(part: unknown): OptionalGroupChildPart {
 		return typeof part.value === 'string'
 			? { type: 'name', value: part.value }
 			: { type: 'name' }
+	}
+	if (part.type === 'input') {
+		return typeof part.placeholder === 'string'
+			? { type: 'input', placeholder: part.placeholder }
+			: { type: 'input' }
 	}
 	return { type: 'text', value: stringOr(part.value, '') }
 }

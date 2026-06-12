@@ -25,6 +25,7 @@ const {
 	partText,
 	partMale,
 	partFemale,
+	partInputPlaceholder,
 	optionalEnabledByDefault,
 	addPartTabItems,
 	addPartHelp,
@@ -74,6 +75,7 @@ const {
 					v-model:part-text="partText"
 					v-model:part-male="partMale"
 					v-model:part-female="partFemale"
+					v-model:part-input-placeholder="partInputPlaceholder"
 					v-model:optional-enabled-by-default="optionalEnabledByDefault"
 					:add-part-tab-items="addPartTabItems"
 					:add-part-help="addPartHelp"
@@ -98,6 +100,7 @@ const {
 					v-model:part-text="partText"
 					v-model:part-male="partMale"
 					v-model:part-female="partFemale"
+					v-model:part-input-placeholder="partInputPlaceholder"
 					v-model:optional-enabled-by-default="optionalEnabledByDefault"
 					:add-part-tab-items="addPartTabItems"
 					:add-part-help="addPartHelp"

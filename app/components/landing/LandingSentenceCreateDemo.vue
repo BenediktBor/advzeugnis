@@ -17,6 +17,7 @@ const {
 	movePartBetweenGroups,
 	toggleGroupDefault,
 	addQuickNamePart,
+	addQuickInputPart,
 	addQuickOptionalGroup,
 	applyGenderVariant,
 } = useLandingSentenceEditorContext()
@@ -35,6 +36,7 @@ const genderVariants = computed(() => collectGenderVariantsFromTemplateSet(landi
 				:gender-variants="genderVariants"
 				@add-text="openAddModal()"
 				@add-name="addQuickNamePart"
+				@add-input="addQuickInputPart"
 				@add-optional-group="addQuickOptionalGroup"
 				@add-gender-variant="applyGenderVariant"
 				@create-gender-variant="openAddModalForGenderVariant()"

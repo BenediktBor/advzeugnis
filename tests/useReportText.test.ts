@@ -1236,6 +1236,48 @@ describe('preview helpers', () => {
 			resolveGenderVariantValue(['er', 'sie'], 'male')
 		)
 	})
+
+	it('resolves input parts from overrides and omits empty values', () => {
+		const student = makeStudent()
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{ type: 'text' as const, value: 'Projekt:' },
+				{ type: 'input' as const },
+				{ type: 'text' as const, value: 'abgeschlossen.' },
+			],
+		}
+
+		expect(buildVariantPreviewText(student, variant)).toBe('Projekt: abgeschlossen.')
+		expect(buildVariantPreviewText(student, variant, {}, {}, {
+			[namePartOverrideKey('v1', 1)]: 'Mathematik',
+		})).toBe('Projekt: Mathematik abgeschlossen.')
+	})
+
+	it('resolves input parts inside optional groups', () => {
+		const student = makeStudent()
+		const variant = {
+			id: 'v1',
+			label: '1',
+			sentences: [
+				{
+					type: 'optionalGroup' as const,
+					id: 'optional-group-1',
+					enabledByDefault: true,
+					parts: [
+						{ type: 'text' as const, value: 'Thema' },
+						{ type: 'input' as const, placeholder: 'Projektname' },
+					],
+				},
+			],
+		}
+
+		expect(buildVariantPreviewText(student, variant)).toBe('Thema.')
+		expect(buildVariantPreviewText(student, variant, {}, {}, {
+			[namePartOverrideKey('v1', '0.1')]: 'Lesen',
+		})).toBe('Thema Lesen.')
+	})
 })
 
 describe('selection helpers', () => {

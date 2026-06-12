@@ -16,17 +16,20 @@ export type AzSubjectExportPayload = {
 const TextSentencePartSchema = z.object({ type: z.literal('text'), value: z.string() })
 const GenderVariantSentencePartSchema = z.object({ type: z.literal('genderVariant'), value: z.tuple([z.string(), z.string()]) })
 const NameSentencePartSchema = z.object({ type: z.literal('name'), value: z.string().optional() })
+const InputSentencePartSchema = z.object({ type: z.literal('input'), placeholder: z.string().optional() })
 
 export const OptionalGroupChildPartSchema = z.discriminatedUnion('type', [
 	TextSentencePartSchema,
 	GenderVariantSentencePartSchema,
 	NameSentencePartSchema,
+	InputSentencePartSchema,
 ])
 
 export const SentencePartSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('text'), value: z.string() }),
 	z.object({ type: z.literal('genderVariant'), value: z.tuple([z.string(), z.string()]) }),
 	z.object({ type: z.literal('name'), value: z.string().optional() }),
+	z.object({ type: z.literal('input'), placeholder: z.string().optional() }),
 	z.object({
 		type: z.literal('optionalGroup'),
 		id: z.string().uuid(),

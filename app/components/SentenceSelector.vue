@@ -4,7 +4,7 @@ import {
 	isOptionalPartEnabled,
 	namePartOverrideKey,
 } from '~/utils/reportText'
-import type { NamePartOverrides, NamePartReplacementKey } from '~/types/student'
+import type { InputPartOverrides, NamePartOverrides, NamePartReplacementKey } from '~/types/student'
 import type { Category, Grade, SentencePart, Variant } from '~/types/template'
 
 type OptionalPart = Extract<SentencePart, { type: 'optionalGroup' }>
@@ -20,6 +20,7 @@ export interface CategoryRow {
 	selectedVariantIds: string[]
 	optionalPartOverrides: Record<string, boolean>
 	namePartOverrides: NamePartOverrides
+	inputPartOverrides: InputPartOverrides
 	variants: Variant[]
 	selectedPreviewText: string
 	variantPreviewById: Record<string, string>
@@ -59,6 +60,13 @@ const emit = defineEmits<{
 		variantId: string,
 		partPath: string,
 		replacementKey: NamePartReplacementKey | null,
+	]
+	setInputPartValue: [
+		categoryId: string,
+		category: Category,
+		variantId: string,
+		partPath: string,
+		value: string,
 	]
 	selectAllVariants: [categoryId: string, category: Category]
 	clearAllVariants: [categoryId: string, category: Category]
@@ -152,6 +160,30 @@ function setNamePartReplacement(
 	)
 }
 
+function inputPartValue(
+	row: CategoryRow,
+	variantId: string,
+	partPath: string
+): string {
+	return row.inputPartOverrides[namePartOverrideKey(variantId, partPath)] ?? ''
+}
+
+function setInputPartValue(
+	row: CategoryRow,
+	variant: Variant,
+	partPath: string,
+	value: string
+) {
+	emit(
+		'setInputPartValue',
+		row.categoryId,
+		row.category,
+		variant.id,
+		partPath,
+		value
+	)
+}
+
 function namePartSelectionsForVariant(row: CategoryRow, variant: Variant): Record<string, NamePartSelectionValue> {
 	const selections: Record<string, NamePartSelectionValue> = {}
 	for (const [partIndex, part] of variant.sentences.entries()) {
@@ -168,6 +200,24 @@ function namePartSelectionsForVariant(row: CategoryRow, variant: Variant): Recor
 		}
 	}
 	return selections
+}
+
+function inputPartValuesForVariant(row: CategoryRow, variant: Variant): Record<string, string> {
+	const values: Record<string, string> = {}
+	for (const [partIndex, part] of variant.sentences.entries()) {
+		if (part.type === 'input') {
+			const partPath = String(partIndex)
+			values[partPath] = inputPartValue(row, variant.id, partPath)
+		}
+		if (part.type === 'optionalGroup') {
+			for (const [childIndex, childPart] of part.parts.entries()) {
+				if (childPart.type !== 'input') continue
+				const partPath = `${partIndex}.${childIndex}`
+				values[partPath] = inputPartValue(row, variant.id, partPath)
+			}
+		}
+	}
+	return values
 }
 
 function variantSummary(row: CategoryRow): string {
@@ -531,6 +581,7 @@ function toggleCategoryBody(categoryId: string) {
 										:preview-name="studentName.trim()"
 										:preview-gender="studentGender"
 										:name-part-selections="namePartSelectionsForVariant(row, variant)"
+										:input-part-values="inputPartValuesForVariant(row, variant)"
 										:optional-part-enabled-map="row.optionalPartOverrides"
 										:text-class="'text-xs text-default'"
 										@toggle-optional-group="
@@ -542,6 +593,10 @@ function toggleCategoryBody(categoryId: string) {
 										@set-name-part-selection="
 											(partIndex, value) =>
 												setNamePartReplacement(row, variant, partIndex, value)
+										"
+										@set-input-part-value="
+											(partIndex, value) =>
+												setInputPartValue(row, variant, partIndex, value)
 										"
 									/>
 								</div>
@@ -619,6 +674,7 @@ function toggleCategoryBody(categoryId: string) {
 												:preview-name="studentName.trim()"
 												:preview-gender="studentGender"
 												:name-part-selections="namePartSelectionsForVariant(row, variant)"
+												:input-part-values="inputPartValuesForVariant(row, variant)"
 												:optional-part-enabled-map="row.optionalPartOverrides"
 												:text-class="'text-sm text-muted'"
 												@toggle-optional-group="
@@ -630,6 +686,10 @@ function toggleCategoryBody(categoryId: string) {
 												@set-name-part-selection="
 													(partIndex, value) =>
 														setNamePartReplacement(row, variant, partIndex, value)
+												"
+												@set-input-part-value="
+													(partIndex, value) =>
+														setInputPartValue(row, variant, partIndex, value)
 												"
 											/>
 										</div>

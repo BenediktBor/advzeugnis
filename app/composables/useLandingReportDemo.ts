@@ -43,6 +43,10 @@ export function useLandingReportDemo(
 		return getStoredCategoryEntry(categoryId)?.namePartOverrides ?? {}
 	}
 
+	function getInputPartOverrides(categoryId: string) {
+		return getStoredCategoryEntry(categoryId)?.inputPartOverrides ?? {}
+	}
+
 	function getSelectedSubjectId() {
 		return student.value.reportSelection?.selectedSubjectId ?? null
 	}
@@ -92,6 +96,7 @@ export function useLandingReportDemo(
 				variantIds: firstVariantIds,
 				optionalPartOverrides: getOptionalPartOverrides(categoryId),
 				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: getInputPartOverrides(categoryId),
 			},
 		}
 		patchReportSelection({ categories: next })
@@ -120,6 +125,7 @@ export function useLandingReportDemo(
 				variantIds: next,
 				optionalPartOverrides: getOptionalPartOverrides(categoryId),
 				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: getInputPartOverrides(categoryId),
 			},
 		}
 		patchReportSelection({ categories: nextCategories })
@@ -144,6 +150,7 @@ export function useLandingReportDemo(
 				variantIds: nextVariantIds,
 				optionalPartOverrides: getOptionalPartOverrides(categoryId),
 				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: getInputPartOverrides(categoryId),
 			},
 		}
 		patchReportSelection({ categories: nextCategories })
@@ -175,6 +182,7 @@ export function useLandingReportDemo(
 				variantIds: [],
 				optionalPartOverrides: getOptionalPartOverrides(categoryId),
 				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: getInputPartOverrides(categoryId),
 			},
 		}
 		patchReportSelection({ categories: nextCategories })
@@ -206,6 +214,7 @@ export function useLandingReportDemo(
 					[partId]: enabled,
 				},
 				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: getInputPartOverrides(categoryId),
 			},
 		}
 		patchReportSelection({ categories: nextCategories })
@@ -236,6 +245,39 @@ export function useLandingReportDemo(
 				variantIds: entry.variantIds,
 				optionalPartOverrides: getOptionalPartOverrides(categoryId),
 				namePartOverrides: nextNamePartOverrides,
+				inputPartOverrides: getInputPartOverrides(categoryId),
+			},
+		}
+		patchReportSelection({ categories: nextCategories })
+		focusedCategoryId.value = categoryId
+		lastChangedVariantId.value = variantId
+	}
+
+	function setInputPartValue(
+		categoryId: string,
+		category: Category,
+		variantId: string,
+		partPath: string,
+		value: string
+	) {
+		const entry = getCategoryEntry(category)
+		if (!entry.gradeId) return
+		const nextInputPartOverrides = { ...getInputPartOverrides(categoryId) }
+		const key = namePartOverrideKey(variantId, partPath)
+		const trimmed = value.trim()
+		if (trimmed) {
+			nextInputPartOverrides[key] = trimmed
+		} else {
+			delete nextInputPartOverrides[key]
+		}
+		const nextCategories = {
+			...student.value.reportSelection?.categories,
+			[categoryId]: {
+				gradeId: entry.gradeId,
+				variantIds: entry.variantIds,
+				optionalPartOverrides: getOptionalPartOverrides(categoryId),
+				namePartOverrides: getNamePartOverrides(categoryId),
+				inputPartOverrides: nextInputPartOverrides,
 			},
 		}
 		patchReportSelection({ categories: nextCategories })
@@ -264,6 +306,7 @@ export function useLandingReportDemo(
 				)
 				const optionalPartOverrides = getOptionalPartOverrides(category.id)
 				const namePartOverrides = getNamePartOverrides(category.id)
+				const inputPartOverrides = getInputPartOverrides(category.id)
 				return {
 					subjectLabel: subject.label || 'Unbenannt',
 					categoryId: category.id,
@@ -274,12 +317,14 @@ export function useLandingReportDemo(
 					selectedVariantIds: entry.variantIds,
 					optionalPartOverrides,
 					namePartOverrides,
+					inputPartOverrides,
 					variants: grade?.variants ?? [],
 					selectedPreviewText: buildVariantsPreviewText(
 						s,
 						selectedVariants,
 						optionalPartOverrides,
-						namePartOverrides
+						namePartOverrides,
+						inputPartOverrides
 					),
 					variantPreviewById: Object.fromEntries(
 						(grade?.variants ?? []).map((variant) => [
@@ -288,7 +333,8 @@ export function useLandingReportDemo(
 								s,
 								variant,
 								optionalPartOverrides,
-								namePartOverrides
+								namePartOverrides,
+								inputPartOverrides
 							),
 						])
 					),
@@ -354,6 +400,7 @@ export function useLandingReportDemo(
 		focusCategory,
 		toggleOptionalPart,
 		setNamePartReplacement,
+		setInputPartValue,
 		setStudentGender,
 		setStudentName,
 	}

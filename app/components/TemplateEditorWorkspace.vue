@@ -982,18 +982,20 @@ function handleTemplateClipboardKeydown(event: KeyboardEvent) {
 }
 
 const addPartModalOpen = ref(false)
-type AddPartType = 'text' | 'genderVariant' | 'name' | 'optionalGroup'
+type AddPartType = 'text' | 'genderVariant' | 'name' | 'input' | 'optionalGroup'
 const addPartType = ref<AddPartType>('text')
 const addPartTargetGroupIndex = ref<number | null>(null)
 const addPartText = ref('')
 const addPartMale = ref('')
 const addPartFemale = ref('')
+const addPartInputPlaceholder = ref('')
 const addPartOptionalEnabledByDefault = ref(true)
 const addPartTabItems = computed(() => {
 	const items: Array<{ value: AddPartType; label: string }> = [
 		{ value: 'text' as const, label: 'Text' },
 		{ value: 'genderVariant' as const, label: 'Variabler Text' },
 		{ value: 'name' as const, label: 'Name' },
+		{ value: 'input' as const, label: 'Eingabe' },
 	]
 	if (addPartTargetGroupIndex.value === null) {
 		items.push({ value: 'optionalGroup' as const, label: 'Optionale Gruppe' })
@@ -1008,6 +1010,7 @@ function openAddPartModal(groupIndex: number | null = null) {
 	addPartText.value = ''
 	addPartMale.value = ''
 	addPartFemale.value = ''
+	addPartInputPlaceholder.value = ''
 	addPartOptionalEnabledByDefault.value = true
 	addPartModalOpen.value = true
 }
@@ -1037,6 +1040,11 @@ function confirmAddPart() {
 		case 'name':
 			part = { type: 'name' }
 			break
+		case 'input': {
+			const placeholder = addPartInputPlaceholder.value.trim()
+			part = placeholder ? { type: 'input', placeholder } : { type: 'input' }
+			break
+		}
 		case 'optionalGroup':
 			part = {
 				type: 'optionalGroup',
@@ -1081,6 +1089,11 @@ function insertSentencePart(part: SentencePart | OptionalGroupChildPart) {
 function addQuickNamePart() {
 	addPartTargetGroupIndex.value = null
 	insertSentencePart({ type: 'name' })
+}
+
+function addQuickInputPart() {
+	addPartTargetGroupIndex.value = null
+	insertSentencePart({ type: 'input' })
 }
 
 function addQuickOptionalGroupPart() {
@@ -1164,10 +1177,11 @@ function confirmEditLabel() {
 }
 
 const editPartModalOpen = ref(false)
-const editPartType = ref<'text' | 'genderVariant'>('text')
+const editPartType = ref<'text' | 'genderVariant' | 'input'>('text')
 const editPartText = ref('')
 const editPartMale = ref('')
 const editPartFemale = ref('')
+const editPartInputPlaceholder = ref('')
 const editPartSaveCallback = ref<((part: OptionalGroupChildPart) => void) | null>(null)
 
 function openEditPartModal(part: SentencePart | OptionalGroupChildPart, onSave: (part: OptionalGroupChildPart) => void) {
@@ -1179,6 +1193,9 @@ function openEditPartModal(part: SentencePart | OptionalGroupChildPart, onSave: 
 		editPartType.value = 'genderVariant'
 		editPartMale.value = part.value[0] ?? ''
 		editPartFemale.value = part.value[1] ?? ''
+	} else if (part.type === 'input') {
+		editPartType.value = 'input'
+		editPartInputPlaceholder.value = part.placeholder ?? ''
 	} else {
 		return
 	}
@@ -1190,6 +1207,9 @@ function confirmEditPart() {
 	let part: OptionalGroupChildPart
 	if (editPartType.value === 'text') {
 		part = { type: 'text', value: editPartText.value.trim() }
+	} else if (editPartType.value === 'input') {
+		const placeholder = editPartInputPlaceholder.value.trim()
+		part = placeholder ? { type: 'input', placeholder } : { type: 'input' }
 	} else {
 		part = {
 			type: 'genderVariant',
@@ -1336,6 +1356,7 @@ onBeforeUnmount(() => {
 					@add-sentence-part="openAddPartModal"
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
+					@quick-add-input="addQuickInputPart"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
 					@quick-add-gender-variant="applyGenderVariant"
 					@create-gender-variant="openAddPartModalForGenderVariant"
@@ -1396,6 +1417,7 @@ onBeforeUnmount(() => {
 					@add-sentence-part="openAddPartModal"
 					@add-sentence-part-to-group="openAddPartModal"
 					@quick-add-name="addQuickNamePart"
+					@quick-add-input="addQuickInputPart"
 					@quick-add-optional-group="addQuickOptionalGroupPart"
 					@quick-add-gender-variant="applyGenderVariant"
 					@create-gender-variant="openAddPartModalForGenderVariant"
@@ -1463,6 +1485,7 @@ onBeforeUnmount(() => {
 				v-model:part-text="addPartText"
 				v-model:part-male="addPartMale"
 				v-model:part-female="addPartFemale"
+				v-model:part-input-placeholder="addPartInputPlaceholder"
 				v-model:optional-enabled-by-default="addPartOptionalEnabledByDefault"
 				:add-part-tab-items="addPartTabItems"
 				:add-part-help="addPartHelp"
@@ -1503,6 +1526,16 @@ onBeforeUnmount(() => {
 						v-model="editPartFemale"
 						placeholder="z. B. Sie"
 						@submit="confirmEditPart"
+					/>
+				</UFormField>
+			</template>
+			<template v-else-if="editPartType === 'input'">
+				<UFormField label="Platzhalter (optional)" name="edit-part-input-placeholder">
+					<UInput
+						v-model="editPartInputPlaceholder"
+						placeholder="z. B. Projektname"
+						autofocus
+						@keydown.enter="confirmEditPart"
 					/>
 				</UFormField>
 			</template>

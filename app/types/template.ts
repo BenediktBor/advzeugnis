@@ -2,6 +2,7 @@ export type OptionalGroupChildPart =
 	| { type: 'text'; value: string }
 	| { type: 'genderVariant'; value: [string, string] }
 	| { type: 'name'; value?: string }
+	| { type: 'input'; placeholder?: string }
 
 export type SentencePart =
 	| OptionalGroupChildPart

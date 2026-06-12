@@ -13,6 +13,7 @@ const props = withDefaults(
 		previewName: string
 		previewGender: 'male' | 'female'
 		namePartSelections?: Record<string, NameSelectionValue>
+		inputPartValues?: Record<string, string>
 		optionalPartEnabledMap?: Record<string, boolean>
 		showNameReplacementSelect?: boolean
 		canEditOptional?: boolean
@@ -20,6 +21,7 @@ const props = withDefaults(
 	}>(),
 	{
 		namePartSelections: () => ({}),
+		inputPartValues: () => ({}),
 		optionalPartEnabledMap: () => ({}),
 		showNameReplacementSelect: true,
 		canEditOptional: true,
@@ -30,6 +32,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	toggleOptionalGroup: [partId: string, enabled: boolean]
 	setNamePartSelection: [partPath: string, value: NameSelectionValue]
+	setInputPartValue: [partPath: string, value: string]
 }>()
 
 function isOptionalEnabled(part: Extract<SentencePart, { type: 'optionalGroup' }>): boolean {
@@ -54,6 +57,14 @@ function optionalGroupEnabled(part: SentencePart): boolean {
 
 function partSelection(partPath: string): NameSelectionValue {
 	return props.namePartSelections[partPath] ?? 'name'
+}
+
+function inputPartValue(partPath: string): string {
+	return props.inputPartValues[partPath] ?? ''
+}
+
+function inputPlaceholder(part: Extract<InlinePart, { type: 'input' }>): string {
+	return part.placeholder?.trim() || 'Eingabe…'
 }
 
 function isSentenceStart(partsBefore: string[]): boolean {
@@ -112,6 +123,8 @@ function resolveInlinePart(part: InlinePart, partPath: string, partsBefore: stri
 			}
 			return props.previewName.trim()
 		}
+		case 'input':
+			return inputPartValue(partPath).trim()
 		default:
 			return ''
 	}
@@ -140,8 +153,18 @@ const previewSuffix = computed(() => {
 			v-for="(part, partIndex) in variant.sentences"
 			:key="`${variant.id}-${partIndex}`"
 		>
+			<UInput
+				v-if="part.type === 'input'"
+				:model-value="inputPartValue(String(partIndex))"
+				:placeholder="inputPlaceholder(part)"
+				size="xs"
+				class="mr-1.5 inline-block w-auto min-w-24 align-baseline"
+				@click.stop
+				@keydown.stop
+				@update:model-value="emit('setInputPartValue', String(partIndex), String($event ?? ''))"
+			/>
 			<USelectMenu
-				v-if="part.type === 'name' && showNameReplacementSelect"
+				v-else-if="part.type === 'name' && showNameReplacementSelect"
 				:model-value="partSelection(String(partIndex))"
 				:items="[
 					{ label: previewName || 'Name', value: 'name' },
@@ -178,8 +201,18 @@ const previewSuffix = computed(() => {
 						v-for="(childPart, childIndex) in optionalGroupParts(part)"
 						:key="`${variant.id}-${partIndex}-${childIndex}`"
 					>
+						<UInput
+							v-if="childPart.type === 'input' && optionalGroupEnabled(part)"
+							:model-value="inputPartValue(`${partIndex}.${childIndex}`)"
+							:placeholder="inputPlaceholder(childPart)"
+							size="xs"
+							class="inline-block w-auto min-w-24 align-baseline"
+							@click.stop
+							@keydown.stop
+							@update:model-value="emit('setInputPartValue', `${partIndex}.${childIndex}`, String($event ?? ''))"
+						/>
 						<USelectMenu
-							v-if="childPart.type === 'name' && showNameReplacementSelect && optionalGroupEnabled(part)"
+							v-else-if="childPart.type === 'name' && showNameReplacementSelect && optionalGroupEnabled(part)"
 							:model-value="partSelection(`${partIndex}.${childIndex}`)"
 							:items="[
 								{ label: previewName || 'Name', value: 'name' },

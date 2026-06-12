@@ -36,6 +36,7 @@ const hasTextOutput = computed(() => reportPlainText.value.trim().length > 0)
 				@toggle-variant="demo.toggleVariant"
 				@toggle-optional-part="demo.toggleOptionalPart"
 				@set-name-part-replacement="demo.setNamePartReplacement"
+				@set-input-part-value="demo.setInputPartValue"
 				@select-all-variants="demo.selectAllVariants"
 				@clear-all-variants="demo.clearAllVariants"
 				@update:selected-subject-id="demo.setSelectedSubjectId"

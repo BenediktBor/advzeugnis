@@ -16,6 +16,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	addText: []
 	addName: []
+	addInput: []
 	addOptionalGroup: []
 	addGenderVariant: [value: [string, string]]
 	createGenderVariant: []
@@ -59,6 +60,14 @@ const genderVariantMenuItems = computed(() => {
 			variant="soft"
 			color="neutral"
 			@click="emit('addName')"
+		/>
+		<UButton
+			label="Eingabe"
+			icon="i-lucide-text-cursor-input"
+			size="sm"
+			variant="soft"
+			color="neutral"
+			@click="emit('addInput')"
 		/>
 		<UButton
 			v-if="showOptionalGroup"

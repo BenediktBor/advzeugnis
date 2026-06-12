@@ -59,6 +59,19 @@ describe('Convex template validation', () => {
 		})).not.toThrow()
 	})
 
+	it('accepts input sentence parts with optional placeholder', () => {
+		const data = validTemplate()
+		data.subjects[0].categories[0].grades[0].variants[0].sentences.push({
+			type: 'input' as const,
+			placeholder: 'Projektname',
+		})
+		expect(() => validateTemplateInput({
+			templateId,
+			label: 'Klasse 5',
+			data,
+		})).not.toThrow()
+	})
+
 	it('accepts optional hidden flags on template sets and subjects', () => {
 		const data = validTemplate()
 		data.hidden = true

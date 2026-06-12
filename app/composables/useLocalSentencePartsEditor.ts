@@ -25,6 +25,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 	const partText = ref('')
 	const partMale = ref('')
 	const partFemale = ref('')
+	const partInputPlaceholder = ref('')
 	const optionalEnabledByDefault = ref(true)
 
 	const addPartTabItems = computed(() => {
@@ -32,6 +33,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			{ value: 'text', label: 'Text' },
 			{ value: 'genderVariant', label: 'Variabler Text' },
 			{ value: 'name', label: 'Name' },
+			{ value: 'input', label: 'Eingabe' },
 		]
 		if (targetGroupIndex.value === null) {
 			items.push({ value: 'optionalGroup', label: 'Optionale Gruppe' })
@@ -61,6 +63,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		partText.value = ''
 		partMale.value = ''
 		partFemale.value = ''
+		partInputPlaceholder.value = ''
 		optionalEnabledByDefault.value = true
 	}
 
@@ -75,6 +78,10 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 				}
 			case 'name':
 				return { type: 'name' }
+			case 'input': {
+				const placeholder = partInputPlaceholder.value.trim()
+				return placeholder ? { type: 'input', placeholder } : { type: 'input' }
+			}
 			case 'optionalGroup':
 				return {
 					type: 'optionalGroup',
@@ -118,17 +125,24 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 
 	function openEditModal(path: SentencePartPath) {
 		const part = partAtPath(path)
-		if (!part || (part.type !== 'text' && part.type !== 'genderVariant')) return
+		if (!part || (part.type !== 'text' && part.type !== 'genderVariant' && part.type !== 'input')) return
 		editPath.value = path
 		partType.value = part.type
 		if (part.type === 'text') {
 			partText.value = part.value
 			partMale.value = ''
 			partFemale.value = ''
-		} else {
+			partInputPlaceholder.value = ''
+		} else if (part.type === 'genderVariant') {
 			partText.value = ''
 			partMale.value = part.value[0] ?? ''
 			partFemale.value = part.value[1] ?? ''
+			partInputPlaceholder.value = ''
+		} else {
+			partText.value = ''
+			partMale.value = ''
+			partFemale.value = ''
+			partInputPlaceholder.value = part.placeholder ?? ''
 		}
 		editModalOpen.value = true
 	}
@@ -149,6 +163,13 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 			part.value = partText.value.trim()
 		} else if (partType.value === 'genderVariant' && part.type === 'genderVariant') {
 			part.value = [partMale.value.trim(), partFemale.value.trim()]
+		} else if (partType.value === 'input' && part.type === 'input') {
+			const placeholder = partInputPlaceholder.value.trim()
+			if (placeholder) {
+				part.placeholder = placeholder
+			} else {
+				delete part.placeholder
+			}
 		} else {
 			return
 		}
@@ -248,6 +269,10 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		sentences.value = [...cloneSentenceParts(sentences.value), { type: 'name' }]
 	}
 
+	function addQuickInputPart() {
+		sentences.value = [...cloneSentenceParts(sentences.value), { type: 'input' }]
+	}
+
 	function addQuickOptionalGroup() {
 		sentences.value = [
 			...cloneSentenceParts(sentences.value),
@@ -279,6 +304,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		partText,
 		partMale,
 		partFemale,
+		partInputPlaceholder,
 		optionalEnabledByDefault,
 		addPartTabItems,
 		addPartHelp,
@@ -296,6 +322,7 @@ export function useLocalSentencePartsEditor(initialSentences: SentencePart[]) {
 		movePartBetweenGroups,
 		toggleGroupDefault,
 		addQuickNamePart,
+		addQuickInputPart,
 		addQuickOptionalGroup,
 		applyGenderVariant,
 	}

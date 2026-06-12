@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NamePartOverrides } from '~/types/student'
+import type { InputPartOverrides, NamePartOverrides } from '~/types/student'
 import type { NamePartReplacementKey } from '~/types/student'
 import type { Variant } from '~/types/template'
 import {
@@ -38,11 +38,13 @@ const previewGenderItems = [
 const previewSettingsOpen = ref(false)
 
 const previewNameSelection = ref<Record<string, NamePreviewMode>>({})
+const previewInputValues = ref<Record<string, string>>({})
 
 watch(
 	() => props.variant.id,
 	() => {
 		previewNameSelection.value = {}
+		previewInputValues.value = {}
 	}
 )
 
@@ -72,11 +74,28 @@ function setNameSelection(partPath: string, value: NamePreviewMode) {
 	}
 }
 
+function setInputValue(partPath: string, value: string) {
+	previewInputValues.value = {
+		...previewInputValues.value,
+		[partPath]: value,
+	}
+}
+
 const namePartOverrides = computed<NamePartOverrides>(() => {
 	const overrides: NamePartOverrides = {}
 	for (const [partPath, selection] of Object.entries(previewNameSelection.value)) {
 		if (selection === 'name') continue
 		overrides[namePartOverrideKey(props.variant.id, partPath)] = selection
+	}
+	return overrides
+})
+
+const inputPartOverrides = computed<InputPartOverrides>(() => {
+	const overrides: InputPartOverrides = {}
+	for (const [partPath, value] of Object.entries(previewInputValues.value)) {
+		const trimmed = value.trim()
+		if (!trimmed) continue
+		overrides[namePartOverrideKey(props.variant.id, partPath)] = trimmed
 	}
 	return overrides
 })
@@ -89,7 +108,8 @@ const previewText = computed(() =>
 		},
 		props.variant,
 		{},
-		namePartOverrides.value
+		namePartOverrides.value,
+		inputPartOverrides.value
 	)
 )
 
@@ -150,12 +170,14 @@ function toggleOptionalGroupById(partId: string, enabled: boolean) {
 				:preview-name="previewName || defaultNameByGender[previewGender]"
 				:preview-gender="previewGender"
 				:name-part-selections="namePartSelections"
+				:input-part-values="previewInputValues"
 				:optional-part-enabled-map="optionalPartEnabledMap"
 				:can-edit-optional="canEdit"
 				@toggle-optional-group="toggleOptionalGroupById"
 				@set-name-part-selection="
 					(partIndex, value) => setNameSelection(partIndex, value)
 				"
+				@set-input-part-value="setInputValue"
 			/>
 			<p v-else class="text-muted">Kein Vorschautext vorhanden.</p>
 		</div>
