@@ -121,6 +121,23 @@ export const members = query({
 	},
 })
 
+export const resolveInviteByToken = query({
+	args: { token: v.string() },
+	handler: async (ctx, args) => {
+		const invite = await ctx.db
+			.query('invites')
+			.withIndex('by_token', (q) => q.eq('token', args.token))
+			.unique()
+		if (!invite) return { actionable: false, status: 'not_found' as const }
+		const expired = invite.expiresAt < Date.now()
+		const actionable = invite.status === 'pending' && !expired
+		return {
+			actionable,
+			status: expired && invite.status === 'pending' ? 'expired' as const : invite.status,
+		}
+	},
+})
+
 export const invites = query({
 	args: {},
 	handler: async (ctx) => {

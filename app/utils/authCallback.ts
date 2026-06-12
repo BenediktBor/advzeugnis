@@ -5,6 +5,16 @@ export function safeRedirectTarget(value: unknown) {
 	return redirect
 }
 
+export function resolveAuthenticatedRedirectTarget(
+	redirect: unknown,
+	hasSchool: boolean,
+	fallbackPath = '/app',
+) {
+	const target = safeRedirectTarget(redirect ?? fallbackPath)
+	if (hasSchool && target.startsWith('/invite/')) return '/'
+	return target
+}
+
 export function buildMagicLinkCallbackUrl(postLoginPath = '/app') {
 	return `/sign-in?redirect=${encodeURIComponent(postLoginPath)}`
 }

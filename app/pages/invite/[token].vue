@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useConvexQuery } from 'convex-vue'
 import { api } from '~/utils/convexApi'
 
 definePageMeta({ layout: 'default' })
@@ -11,7 +12,7 @@ useAppSeo({
 const route = useRoute()
 const router = useRouter()
 const client = useConvexClient()
-const { isAuthenticated, isLoaded } = useCurrentUser()
+const { isAuthenticated, isLoaded, hasSchool } = useCurrentUser()
 
 const isAccepting = ref(false)
 const error = ref('')
@@ -19,9 +20,37 @@ const error = ref('')
 const token = computed(() => String(route.params.token || ''))
 const isAuthReady = computed(() => isLoaded.value)
 
+const inviteStatusQuery = useConvexQuery(
+	api.schools.resolveInviteByToken,
+	() => ({ token: token.value }),
+	{ server: false },
+)
+
+const isInviteStatusReady = computed(() => !inviteStatusQuery.isPending.value)
+const isPageReady = computed(() => isAuthReady.value && isInviteStatusReady.value)
+
+function redirectHome() {
+	void router.replace('/')
+}
+
+watch(
+	[inviteStatusQuery.data, isAuthReady, isAuthenticated, hasSchool],
+	([inviteStatus, authReady, authenticated, school]) => {
+		if (!authReady || inviteStatusQuery.isPending.value) return
+		if (inviteStatus && !inviteStatus.actionable) {
+			redirectHome()
+			return
+		}
+		if (authenticated && school) {
+			redirectHome()
+		}
+	},
+	{ immediate: true },
+)
+
 async function onAccept() {
 	error.value = ''
-	if (!isAuthReady.value) return
+	if (!isPageReady.value) return
 	if (!isAuthenticated.value) {
 		await router.push({
 			path: '/sign-in',
@@ -76,8 +105,8 @@ async function onAccept() {
 			<div class="flex flex-col gap-4">
 				<UAlert v-if="error" color="error" variant="soft" :title="error" />
 				<AppStateNotice
-					v-if="!isAuthReady"
-					title="Anmeldung wird geprüft"
+					v-if="!isPageReady"
+					title="Einladung wird geprüft"
 					icon="i-lucide-loader-2"
 					loading
 				/>

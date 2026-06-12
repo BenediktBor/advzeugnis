@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useConvexClient } from 'convex-vue'
-import { safeRedirectTarget } from '~/utils/authCallback'
+import { resolveAuthenticatedRedirectTarget } from '~/utils/authCallback'
 import {
 	AUTH_POST_LOGIN_WAIT_MS,
 	clearStaleAuthSession,
@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<{
 const route = useRoute()
 const router = useRouter()
 const client = useConvexClient()
-const { isLoaded, isAuthenticated } = useCurrentUser()
+const { isLoaded, isAuthenticated, hasSchool } = useCurrentUser()
 const {
 	requestMagicLink,
 	requestPasswordReset,
@@ -63,7 +63,9 @@ const redirectQuery = computed(() => {
 	return typeof redirect === 'string' ? { redirect } : undefined
 })
 
-const redirectTo = computed(() => safeRedirectTarget(route.query.redirect))
+const redirectTo = computed(() =>
+	resolveAuthenticatedRedirectTarget(route.query.redirect, hasSchool.value),
+)
 
 const showSignUpPromo = computed(() => mode.value === 'signIn' && !pendingVerificationEmail.value)
 
